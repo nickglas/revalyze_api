@@ -1,0 +1,25 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo-data:/data/db
+
+  revalyze:
+    build: .
+    container_name: api
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - PORT=3000
+      - MONGODB_URI=mongodb://mongo:27017/revalyze
+      - JWT_SECRET=your-super-secret
+    depends_on:
+      - mongo
+
+volumes:
+  mongo-data:
