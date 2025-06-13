@@ -47,5 +47,12 @@ jobs:
               cd /home/ubuntu/revalyze && git pull origin develop
             fi
 
+            # Ensure namespaces exist
+            microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
+            microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
+
+            # Apply Kubernetes manifests
             microk8s.kubectl apply -f k8s/
+
+            # Restart deployment
             microk8s.kubectl rollout restart deployment/revalyze-api -n revalyze
