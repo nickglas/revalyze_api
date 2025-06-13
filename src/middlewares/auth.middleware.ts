@@ -22,7 +22,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
         email: decoded.email,
         role: decoded.role,
       };
-      next(); // continue to the controller
+      next();
     } else {
       res.status(401).json({ message: 'Invalid token payload' });
     }
