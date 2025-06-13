@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: revalyze-api
+  namespace: revalyze
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: revalyze-api
+  template:
+    metadata:
+      labels:
+        app: revalyze-api
+    spec:
+      containers:
+        - name: revalyze-api
+          image: nickglas/revalyze-api:latest
+          ports:
+            - containerPort: 4500
+          env:
+            - name: PORT
+              value: "4500"
+            - name: MONGODB_URI
+              value: "mongodb://mongo:27017/revalyze"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: api-secret
+                  key: jwt
