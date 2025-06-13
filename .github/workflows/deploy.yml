@@ -17,6 +17,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Use Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -40,19 +53,15 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-
             if [ ! -d "/home/ubuntu/revalyze/.git" ]; then
               git clone https://github.com/nickglas/revalyze_api.git /home/ubuntu/revalyze
             else
               cd /home/ubuntu/revalyze && git pull origin develop
             fi
 
-            # Ensure namespaces exist
             microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
             microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
 
-            # Apply Kubernetes manifests
             microk8s.kubectl apply -f k8s/
 
-            # Restart deployment
             microk8s.kubectl rollout restart deployment/revalyze-api -n revalyze
