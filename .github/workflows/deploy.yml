@@ -58,7 +58,7 @@ jobs:
             if [ ! -d "/home/ubuntu/revalyze/.git" ]; then
               git clone https://github.com/nickglas/revalyze_api.git /home/ubuntu/revalyze
             else
-              cd /home/ubuntu/revalyze && git pull origin develop
+              cd /home/ubuntu/revalyze && git pull origin main
             fi
 
             #Create .env file
