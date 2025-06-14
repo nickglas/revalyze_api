@@ -61,6 +61,17 @@ jobs:
               cd /home/ubuntu/revalyze && git pull origin develop
             fi
 
+            #Create .env file
+            cat <<EOF > /home/ubuntu/revalyze/.env
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+            NODE_ENV=production
+            EOF
+
+            # Permissions for security
+            chmod 600 /home/ubuntu/revalyze/.env
+
+            # Kubernetes setup
             microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
             microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
 
