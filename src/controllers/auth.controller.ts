@@ -5,16 +5,21 @@ import { generateTokens } from '../utils/token';
 import bcrypt from 'bcryptjs';
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-  if (!user || !(await user.comparePassword(password))) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+    if (!user || !(await user.comparePassword(password))) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const tokens = generateTokens(user);
+    res.json(tokens);
+  } catch (err) {
+    next(err);
   }
-
-  const tokens = generateTokens(user);
-  res.json(tokens);
 };
+
 
 export const logout = async (_req: Request, res: Response, next: NextFunction) => {
   res.status(200).json({ message: 'Logged out successfully' });
