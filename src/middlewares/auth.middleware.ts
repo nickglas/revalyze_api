@@ -14,11 +14,13 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     if (
       typeof decoded === 'object' &&
       'id' in decoded &&
+      'name' in decoded &&
       'email' in decoded &&
       'role' in decoded
     ) {
       req.user = {
         id: decoded.id,
+        name: decoded.name,
         email: decoded.email,
         role: decoded.role,
       };
