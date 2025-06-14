@@ -5,6 +5,7 @@ import morgan from 'morgan';
 
 // routes
 import authRoutes from './routes/auth.routes';
+import { errorHandler } from './middlewares/error.middleware';
 
 dotenv.config();
 
@@ -12,6 +13,8 @@ const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(errorHandler);
+
 if (process.env.NODE_ENV === 'development') {
     app.use(morgan('dev'));
 }
