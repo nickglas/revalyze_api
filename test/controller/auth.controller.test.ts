@@ -20,6 +20,7 @@ describe('Auth Controller', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'test@example.com', password: 'password123' });
 
+    console.log(res.body);
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('accessToken');
     expect(res.body).toHaveProperty('refreshToken');
