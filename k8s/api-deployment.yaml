@@ -16,6 +16,7 @@ spec:
       containers:
         - name: revalyze-api
           image: nickglas/revalyze-api:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 4500
           env:
@@ -26,5 +27,13 @@ spec:
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: api-secret
-                  key: jwt
+                  name: jwt-secrets
+                  key: jwt_secret
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: jwt_refresh_secret
+            - name: NODE_ENV
+              value: "production"
+
