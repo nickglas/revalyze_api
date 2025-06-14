@@ -13,10 +13,9 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(errorHandler);
 
 if (process.env.NODE_ENV === 'development') {
-    app.use(morgan('dev'));
+  app.use(morgan('dev'));
 }
 
 // Health check
@@ -26,5 +25,6 @@ app.get('/', (_req, res) => {
 
 // Add your routes here
 app.use('/api/v1/auth', authRoutes);
+app.use(errorHandler);
 
 export default app;
