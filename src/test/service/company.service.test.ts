@@ -1,22 +1,36 @@
+import 'reflect-metadata';
 import { Types } from 'mongoose';
 import * as companyService from '../../services/company.service';
 import Company from '../../models/company.model';
 import User from '../../models/user.model';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../../utils/errors';
 import { CompanyService } from '../../services/company.service';
+import Container from 'typedi';
+import { CompanyRepository } from '../../repositories/company.repository';
+import { StripeService } from '../../services/stripe.service';
 
 jest.mock('../../models/company.model');
 jest.mock('../../models/user.model');
+jest.mock('../../services/stripe.service');
 
 describe('Company Service', () => {
   let companyService: CompanyService;
 
   beforeEach(() => {
-    companyService = new CompanyService();
+    Container.set(CompanyRepository, {
+      findById: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findAll: jest.fn(),
+    });
+    Container.set(StripeService, new StripeService());
+    companyService = Container.get(CompanyService);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    Container.reset();
   });
 
   describe('getCompanyById', () => {

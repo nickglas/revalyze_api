@@ -2,8 +2,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { BadRequestError, UnauthorizedError, NotFoundError } from '../utils/errors';
 import { CompanyService } from '../services/company.service';
+import { Container } from 'typedi';
 
-const companyService = new CompanyService();
+const companyService = Container.get(CompanyService);
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {

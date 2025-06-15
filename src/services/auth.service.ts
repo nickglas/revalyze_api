@@ -10,16 +10,15 @@ import {
   NotFoundError,
   BadRequestError,
 } from '../utils/errors';
+import { Service } from 'typedi';
 
+@Service()
 export class AuthService{
 
-  private userRepository: UserRepository;
-  private refreshTokenRepository: RefreshTokenRepository;
-
-  constructor() {
-    this.userRepository = new UserRepository();
-    this.refreshTokenRepository = new RefreshTokenRepository();
-  }
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly refreshTokenRepository: RefreshTokenRepository
+  ) {}
 
   async authenticateUser(email: string, password: string){
 

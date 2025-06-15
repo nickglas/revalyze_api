@@ -1,5 +1,7 @@
+import { Service } from 'typedi';
 import User, { IUser } from '../models/user.model';
 
+@Service()
 export class UserRepository {
   async findByEmail(email: string) {
     return User.findOne({ email });

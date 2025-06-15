@@ -1,8 +1,9 @@
 // src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
+import Container from 'typedi';
 
-const authService = new AuthService();
+const authService = Container.get(AuthService)
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {

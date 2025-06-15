@@ -2,14 +2,17 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import morgan from 'morgan';
+import 'reflect-metadata';
 
-// routes
+//load env
+dotenv.config();
+
+//routes
 import authRoutes from './routes/auth.routes';
 import companyRoutes from './routes/company.routes';
 
+//middlware
 import { errorHandler } from './middlewares/error.middleware';
-
-dotenv.config();
 
 const app = express();
 

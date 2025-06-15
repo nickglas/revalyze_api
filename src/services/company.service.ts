@@ -4,13 +4,15 @@ import User from '../models/user.model';
 import bcrypt from 'bcryptjs';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../utils/errors';
 import { CompanyRepository } from '../repositories/company.repository';
+import { StripeService } from './stripe.service';
+import { Service } from 'typedi';
 
+@Service()
 export class CompanyService {
-  private companyRepository: CompanyRepository;
-
-  constructor() {
-    this.companyRepository = new CompanyRepository();
-  }
+  constructor(
+    private readonly stripeService: StripeService,
+    private readonly companyRepository: CompanyRepository
+  ) {}
 
   async registerCompany(companyData: any){
     const existing = await Company.findOne({ mainEmail: companyData.companyMainEmail });

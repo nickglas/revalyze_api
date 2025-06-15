@@ -1,6 +1,8 @@
+import { Service } from 'typedi';
 import Company, { ICompany } from '../models/company.model';
 import { Types } from 'mongoose';
 
+@Service()
 export class CompanyRepository {
   async findById(id: string) {
     if (!Types.ObjectId.isValid(id)) return null;

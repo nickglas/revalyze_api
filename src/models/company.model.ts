@@ -6,6 +6,8 @@ export interface ICompany extends Document {
   phone?: string;
   address?: string;
   subscriptionPlanId: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,8 @@ const companySchema = new Schema<ICompany>(
     phone: { type: String },
     address: { type: String },
     subscriptionPlanId: { type: String, required: true },
+    stripeCustomerId: { type: String },
+    stripeSubscriptionId: { type: String },
   },
   { timestamps: true }
 );

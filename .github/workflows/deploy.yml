@@ -34,11 +34,11 @@ jobs:
 
       - name: Get current git commit hash
         id: git-info
-        run: echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        run: echo "::set-output name=GIT_COMMIT::$(git rev-parse --short HEAD)"
 
       - name: Get build timestamp
         id: build-time
-        run: echo "BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+        run: echo "::set-output name=BUILD_TIME::$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
       - name: Log build info
         run: |
@@ -60,9 +60,9 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          build-args: |
-            GIT_COMMIT=${{ env.GIT_COMMIT }}
-            BUILD_TIME=${{ env.BUILD_TIME }}
+        build-args: |
+          GIT_COMMIT=${{ steps.git-info.outputs.GIT_COMMIT }}
+          BUILD_TIME=${{ steps.build-time.outputs.BUILD_TIME }}
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.0

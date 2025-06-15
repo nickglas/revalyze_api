@@ -1,5 +1,7 @@
+import { Service } from 'typedi';
 import RefreshToken from '../models/refreshToken.model';
 
+@Service()
 export class RefreshTokenRepository {
   async create(tokenData: { userId: string; token: string; expiresAt: Date }) {
     return RefreshToken.create(tokenData);
