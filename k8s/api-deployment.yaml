@@ -34,6 +34,12 @@ spec:
                 secretKeyRef:
                   name: jwt-secrets
                   key: jwt_refresh_secret
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secrets
+                  key: stripe_secret_key
             - name: NODE_ENV
               value: "production"
+
 
