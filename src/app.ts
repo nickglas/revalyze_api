@@ -27,9 +27,9 @@ if (process.env.NODE_ENV === 'development') {
 app.get('/', (_req, res) => {
   res.json({
     message: 'Revalyze API is live!',
-    version: process.env.API_VERSION || 'dev',
-    commit: process.env.GIT_COMMIT || 'unknown',
-    buildTime: process.env.BUILD_TIME || 'unknown',
+    commit: process.env.RUN_ID || 'unknown',
+    buildNumber: process.env.RUN_NUMBER || 'unknown',
+    attempt: process.env.RUN_ATTEMPT || 'unknown',
   });
 });
 

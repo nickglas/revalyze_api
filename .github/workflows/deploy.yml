@@ -62,9 +62,9 @@ jobs:
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           build-args: |
-            GIT_COMMIT=${{ steps.git-info.outputs.GIT_COMMIT }}
-            BUILD_TIME=${{ steps.build-time.outputs.BUILD_TIME }}
-
+            RUN_ID=${{ github.run_id }}
+            RUN_NUMBER=${{ github.run_number }}
+            RUN_ATTEMPT=${{ github.run_attempt }}
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.0
