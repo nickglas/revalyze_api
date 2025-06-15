@@ -5,6 +5,8 @@ import morgan from 'morgan';
 
 // routes
 import authRoutes from './routes/auth.routes';
+import companyRoutes from './routes/company.routes';
+
 import { errorHandler } from './middlewares/error.middleware';
 
 dotenv.config();
@@ -20,11 +22,18 @@ if (process.env.NODE_ENV === 'development') {
 
 // Health check
 app.get('/', (_req, res) => {
-  res.send('Revalyze API is live!');
+  res.json({
+    message: 'Revalyze API is live!',
+    version: process.env.API_VERSION || 'dev',
+    commit: process.env.GIT_COMMIT || 'unknown',
+    buildTime: process.env.BUILD_TIME || 'unknown',
+  });
 });
 
 // Add your routes here
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/companies', companyRoutes);
+
 app.use(errorHandler);
 
 export default app;

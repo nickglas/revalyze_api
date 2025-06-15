@@ -2,6 +2,7 @@ import request from 'supertest';
 import app from '../../app';
 import User from '../../models/user.model';
 import refreshTokenModel from '../../models/refreshToken.model';
+import Company from '../../models/company.model';
 
 describe('Auth Controller', () => {
   let accessToken: string;
@@ -12,12 +13,18 @@ describe('Auth Controller', () => {
     await User.deleteMany({});
     await refreshTokenModel.deleteMany({});
 
+    const company = await new Company({
+      name: "Revalyze",
+      mainEmail: "nickglas@revalyze.io",
+      subscriptionPlanId: "plan_pro",
+    })
+
     const user = await new User({
       email: 'test@example.com',
       password: 'password123',
       role: 'employee',
       name: 'Test User',
-      companyId: 'abc123',
+      companyId: company.id,
       isActive: true,
     }).save();
 

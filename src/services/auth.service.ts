@@ -1,73 +1,90 @@
 // src/services/auth.service.ts
 import refreshTokenModel from '../models/refreshToken.model';
+import { UserRepository } from '../repositories/user.repository';
+import { RefreshTokenRepository } from '../repositories/refreshToken.repository';
 import User from '../models/user.model';
 import { generateTokens } from '../utils/token';
 import jwt from 'jsonwebtoken';
+import {
+  UnauthorizedError,
+  NotFoundError,
+  BadRequestError,
+} from '../utils/errors';
 
-export const authenticateUser = async (email: string, password: string) => {
-  const user = await User.findOne({ email });
-  if (!user || !(await user.comparePassword(password))) {
-    throw new Error('Invalid credentials');
+export class AuthService{
+
+  private userRepository: UserRepository;
+  private refreshTokenRepository: RefreshTokenRepository;
+
+  constructor() {
+    this.userRepository = new UserRepository();
+    this.refreshTokenRepository = new RefreshTokenRepository();
   }
 
-  const tokens = generateTokens(user);
+  async authenticateUser(email: string, password: string){
 
-  // Save the new refresh token
-  await refreshTokenModel.create({
-    userId: user._id,
-    token: tokens.refreshToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+    const user = await this.userRepository.findByEmail(email);
 
-  // Find refresh tokens beyond the 5 most recent and delete them
-  const oldTokens = await refreshTokenModel.find({ userId: user._id })
-    .sort({ createdAt: -1 })
-    .skip(5);
+    if (!user || !(await user.comparePassword(password))) {
+      throw new UnauthorizedError('Invalid credentials');
+    }
 
-  if (oldTokens.length > 0) {
-    const idsToDelete = oldTokens.map(t => t._id);
-    await refreshTokenModel.deleteMany({ _id: { $in: idsToDelete } });
-  }
+    const tokens = generateTokens(user);
 
-  return tokens;
-};
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: tokens.refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
+    const oldTokens = await this.refreshTokenRepository.findOldTokens(user.id);
 
-export const handleRefreshToken = async (token: string) => {
-  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET!;
-  let decoded: { id: string };
+    if (oldTokens.length > 0) {
+      const idsToDelete = oldTokens.map(t => t._id.toString());
+      await this.refreshTokenRepository.deleteManyByIds(idsToDelete);
+    }
 
-  try {
-    decoded = jwt.verify(token, jwtRefreshSecret) as { id: string };
-  } catch {
-    throw new Error('Invalid or expired refresh token');
-  }
+    return tokens;
+  };
 
-  const storedToken = await refreshTokenModel.findOne({ token });
-  if (!storedToken) {
-    throw new Error('Refresh token reuse detected or not found');
-  }
+  async handleRefreshToken(token: string){
+    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET!;
+    let decoded: { id: string };
 
-  const user = await User.findById(decoded.id);
-  if (!user) throw new Error('User not found');
+    try {
+      decoded = jwt.verify(token, jwtRefreshSecret) as { id: string };
+    } catch {
+      throw new UnauthorizedError('Invalid or expired refresh token');
+    }
 
-  // Invalidate old refresh token
-  await refreshTokenModel.deleteOne({ _id: storedToken._id });
+    const storedToken = await this.refreshTokenRepository.findByToken(token);
+    if (!storedToken) {
+      throw new UnauthorizedError('Refresh token reuse detected or not found');
+    }
 
-  // Generate new tokens
-  const tokens = generateTokens(user);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
 
-  // Save the new refresh token
-  await refreshTokenModel.create({
-    userId: user._id,
-    token: tokens.refreshToken,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  });
+    await this.refreshTokenRepository.deleteById(storedToken._id.toString());
 
-  return tokens;
-};
+    const tokens = generateTokens(user);
 
+    await this.refreshTokenRepository.create({
+      userId: user.id,
+      token: tokens.refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
-export const logoutAllDevices = async (userId: string) => {
-  await refreshTokenModel.deleteMany({ userId });
-};
+    return tokens;
+  };
+
+  async logoutAllDevices(userId: string){
+    if (!userId) {
+      throw new BadRequestError('User ID is required');
+    }
+    await this.refreshTokenRepository.deleteAllByUserId(userId);
+  };
+
+}

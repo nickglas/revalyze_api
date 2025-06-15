@@ -8,6 +8,7 @@ declare global {
         role: IUser['role'];
         email: string;
         name: string;
+        companyId: string
       };
     }
   }

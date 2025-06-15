@@ -1,6 +1,7 @@
 import User, { IUser } from '../models/user.model';
+import mongoose, { Types } from 'mongoose';
 
-export async function seedUsers() {
+export async function seedUsers(companyIds: Record<string, string>) {
   const count = await User.countDocuments();
   if (count > 0) {
     console.log('Users already seeded');
@@ -11,34 +12,34 @@ export async function seedUsers() {
     {
       email: 'nick@revalyze.io',
       password: 'Welkom123!',
-			name: "Nick Glas",
-			companyId: "Revalyze",
-			isActive: true,
+      name: 'Nick Glas',
+      companyId: new Types.ObjectId(companyIds['Revalyze']),
+      isActive: true,
       role: 'super_admin',
     },
     {
       email: 'gijs@revalyze.io',
       password: 'Welkom123!',
-			name: "Gijs Hamburger",
-			companyId: "Revalyze",
-			isActive: true,
+      name: 'Gijs Hamburger',
+      companyId: new Types.ObjectId(companyIds['Revalyze']),
+      isActive: true,
       role: 'super_admin',
     },
     {
       email: 'companyadmin@example.com',
       password: 'company123',
-			name: "Company Admin",
-			companyId: "CoolBlue",
-			isActive: true,
+      name: 'Company Admin',
+      companyId: new Types.ObjectId(companyIds['CoolBlue']),
+      isActive: true,
       role: 'company_admin',
     },
     {
       email: 'employee@example.com',
       password: 'employee123',
+      name: 'Company employee',
+      companyId: new Types.ObjectId(companyIds['CoolBlue']),
+      isActive: false,
       role: 'employee',
-			name: "Company employee",
-			companyId: "CoolBlue",
-			isActive: false,
     },
   ];
 

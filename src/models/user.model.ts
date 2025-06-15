@@ -1,11 +1,12 @@
 import mongoose, { Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { ICompany } from './company.model';
 
 export interface IUser extends Document {
   email: string;
   name: string;
   password: string;
-  companyId: string;
+  companyId: mongoose.Types.ObjectId | ICompany;
   isActive: boolean;
   role: 'employee' | 'company_admin' | 'super_admin';
   comparePassword(candidate: string): Promise<boolean>;
@@ -16,7 +17,11 @@ const userSchema = new mongoose.Schema<IUser>(
     email: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     password: { type: String, required: true },
-    companyId: { type: String, required: true },
+    companyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      required: true,
+    },
     isActive: { type: Boolean, required: true, default: true },
     role: {
       type: String,

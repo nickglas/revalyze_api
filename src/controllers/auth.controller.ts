@@ -1,11 +1,13 @@
 // src/controllers/auth.controller.ts
 import { Request, Response, NextFunction } from 'express';
-import { authenticateUser, handleRefreshToken, logoutAllDevices } from '../services/auth.service';
+import { AuthService } from '../services/auth.service';
+
+const authService = new AuthService();
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body;
-    const tokens = await authenticateUser(email, password);
+    const tokens = await authService.authenticateUser(email, password);
     res.json(tokens);
   } catch (err) {
     res.status(401).json({ message: 'Invalid credentials' });
@@ -22,7 +24,7 @@ export const logout = async (req: Request, res: Response, next: NextFunction) =>
     const logoutAllDevicesFlag = req.body.logoutAllDevices === true || req.body.logoutAllDevices === 'true';
 
     if (logoutAllDevicesFlag) {
-      await logoutAllDevices(userId);
+      await authService.logoutAllDevices(userId);
       return res.status(200).json({ message: 'Logged out from all devices' });
     }
 
@@ -44,7 +46,7 @@ export const refreshToken = async (req: Request, res: Response, next: NextFuncti
       return res.status(400).json({ message: 'Refresh token required' });
     }
 
-    const tokens = await handleRefreshToken(refreshToken);
+    const tokens = await authService.handleRefreshToken(refreshToken);
     res.json(tokens);
   } catch (err) {
     res.status(401).json({ message: 'Invalid or expired refresh token' });

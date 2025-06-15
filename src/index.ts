@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import app from './app';
 import dotenv from 'dotenv';
 import { seedUsers } from './db/db.seed.users';
+import { seedCompanies } from './db/db.seed.companies';
 
 dotenv.config();
 
@@ -18,7 +19,8 @@ mongoose
     console.log('Connected to MongoDB');
 
     //seeding
-    await seedUsers();
+    const companyMap = await seedCompanies();
+    await seedUsers(companyMap);
 
     //starting server
     app.listen(PORT, () => {

@@ -16,13 +16,15 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
       'id' in decoded &&
       'name' in decoded &&
       'email' in decoded &&
-      'role' in decoded
+      'role' in decoded &&
+      'companyId' in decoded
     ) {
       req.user = {
         id: decoded.id,
         name: decoded.name,
         email: decoded.email,
         role: decoded.role,
+        companyId: decoded.companyId
       };
       next();
     } else {
