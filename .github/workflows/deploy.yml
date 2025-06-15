@@ -32,6 +32,19 @@ jobs:
           JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
           NODE_ENV: test
 
+      - name: Get current git commit hash
+        id: git-info
+        run: echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Get build timestamp
+        id: build-time
+        run: echo "BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
+
+      - name: Log build info
+        run: |
+          echo "Git commit: $GIT_COMMIT"
+          echo "Build time: $BUILD_TIME"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -47,6 +60,9 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          build-args: |
+            GIT_COMMIT=${{ env.GIT_COMMIT }}
+            BUILD_TIME=${{ env.BUILD_TIME }
 
       - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.0
