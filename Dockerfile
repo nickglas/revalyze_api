@@ -1,11 +1,11 @@
 ARG GIT_COMMIT=unknown
 ARG BUILD_TIME=unknown
 
-ENV GIT_COMMIT=$GIT_COMMIT
-ENV BUILD_TIME=$BUILD_TIME
-
 # Use Node.js LTS alpine image for small size
 FROM node:18-alpine
+
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV BUILD_TIME=$BUILD_TIME
 
 # Set working directory inside container
 WORKDIR /app
