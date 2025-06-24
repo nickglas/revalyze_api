@@ -14,4 +14,8 @@ export class UserRepository {
   async create(userData: Partial<IUser>) {
     return User.create(userData);
   }
+
+  async countByCompany(companyId: string): Promise<number> {
+    return User.countDocuments({ companyId });
+  }
 }

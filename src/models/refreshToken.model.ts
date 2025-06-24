@@ -1,13 +1,28 @@
 // models/refreshToken.model.ts
-import mongoose from 'mongoose';
+import mongoose, { Document, Schema } from "mongoose";
 
-const refreshTokenSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  token: String,
+// Interface representing a refresh token document
+export interface IRefreshToken extends Document {
+  userId: mongoose.Types.ObjectId;
+  token: string;
+  createdAt: Date;
+  expiresAt: Date;
+  ip?: string;
+  userAgent?: string;
+}
+
+const refreshTokenSchema = new Schema<IRefreshToken>({
+  userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  token: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
-  expiresAt: Date,
-  ip: String,
-  userAgent: String,
+  expiresAt: { type: Date, required: true },
+  ip: { type: String },
+  userAgent: { type: String },
 });
 
-export default mongoose.model('RefreshToken', refreshTokenSchema);
+const RefreshToken = mongoose.model<IRefreshToken>(
+  "RefreshToken",
+  refreshTokenSchema
+);
+
+export default RefreshToken;

@@ -1,10 +1,11 @@
-import request from 'supertest';
-import app from '../../app';
-import User from '../../models/user.model';
-import refreshTokenModel from '../../models/refreshToken.model';
-import Company from '../../models/company.model';
+import request from "supertest";
+import app from "../../app";
+import User from "../../models/user.model";
+import refreshTokenModel from "../../models/refreshToken.model";
+import Company from "../../models/company.model";
+import bcrypt from "bcryptjs";
 
-describe('Auth Controller', () => {
+describe("Auth Controller", () => {
   let accessToken: string;
   let refreshToken: string;
   let userId: string;
@@ -17,13 +18,13 @@ describe('Auth Controller', () => {
       name: "Revalyze",
       mainEmail: "nickglas@revalyze.io",
       subscriptionPlanId: "plan_pro",
-    })
+    });
 
     const user = await new User({
-      email: 'test@example.com',
-      password: 'password123',
-      role: 'employee',
-      name: 'Test User',
+      email: "test@example.com",
+      password: await bcrypt.hash("password123", 10),
+      role: "employee",
+      name: "Test User",
       companyId: company.id,
       isActive: true,
     }).save();
@@ -32,99 +33,96 @@ describe('Auth Controller', () => {
 
     // Login once to get tokens for protected route tests
     const res = await request(app)
-      .post('/api/v1/auth/login')
-      .send({ email: 'test@example.com', password: 'password123' });
+      .post("/api/v1/auth/login")
+      .send({ email: "test@example.com", password: "password123" });
 
     accessToken = res.body.accessToken;
     refreshToken = res.body.refreshToken;
   });
 
-  describe('GET /api/v1/auth/', () => {
-    it('should return user profile when authenticated', async () => {
+  describe("GET /api/v1/auth/", () => {
+    it("should return user profile when authenticated", async () => {
       const res = await request(app)
-        .get('/api/v1/auth/')
-        .set('Authorization', `Bearer ${accessToken}`);
+        .get("/api/v1/auth/")
+        .set("Authorization", `Bearer ${accessToken}`);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toHaveProperty('email', 'test@example.com');
-      expect(res.body).toHaveProperty('name', 'Test User');
+      expect(res.body).toHaveProperty("email", "test@example.com");
+      expect(res.body).toHaveProperty("name", "Test User");
     });
 
-    it('should reject without auth token', async () => {
-      const res = await request(app).get('/api/v1/auth/');
+    it("should reject without auth token", async () => {
+      const res = await request(app).get("/api/v1/auth/");
 
       expect(res.statusCode).toBe(401);
     });
   });
 
-  describe('POST /api/v1/auth/logout', () => {
-    it('should logout successfully without logoutAllDevices', async () => {
+  describe("POST /api/v1/auth/logout", () => {
+    it("should logout successfully without logoutAllDevices", async () => {
       const res = await request(app)
-        .post('/api/v1/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .post("/api/v1/auth/logout")
+        .set("Authorization", `Bearer ${accessToken}`)
         .send({ logoutAllDevices: false });
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.message).toBe('Logged out successfully');
+      expect(res.body.message).toBe("Logged out successfully");
     });
 
-    it('should logout from all devices when logoutAllDevices true', async () => {
+    it("should logout from all devices when logoutAllDevices true", async () => {
       // Add some refresh tokens to simulate multiple devices if needed here
 
       const res = await request(app)
-        .post('/api/v1/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .post("/api/v1/auth/logout")
+        .set("Authorization", `Bearer ${accessToken}`)
         .send({ logoutAllDevices: true });
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.message).toBe('Logged out from all devices');
+      expect(res.body.message).toBe("Logged out from all devices");
       // Optionally, check DB that tokens were removed
     });
 
-    it('should reject unauthorized logout', async () => {
+    it("should reject unauthorized logout", async () => {
       const res = await request(app)
-        .post('/api/v1/auth/logout')
+        .post("/api/v1/auth/logout")
         .send({ logoutAllDevices: true });
 
       expect(res.statusCode).toBe(401);
     });
   });
 
-  describe('POST /api/v1/auth/refresh', () => {
-    it('should issue new tokens given a valid refresh token', async () => {
+  describe("POST /api/v1/auth/refresh", () => {
+    it("should issue new tokens given a valid refresh token", async () => {
       const loginRes = await request(app)
-        .post('/api/v1/auth/login')
-        .send({ email: 'test@example.com', password: 'password123' });
+        .post("/api/v1/auth/login")
+        .send({ email: "test@example.com", password: "password123" });
 
       const freshRefreshToken = loginRes.body.refreshToken;
 
       const res = await request(app)
-        .post('/api/v1/auth/refresh')
+        .post("/api/v1/auth/refresh")
         .send({ refreshToken: freshRefreshToken });
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toHaveProperty('accessToken');
-      expect(res.body).toHaveProperty('refreshToken');
+      expect(res.body).toHaveProperty("accessToken");
+      expect(res.body).toHaveProperty("refreshToken");
       // expect(res.body.refreshToken).not.toBe(freshRefreshToken);
     });
 
-
-    it('should reject missing refresh token', async () => {
-      const res = await request(app)
-        .post('/api/v1/auth/refresh')
-        .send({});
+    it("should reject missing refresh token", async () => {
+      const res = await request(app).post("/api/v1/auth/refresh").send({});
 
       expect(res.statusCode).toBe(400);
-      expect(res.body.message).toBe('Refresh token required');
+      expect(res.body.message).toBe("Refresh token required");
     });
 
-    it('should reject invalid or expired refresh token', async () => {
+    it("should reject invalid or expired refresh token", async () => {
       const res = await request(app)
-        .post('/api/v1/auth/refresh')
-        .send({ refreshToken: 'invalidtoken' });
+        .post("/api/v1/auth/refresh")
+        .send({ refreshToken: "invalidtoken" });
 
       expect(res.statusCode).toBe(401);
-      expect(res.body.message).toBe('Invalid or expired refresh token');
+      expect(res.body.message).toBe("Invalid or expired refresh token");
     });
   });
 });

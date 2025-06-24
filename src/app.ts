@@ -10,11 +10,22 @@ dotenv.config();
 //routes
 import authRoutes from './routes/auth.routes';
 import companyRoutes from './routes/company.routes';
+import subscriptionAdminRoutes from './routes/subscription.admin.routes';
+import subscriptionRoutes from './routes/subscription.routes';
+
+import webhookRoutes from './routes/webhook.routes';
 
 //middlware
 import { errorHandler } from './middlewares/error.middleware';
 
 const app = express();
+
+// Use raw body parser for webhook route ONLY
+app.use(
+  '/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  webhookRoutes
+);
 
 // Middleware
 app.use(express.json());
@@ -36,6 +47,10 @@ app.get('/', (_req, res) => {
 // Add your routes here
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/companies', companyRoutes);
+app.use('/api/v1/subscriptions', subscriptionRoutes);
+
+// Admin routes
+app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes)
 
 app.use(errorHandler);
 

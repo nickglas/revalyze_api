@@ -5,12 +5,24 @@ export async function seedCompanies(): Promise<Record<string, string>> {
     {
       name: 'Revalyze',
       mainEmail: 'info@revalyze.io',
-      subscriptionPlanId: 'plan_pro',
+      stripeCustomerId: 'cus_revalyze_001',
+      stripeSubscriptionId: 'sub_revalyze_001',
+      isActive: true,
+      allowedUsers: 50,
+      allowedTranscripts: 1000,
+      subscriptionStatus: 'active',
+      subscriptionEndDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
     {
       name: 'CoolBlue',
       mainEmail: 'contact@coolblue.nl',
-      subscriptionPlanId: 'plan_basic',
+      stripeCustomerId: 'cus_coolblue_001',
+      stripeSubscriptionId: 'sub_coolblue_001',
+      isActive: true,
+      allowedUsers: 10,
+      allowedTranscripts: 100,
+      subscriptionStatus: 'active',
+      subscriptionEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
     },
   ];
 

@@ -1,13 +1,17 @@
 // src/controllers/company.controller.ts
-import { Request, Response, NextFunction } from 'express';
-import { BadRequestError, UnauthorizedError, NotFoundError } from '../utils/errors';
-import { CompanyService } from '../services/company.service';
-import { Container } from 'typedi';
+import { Request, Response, NextFunction } from "express";
+import { BadRequestError } from "../utils/errors";
+import { Container } from "typedi";
+import { CompanyService } from "../services/company.service";
+import { RegisterCompanyDto } from "../dto/company/register.company.dto";
 
-const companyService = Container.get(CompanyService);
-
-export const register = async (req: Request, res: Response, next: NextFunction) => {
+export const register = async (
+  req: Request<{}, {}, RegisterCompanyDto>,
+  res: Response,
+  next: NextFunction
+) => {
   try {
+    const companyService = Container.get(CompanyService);
     const company = await companyService.registerCompany(req.body);
     res.status(201).json(company);
   } catch (error) {
@@ -15,11 +19,16 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
   }
 };
 
-export const getCompany = async (req: Request, res: Response, next: NextFunction) => {
+export const getCompany = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const companyId = req.user?.companyId;
-    if (!companyId) throw new BadRequestError('User companyId missing');
+    if (!companyId) throw new BadRequestError("User companyId missing");
 
+    const companyService = Container.get(CompanyService);
     const company = await companyService.getCompanyById(companyId);
     res.json(company);
   } catch (error) {
@@ -27,33 +36,85 @@ export const getCompany = async (req: Request, res: Response, next: NextFunction
   }
 };
 
-export const updateCompany = async (req: Request, res: Response, next: NextFunction) => {
+export const updateCompany = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const { id: userId, companyId } = req.user!;
+    const userId = req.user?.id;
+    const companyId = req.user?.companyId;
     if (!userId || !companyId) {
-      throw new BadRequestError('User ID or Company ID missing');
+      throw new BadRequestError("User ID or Company ID missing");
     }
 
-    const updatedCompany = await companyService.updateCompanyById(userId, companyId, req.body);
+    const companyService = Container.get(CompanyService);
+    const updatedCompany = await companyService.updateCompanyById(
+      userId,
+      companyId,
+      req.body
+    );
+
     res.json(updatedCompany);
   } catch (error) {
     next(error);
   }
 };
 
-export const updateSubscription = async (req: Request, res: Response, next: NextFunction) => {
+export const updateSubscription = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const companyId = req.params.id;
-    const { subscriptionPlanId } = req.body;
+    const companyId = req.user?.companyId;
+    const { priceId } = req.body;
 
-    if (!subscriptionPlanId) {
-      return res.status(400).json({ message: 'Missing subscriptionPlanId' });
-    }
+    if (!companyId) throw new BadRequestError("User companyId missing");
+    if (!priceId) throw new BadRequestError("Missing priceId");
 
-    const company = await companyService.updateSubscription(companyId, subscriptionPlanId);
-    if (!company) return res.status(404).json({ message: 'Company not found' });
+    const companyService = Container.get(CompanyService);
+    return res.json(
+      await companyService.updateSubscription(companyId, priceId)
+    );
+  } catch (error) {
+    next(error);
+  }
+};
 
-    res.json(company);
+export const cancelScheduledSubscription = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) throw new BadRequestError("User companyId missing");
+
+    const companyService = Container.get(CompanyService);
+    const result = await companyService.cancelScheduledSubscriptionByCompanyId(
+      companyId
+    );
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const cancelSubscriptions = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = req.user?.companyId;
+    if (!companyId) throw new BadRequestError("User companyId missing");
+
+    const companyService = Container.get(CompanyService);
+    const result = await companyService.cancelSubscriptions(companyId);
+
+    res.json(result);
   } catch (error) {
     next(error);
   }

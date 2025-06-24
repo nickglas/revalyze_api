@@ -1,6 +1,7 @@
-import { Service } from 'typedi';
-import Company, { ICompany } from '../models/company.model';
-import { Types } from 'mongoose';
+import { Service } from "typedi";
+import Company, { ICompany } from "../models/company.model";
+import { Types } from "mongoose";
+import { FilterQuery } from "mongoose";
 
 @Service()
 export class CompanyRepository {
@@ -23,5 +24,9 @@ export class CompanyRepository {
 
   async findAll() {
     return Company.find();
+  }
+
+  async findOne(filter: FilterQuery<ICompany>) {
+    return Company.findOne(filter);
   }
 }
