@@ -39,7 +39,7 @@ export class RegisterCompanyDto {
   @IsNotEmpty({ message: "Address is required" })
   @IsString({ message: "Address must be a string" })
   @MinLength(3, { message: "Address must be at least 3 characters long" })
-  @MaxLength(20, { message: "Address must be at most 20 characters long" })
+  @MaxLength(30, { message: "Address must be at most 30 characters long" })
   address!: string;
 
   @IsNotEmpty({ message: "Subscription plan ID is required" })

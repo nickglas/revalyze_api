@@ -915,7 +915,7 @@ describe("Company Controller", () => {
       });
 
       it("should reject when address is too long", async () => {
-        const payload = { ...basePayload, address: "A".repeat(21) };
+        const payload = { ...basePayload, address: "A".repeat(100) };
         const res = await postRegister(payload);
         expect(res.status).toBe(400);
         expect(res.body.errors).toEqual(
