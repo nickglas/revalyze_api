@@ -5,6 +5,7 @@ export type PlanInput = {
   allowedUsers: number;
   allowedTranscripts: number;
   features?: string[];
+  isActive: boolean;
   metadata?: Record<string, string>;
   billingOptions: {
     interval: "day" | "week" | "month" | "year" | "one_time";

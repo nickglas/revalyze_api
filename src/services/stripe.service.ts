@@ -240,6 +240,12 @@ export class StripeService {
     return { product, prices: createdPrices };
   }
 
+  //get all products
+  async getProducts(): Promise<Stripe.Product[]> {
+    const products = await this.stripe.products.list({ limit: 100 });
+    return products.data;
+  }
+
   // Retrieve a product by its ID
   async getProductById(productId: string): Promise<Stripe.Product> {
     return this.stripe.products.retrieve(productId);

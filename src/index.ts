@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 import { seedUsers } from "./db/db.seed.users";
 import { seedCompanies } from "./db/db.seed.companies";
 import { seedProducts } from "./db/db.seed.plans";
-
+import { Container } from "typedi";
+import { StripeSyncCron } from "./sync/sync-cron";
 dotenv.config();
 
 const PORT = process.env.PORT || 4500;
@@ -27,6 +28,10 @@ mongoose
       const companyMap = await seedCompanies();
       await seedUsers(companyMap);
       await seedProducts();
+
+      //cron sync service
+      const stripeSyncCron = Container.get(StripeSyncCron);
+      stripeSyncCron.start();
     });
   })
   .catch((err) => {

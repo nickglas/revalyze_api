@@ -410,6 +410,7 @@ export class StripeWebhookService {
       stripeProductId: product.id,
       currency,
       allowedUsers,
+      isActive: product.active && !product.deleted,
       allowedTranscripts,
       features,
       metadata,
