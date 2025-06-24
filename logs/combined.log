@@ -1,0 +1,6 @@
+[2025-06-24T10:53:00.024Z] INFO - 🔄 Starting Stripe sync...
+[2025-06-24T10:53:00.025Z] INFO - 🔁 Fetching products from Stripe...
+[2025-06-24T10:53:00.395Z] INFO - 📦 Synced: Starter Plan (prod_SYacQeXTy3PctZ)
+[2025-06-24T10:53:00.576Z] INFO - 📦 Synced: Pro Plan (prod_SYacxVzx3ViFgg)
+[2025-06-24T10:53:00.760Z] INFO - 📦 Synced: Business Plan (prod_SYac616Pq91eVW)
+[2025-06-24T10:53:00.760Z] INFO - ✅ Sync complete

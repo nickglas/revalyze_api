@@ -5,6 +5,7 @@ import { Service } from "typedi";
 import { PlanRepository } from "../repositories/plan.repository";
 import { PlanInput } from "../dto/plans/plan.input.dto";
 import Stripe from "stripe";
+import { logger } from "../utils/logger";
 
 @Service()
 export class StripeSyncService {
@@ -14,7 +15,7 @@ export class StripeSyncService {
   ) {}
 
   async syncProducts() {
-    console.log("🔁 Fetching products from Stripe...");
+    logger.info("🔁 Fetching products from Stripe...");
 
     const products = await this.stripeService.getProducts();
 
@@ -52,7 +53,7 @@ export class StripeSyncService {
 
       await this.planRepo.upsert(doc);
 
-      console.log(`📦 Synced: ${product.name} (${product.id})`);
+      logger.info(`📦 Synced: ${product.name} (${product.id})`);
     }
   }
 }

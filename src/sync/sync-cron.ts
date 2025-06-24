@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { Service } from "typedi";
 import { StripeSyncService } from "../services/stripe-sync.service";
+import { logger } from "../utils/logger";
 
 @Service()
 export class StripeSyncCron {
@@ -9,12 +10,12 @@ export class StripeSyncCron {
   public start() {
     // Run every minute
     cron.schedule("* * * * *", async () => {
-      console.log("🔄 Starting Stripe sync...");
+      logger.info("🔄 Starting Stripe sync...");
       try {
         await this.stripeSyncService.syncProducts();
-        console.log("✅ Sync complete");
+        logger.info("✅ Sync complete");
       } catch (error) {
-        console.error("❌ Sync failed:", error);
+        logger.error("❌ Sync failed:", error);
       }
     });
   }
