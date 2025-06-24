@@ -1,5 +1,5 @@
 // src/sync/stripe-sync.service.ts
-import { StripeService } from "../services/stripe.service";
+import { StripeService } from "./stripe.service";
 import ProductModel from "../models/plan.model";
 import { Service } from "typedi";
 import { PlanRepository } from "../repositories/plan.repository";
