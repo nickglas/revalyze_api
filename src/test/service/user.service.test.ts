@@ -10,6 +10,7 @@ import userModel from "../../models/user.model";
 import { NotFoundError } from "../../utils/errors";
 import mongoose from "mongoose";
 import { CriteriaService } from "../../services/criteria.service";
+import { ApiKeyService } from "../../services/key.service";
 
 // Mock all dependencies with proper implementations
 jest.mock("../../services/stripe.service", () => ({
@@ -55,6 +56,7 @@ describe("StripeWebhookService", () => {
   let companyRepo: jest.Mocked<CompanyRepository>;
   let planRepo: jest.Mocked<PlanRepository>;
   let criteriaService: jest.Mocked<CriteriaService>;
+  let keyService: jest.Mocked<ApiKeyService>;
 
   // Create a reusable mock subscription
   const createMockSubscription = (overrides = {}) => ({
@@ -97,12 +99,16 @@ describe("StripeWebhookService", () => {
     criteriaService = {
       assignDefaultCriteriaToCompany: jest.fn(),
     } as unknown as jest.Mocked<CriteriaService>;
+    keyService = {
+      regenerateApiKey: jest.fn(),
+    } as unknown as jest.Mocked<ApiKeyService>;
 
     service = new StripeWebhookService(
       stripeService,
       companyRepo,
       planRepo,
-      criteriaService
+      criteriaService,
+      keyService
     );
     // Configure fake timers
     jest.useFakeTimers();

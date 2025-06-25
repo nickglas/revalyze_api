@@ -5,3 +5,5 @@ npm-debug.log
 .DS_Store
 logs
 logs/combined.log
+logs/combined.log
+application_log

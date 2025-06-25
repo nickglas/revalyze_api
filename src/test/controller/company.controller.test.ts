@@ -15,14 +15,11 @@ import "reflect-metadata";
 
 import { Container } from "typedi";
 import { BadRequestError } from "../../utils/errors";
-import { register } from "../../controllers/company.controller";
 import { CompanyRepository } from "../../repositories/company.repository";
 import { UserRepository } from "../../repositories/user.repository";
 import { TranscriptRepository } from "../../repositories/transcript.repository";
 import { PendingCompanyRepository } from "../../repositories/pending.repository";
-import { compareTiers } from "../../utils/plan";
 import Subscription from "../../models/subscription.model";
-import Stripe from "stripe";
 
 jest.mock("../../services/stripe.service");
 jest.mock("../../utils/plan");
@@ -68,6 +65,8 @@ describe("Company Controller", () => {
       subscriptionPlanId: "plan_pro",
       stripeSubscriptionId: "SomeStripeId",
       stripeCustomerId: "SomeStripeId",
+      hashedApiKey: "somehashedvalue",
+      apiKeyCreatedAt: Date.now(),
     }).save();
 
     companyId = company.id;
@@ -235,6 +234,8 @@ describe("Company Controller", () => {
         subscriptionPlanId: "plan_pro",
         stripeSubscriptionId: "SomeStripeId",
         stripeCustomerId: "SomeStripeId",
+        hashedApiKey: "somehashedvalue",
+        apiKeyCreatedAt: Date.now(),
       }).save();
       companyId = company.id;
 

@@ -18,6 +18,8 @@ export interface ICompany extends Document {
   stripeSubscriptionId: string; // Stripe subscription ID (from Stripe API)
   isActive: boolean; // Whether the subscription is active in your system
 
+  hashedApiKey?: string; // Hashed representation of the API key
+  apiKeyCreatedAt?: Date; // Date api created
   allowedUsers: number; // Max number of users allowed under current plan
   allowedTranscripts: number; // Max number of transcripts allowed under current plan
   subscriptionStatus: string; // Stripe subscription status (e.g., 'active', 'trialing', 'canceled')
@@ -39,6 +41,8 @@ const companySchema = new Schema<ICompany>(
     stripeSubscriptionId: { type: String, required: true },
     isActive: { type: Boolean, required: true, default: false },
 
+    hashedApiKey: { type: String, required: false },
+    apiKeyCreatedAt: { type: Date, required: false },
     allowedUsers: { type: Number, required: true, default: 0 },
     allowedTranscripts: { type: Number, required: true, default: 0 },
     subscriptionStatus: { type: String, required: false },
