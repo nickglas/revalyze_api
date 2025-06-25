@@ -41,4 +41,8 @@ export class CriteriaRepository {
   async findOne(filter: FilterQuery<ICriterion>) {
     return Criterion.findOne(filter);
   }
+
+  async insertMany(documents: ICriterion[]) {
+    return Criterion.insertMany(documents);
+  }
 }

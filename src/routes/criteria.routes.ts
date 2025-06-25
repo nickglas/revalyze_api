@@ -5,12 +5,18 @@ import { CreateCriterionDto } from "../dto/criterion/criterion.create.dto";
 import {
   createCriterion,
   getCriteria,
+  getCriterionById,
   updateStatus,
 } from "../controllers/criteria.controller";
 
 const router = Router();
 
 router.get("/", authenticate as RequestHandler, getCriteria as RequestHandler);
+router.get(
+  "/:id",
+  authenticate as RequestHandler,
+  getCriterionById as RequestHandler
+);
 
 router.post(
   "/",

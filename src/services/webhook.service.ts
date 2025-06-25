@@ -8,13 +8,15 @@ import userModel, { IUser } from "../models/user.model";
 import Subscription, { ISubscription } from "../models/subscription.model";
 import { PlanRepository } from "../repositories/plan.repository";
 import { NotFoundError } from "../utils/errors";
+import { CriteriaService } from "./criteria.service";
 
 @Service()
 export class StripeWebhookService {
   constructor(
     private readonly stripeService: StripeService,
     private readonly companyRepo: CompanyRepository,
-    private readonly planRepo: PlanRepository
+    private readonly planRepo: PlanRepository,
+    private readonly criteriaService: CriteriaService
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
@@ -230,6 +232,9 @@ export class StripeWebhookService {
     });
 
     await pending.deleteOne();
+
+    //create default criteria for company
+    await this.criteriaService.assignDefaultCriteriaToCompany(company.id);
 
     console.log(
       `✅ Company ${company.name} and admin ${admin.email} created after checkout.`

@@ -8,7 +8,7 @@ import { Logger } from "winston";
 
 @Service()
 export class CriteriaService {
-  constructor(private readonly criteriaRepository: CriteriaRepository) { }
+  constructor(private readonly criteriaRepository: CriteriaRepository) {}
 
   /**
    * Get paginated criteria list filtered by company and optional search term
@@ -50,9 +50,56 @@ export class CriteriaService {
       companyId,
     });
 
-    if (!criterion) throw new NotFoundError(`Could not find criterion with id ${id}`);
+    if (!criterion)
+      throw new NotFoundError(`Could not find criterion with id ${id}`);
 
     return criterion;
+  }
+
+  /**
+   * Assigns a predefined set of default criteria to the specified company.
+   * @param companyId - The ObjectId of the company.
+   * @returns Promise resolving to an array of created criterion documents.
+   */
+  async assignDefaultCriteriaToCompany(
+    companyId: mongoose.Types.ObjectId
+  ): Promise<ICriterion[]> {
+    if (!companyId) throw new BadRequestError("No company id specified");
+
+    const defaultCriteria = [
+      {
+        title: "Innovation",
+        description: "Measures the company's ability to innovate and adapt.",
+      },
+      {
+        title: "Sustainability",
+        description: "Assesses environmental responsibility and practices.",
+      },
+      {
+        title: "Customer Satisfaction",
+        description: "Evaluates feedback and satisfaction from customers.",
+      },
+      {
+        title: "Operational Efficiency",
+        description: "Looks at cost control and process optimization.",
+      },
+      {
+        title: "Employee Engagement",
+        description: "Gauges workforce motivation and morale.",
+      },
+    ];
+
+    const documents = defaultCriteria.map(
+      (item) =>
+        new Criterion({
+          companyId,
+          title: item.title,
+          description: item.description,
+          isActive: true,
+        })
+    );
+
+    return await this.criteriaRepository.insertMany(documents);
   }
 
   /**
