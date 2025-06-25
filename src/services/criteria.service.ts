@@ -89,7 +89,7 @@ export class CriteriaService {
       },
     ];
 
-    const documents = defaultCriteria.map(
+    const documents = defaultCriteria.filter(Boolean).map(
       (item) =>
         new Criterion({
           companyId,
