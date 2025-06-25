@@ -3,8 +3,6 @@ import { Container } from "typedi";
 import mongoose from "mongoose";
 import { CriteriaService } from "../services/criteria.service";
 
-const criteriaService = Container.get(CriteriaService);
-
 /**
  * Controller to handle GET /criteria
  * Retrieves a paginated list of criteria filtered by company ID and optional search term.
@@ -30,6 +28,7 @@ export const getCriteria = async (
     const search = req.query.search?.toString();
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const criteriaService = Container.get(CriteriaService);
 
     const { criteria, total } = await criteriaService.getCriteria(
       companyId,
@@ -75,6 +74,7 @@ export const createCriterion = async (
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
     const dto = req.body;
+    const criteriaService = Container.get(CriteriaService);
 
     const newCriterion = await criteriaService.createCriterion(companyId, dto);
     res.status(201).json(newCriterion);
@@ -114,7 +114,7 @@ export const updateStatus = async (
       res.status(400).json({ message: "isActive must be boolean" });
       return;
     }
-
+    const criteriaService = Container.get(CriteriaService);
     const updatedCriterion = await criteriaService.updateStatus(
       id,
       companyId,

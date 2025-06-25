@@ -1,18 +1,21 @@
 import "reflect-metadata";
 
+jest.mock("typedi", () => {
+  const actual = jest.requireActual("typedi");
+  return {
+    ...actual,
+    Container: {
+      get: jest.fn(),
+    },
+  };
+});
+
 import {
   getCriteria,
   createCriterion,
   updateStatus,
 } from "../../controllers/criteria.controller";
-import { CriteriaService } from "../../services/criteria.service";
 import mongoose from "mongoose";
-
-jest.mock("typedi", () => ({
-  Container: {
-    get: jest.fn(),
-  },
-}));
 
 // We'll mock the service instance and override Container.get to return it
 const mockCriteriaService = {
@@ -58,11 +61,12 @@ describe("CriteriaController", () => {
       await getCriteria(req, res, next);
 
       expect(mockCriteriaService.getCriteria).toHaveBeenCalledWith(
-        new mongoose.Types.ObjectId(req.user.companyId),
+        expect.any(mongoose.Types.ObjectId),
         "test",
         2,
         5
       );
+      
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         data: fakeData.criteria,

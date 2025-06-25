@@ -5,6 +5,8 @@ import refreshTokenModel from "../../models/refreshToken.model";
 import Company from "../../models/company.model";
 import bcrypt from "bcryptjs";
 
+process.env.STRIPE_SECRET_KEY = "sk_test_dummy";
+
 describe("Auth Controller", () => {
   let accessToken: string;
   let refreshToken: string;
