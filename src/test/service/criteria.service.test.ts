@@ -61,6 +61,51 @@ describe("CriteriaService", () => {
     });
   });
 
+  describe("getById", () => {
+    it("should throw if no id is provided", async () => {
+      // @ts-expect-error intentionally invalid for test
+      await expect(service.getById(null, companyId)).rejects.toThrow(BadRequestError);
+    });
+
+    it("should throw if no companyId is provided", async () => {
+      // @ts-expect-error intentionally invalid for test
+      await expect(service.getById(criterionId, null)).rejects.toThrow(BadRequestError);
+    });
+
+    it("should throw NotFoundError if criterion not found", async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getById(criterionId, companyId)).rejects.toThrow(
+        new NotFoundError(`Could not find criterion with id ${criterionId}`)
+      );
+
+      expect(mockRepo.findOne).toHaveBeenCalledWith({
+        _id: new mongoose.Types.ObjectId(criterionId),
+        companyId,
+      });
+    });
+
+    it("should return criterion if found", async () => {
+      const mockCriterion = new Criterion({
+        _id: new mongoose.Types.ObjectId(criterionId),
+        companyId,
+        title: "Test Criterion",
+        description: "Test Description",
+        isActive: true,
+      });
+    
+      mockRepo.findOne.mockResolvedValue(mockCriterion);
+    
+      const result = await service.getById(criterionId, companyId);
+    
+      expect(mockRepo.findOne).toHaveBeenCalledWith({
+        _id: new mongoose.Types.ObjectId(criterionId),
+        companyId,
+      });
+      expect(result).toBe(mockCriterion);
+    });
+  });
+
   describe("createCriterion", () => {
     const dto: CreateCriterionDto = {
       title: "Title",

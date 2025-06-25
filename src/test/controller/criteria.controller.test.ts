@@ -14,14 +14,15 @@ import {
   getCriteria,
   createCriterion,
   updateStatus,
+  getCriterionById
 } from "../../controllers/criteria.controller";
 import mongoose from "mongoose";
 
-// We'll mock the service instance and override Container.get to return it
 const mockCriteriaService = {
   getCriteria: jest.fn(),
   createCriterion: jest.fn(),
   updateStatus: jest.fn(),
+  getById: jest.fn(),
 };
 
 import { Container } from "typedi";
@@ -89,6 +90,43 @@ describe("CriteriaController", () => {
       expect(next).toHaveBeenCalledWith(error);
     });
   });
+
+  describe("getCriterionById", () => {
+    it("should return criterion when found", async () => {
+      const criterion = {
+        _id: "123",
+        title: "Test Criterion",
+        description: "Details",
+        isActive: true,
+      };
+      mockCriteriaService.getById = jest.fn().mockResolvedValue(criterion);
+
+      req.params.id = "123";
+
+      await getCriterionById(req, res, next);
+
+      expect(mockCriteriaService.getById).toHaveBeenCalledWith(
+        "123",
+        new mongoose.Types.ObjectId(req.user.companyId)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(criterion);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("should call next with error if service throws", async () => {
+      const error = new Error("Not found");
+      mockCriteriaService.getById = jest.fn().mockRejectedValue(error);
+
+      req.params.id = "123";
+
+      await getCriterionById(req, res, next);
+
+      expect(mockCriteriaService.getById).toHaveBeenCalled();
+      expect(next).toHaveBeenCalledWith(error);
+    });
+  });
+
 
   describe("createCriterion", () => {
     it("should call createCriterion service and return new criterion", async () => {

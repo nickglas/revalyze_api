@@ -8,7 +8,7 @@ import { Logger } from "winston";
 
 @Service()
 export class CriteriaService {
-  constructor(private readonly criteriaRepository: CriteriaRepository) {}
+  constructor(private readonly criteriaRepository: CriteriaRepository) { }
 
   /**
    * Get paginated criteria list filtered by company and optional search term
@@ -29,6 +29,30 @@ export class CriteriaService {
       page,
       limit
     );
+  }
+
+  /**
+   * Retrieves a single criterion by ID and company ID to ensure ownership.
+   * @param id - The criterion document ID.
+   * @param companyId - The ObjectId of the company.
+   * @returns Promise resolving to the criterion document or null.
+   * @throws BadRequestError if ID or companyId is missing.
+   */
+  async getById(
+    id: string,
+    companyId: mongoose.Types.ObjectId
+  ): Promise<ICriterion> {
+    if (!id) throw new BadRequestError("No criterion id specified");
+    if (!companyId) throw new BadRequestError("No company id specified");
+
+    const criterion = await this.criteriaRepository.findOne({
+      _id: new mongoose.Types.ObjectId(id),
+      companyId,
+    });
+
+    if (!criterion) throw new NotFoundError(`Could not find criterion with id ${id}`);
+
+    return criterion;
   }
 
   /**

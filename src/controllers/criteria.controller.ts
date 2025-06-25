@@ -52,6 +52,38 @@ export const getCriteria = async (
 };
 
 /**
+ * Controller to handle GET /criteria/:id
+ * Retrieves a single criterion by ID for the authenticated user's company.
+ *
+ * URL Parameters:
+ *  - id: string (criterion ID)
+ *
+ * Requires authenticated user with `companyId` in `req.user`.
+ *
+ * Response:
+ *  - 200 OK with JSON of the criterion
+ *  - 404 Not Found if criterion does not exist or does not belong to the company
+ *  - Passes errors to next middleware (e.g. error handler)
+ */
+export const getCriterionById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { id } = req.params;
+
+    const criteriaService = Container.get(CriteriaService);
+    const criterion =  await criteriaService.getById(id, companyId);
+
+    res.status(200).json(criterion);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Controller to handle POST /criteria
  * Creates a new criterion for the authenticated user's company.
  *
