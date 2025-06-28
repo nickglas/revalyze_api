@@ -26,7 +26,6 @@ export class CompanyService {
     private readonly stripeService: StripeService,
     private readonly companyRepository: CompanyRepository,
     private readonly userRepository: UserRepository,
-    private readonly transcriptRepository: TranscriptRepository,
     private readonly pendingRepository: PendingCompanyRepository
   ) {}
 
@@ -75,6 +74,7 @@ export class CompanyService {
           quantity: 1,
         },
       ],
+      expires_at: Math.floor(Date.now() / 1000) + 1800,
       success_url: "https://www.google.com",
       cancel_url: "https://www.google.com",
     });
@@ -85,7 +85,10 @@ export class CompanyService {
 
     try {
       const pending = new pendingCompanyModel({
+        stripeSessionId: session.id,
         stripeCustomerId: customer.id,
+        stripePaymentLink: session.url,
+        stripeSessionExpiresAtTimestamp: session.expires_at,
         companyName,
         companyMainEmail,
         companyPhone,

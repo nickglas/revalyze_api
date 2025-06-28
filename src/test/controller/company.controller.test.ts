@@ -52,7 +52,6 @@ describe("Company Controller", () => {
       mockStripeService,
       mockCompanyRepository,
       mockUserRepository,
-      mockTranscriptRepository,
       mockPendingRepository
     ) as jest.Mocked<CompanyService>;
 
@@ -220,7 +219,6 @@ describe("Company Controller", () => {
       await User.deleteMany({});
 
       mockCompanyService = new CompanyService(
-        {} as any,
         {} as any,
         {} as any,
         {} as any,
