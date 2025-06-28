@@ -12,6 +12,8 @@ import { CriteriaService } from "./criteria.service";
 import { ApiKeyService } from "../services/key.service";
 import { logger } from "../utils/logger";
 import { ReviewConfigService } from "./review.config.service";
+import { promises } from "dns";
+import { PendingCompanyRepository } from "../repositories/pending.repository";
 
 @Service()
 export class StripeWebhookService {
@@ -20,8 +22,7 @@ export class StripeWebhookService {
     private readonly companyRepo: CompanyRepository,
     private readonly planRepo: PlanRepository,
     private readonly criteriaService: CriteriaService,
-    private readonly keyService: ApiKeyService,
-    private readonly reviewConfigService: ReviewConfigService
+    private readonly keyService: ApiKeyService
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
@@ -59,6 +60,10 @@ export class StripeWebhookService {
       //register company when checkout is successful
       case "checkout.session.completed":
         await this.handleCheckoutCompleted(event);
+        break;
+
+      case "checkout.session.expired":
+        await this.handleSessionExpired(event);
         break;
 
       default:
@@ -181,6 +186,20 @@ export class StripeWebhookService {
     console.log(`✅ Subscription stored/updated for company ${company.name}`);
   }
 
+  //This method gets triggered when a payment session expires.
+  //The pending company will be deleted if its found by session id
+  private async handleSessionExpired(event: Stripe.Event): Promise<void> {
+    const session = event.data.object as Stripe.Checkout.Session;
+
+    const pendingCompany = await this.pendingCompanyRepo.findBySessionId(
+      session.id
+    );
+
+    if (!pendingCompany) return;
+
+    await this.pendingCompanyRepo.delete(pendingCompany.id);
+  }
+
   //This methods saves a new company when the checkout is completed.
   //The pending comapny is retrieved and data is copied over.
   private async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
@@ -222,7 +241,6 @@ export class StripeWebhookService {
       phone: pending.companyPhone,
       address: pending.address,
       stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
       isActive: true,
       allowedUsers,
       allowedTranscripts,

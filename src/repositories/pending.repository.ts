@@ -18,5 +18,7 @@ export class PendingCompanyRepository {
     return PendingCompanyRegistration.findByIdAndDelete(id);
   }
 
-  // Add more methods as needed
+  async findBySessionId(id: string) {
+    return PendingCompanyRegistration.findOne({ stripeSessionId: id });
+  }
 }
