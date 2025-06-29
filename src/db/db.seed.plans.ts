@@ -1,20 +1,21 @@
-// seedProducts.ts
 import dotenv from "dotenv";
 import Container from "typedi";
 import { StripeService } from "../services/stripe.service";
+import { logger } from "../utils/logger";
 
 dotenv.config();
 
 const stripeService = Container.get(StripeService);
 
-export const seedProducts = async () => {
-  const seedData: {
-    name: string;
-    currency: string;
-    metadata: Record<string, string | number>;
-    features?: string[];
-    prices: { interval: "month" | "year"; amount: number }[];
-  }[] = [
+export type SeededPlan = {
+  name: string;
+  tier: number;
+  productId: string;
+  prices: { interval: "month" | "year"; amount: number; priceId: string }[];
+};
+
+export const seedProducts = async (): Promise<SeededPlan[]> => {
+  const seedData = [
     {
       name: "Business Plan",
       currency: "eur",
@@ -25,8 +26,8 @@ export const seedProducts = async () => {
       },
       features: ["Priority Support", "Analytics Dashboard"],
       prices: [
-        { interval: "month", amount: 150000 },
-        { interval: "year", amount: 1500000 },
+        { interval: "month" as const, amount: 150000 },
+        { interval: "year" as const, amount: 1500000 },
       ],
     },
     {
@@ -39,8 +40,8 @@ export const seedProducts = async () => {
       },
       features: ["Priority Support", "Analytics Dashboard"],
       prices: [
-        { interval: "month", amount: 14900 },
-        { interval: "year", amount: 149000 },
+        { interval: "month" as const, amount: 14900 },
+        { interval: "year" as const, amount: 149000 },
       ],
     },
     {
@@ -53,8 +54,8 @@ export const seedProducts = async () => {
       },
       features: ["Priority Support", "Analytics Dashboard"],
       prices: [
-        { interval: "month", amount: 4900 },
-        { interval: "year", amount: 49000 },
+        { interval: "month" as const, amount: 4900 },
+        { interval: "year" as const, amount: 49000 },
       ],
     },
   ];
@@ -64,7 +65,7 @@ export const seedProducts = async () => {
       const exists = await stripeService.productExistsByName(plan.name);
 
       if (exists) {
-        console.log(`⚠️ Skipping "${plan.name}" — already exists in Stripe.`);
+        logger.info(`Skipping "${plan.name}" — already exists in Stripe.`);
         continue;
       }
 
@@ -76,12 +77,31 @@ export const seedProducts = async () => {
         plan.features
       );
 
-      console.log(
-        `✅ Created "${product.name}" with prices:`,
+      logger.info(
+        `Created "${product.name}" with prices:`,
         prices.map((p) => p.id)
       );
     } catch (error) {
-      console.error(`❌ Failed to seed "${plan.name}":`, error);
+      logger.error(`Failed to seed "${plan.name}":`, error);
     }
   }
+
+  const allPrices = await stripeService.getAvailableSubscriptions();
+
+  const result = seedData.map((plan) => {
+    const stripePrices = allPrices.filter((p) => p.productName === plan.name);
+
+    return {
+      name: plan.name,
+      tier: plan.metadata.tier as number,
+      productId: stripePrices[0]?.productId ?? "unknown",
+      prices: stripePrices.map((p) => ({
+        interval: p.interval as "month" | "year",
+        amount: p.amount!,
+        priceId: p.priceId,
+      })),
+    };
+  });
+
+  return result;
 };
