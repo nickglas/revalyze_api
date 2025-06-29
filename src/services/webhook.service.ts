@@ -10,6 +10,7 @@ import { PlanRepository } from "../repositories/plan.repository";
 import { CriteriaService } from "./criteria.service";
 import { ApiKeyService } from "../services/key.service";
 import { logger } from "../utils/logger";
+import { ReviewConfigService } from "./review.config.service";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
 import {
   NotFoundError,
@@ -24,8 +25,7 @@ export class StripeWebhookService {
     private readonly companyRepo: CompanyRepository,
     private readonly planRepo: PlanRepository,
     private readonly criteriaService: CriteriaService,
-    private readonly keyService: ApiKeyService,
-    private readonly pendingCompanyRepo: PendingCompanyRepository
+    private readonly keyService: ApiKeyService
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
@@ -263,7 +263,9 @@ export class StripeWebhookService {
     await pending.deleteOne();
 
     //create default criteria for company
-    await this.criteriaService.assignDefaultCriteriaToCompany(company.id);
+    await this.reviewConfigService.assignDefaultReviewConfigToCompany(
+      company.id
+    );
 
     //assign api key if business account (3 for now)
     if (product.metadata.tier === "3")

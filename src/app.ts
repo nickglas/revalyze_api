@@ -13,6 +13,7 @@ import companyRoutes from "./routes/company.routes";
 import subscriptionAdminRoutes from "./routes/subscription.admin.routes";
 import subscriptionRoutes from "./routes/subscription.routes";
 import criteriaRoutes from "./routes/criteria.routes";
+import reviewConfigRoutes from "./routes/review.config.routes";
 
 import webhookRoutes from "./routes/webhook.routes";
 
@@ -50,6 +51,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/companies", companyRoutes);
 app.use("/api/v1/subscriptions", subscriptionRoutes);
 app.use("/api/v1/criteria", criteriaRoutes);
+app.use("/api/v1/review-configs", reviewConfigRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);
