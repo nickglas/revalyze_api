@@ -83,6 +83,11 @@ export class StripeService {
     return this.stripe.checkout.sessions.create(params);
   }
 
+  // Add to stripe.service.ts
+  async getCheckoutSession(sessionId: string) {
+    return this.stripe.checkout.sessions.retrieve(sessionId);
+  }
+
   //validate stripe webhook call
   constructEvent(payload: Buffer, sig: string, secret: string): Stripe.Event {
     return this.stripe.webhooks.constructEvent(payload, sig, secret);

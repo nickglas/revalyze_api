@@ -17,6 +17,7 @@ import {
   InternalServerError,
   BadRequestError,
 } from "../utils/errors";
+import { CompanyService } from "./company.service";
 
 @Service()
 export class StripeWebhookService {
@@ -25,6 +26,7 @@ export class StripeWebhookService {
     private readonly companyRepo: CompanyRepository,
     private readonly planRepo: PlanRepository,
     private readonly pendingCompanyRepo: PendingCompanyRepository,
+    private readonly companyService: CompanyService,
     private readonly criteriaService: CriteriaService,
     private readonly keyService: ApiKeyService,
     private readonly reviewConfigService: ReviewConfigService
@@ -210,73 +212,23 @@ export class StripeWebhookService {
 
   //This methods saves a new company when the checkout is completed.
   //The pending comapny is retrieved and data is copied over.
-  private async handleCheckoutCompleted(event: Stripe.Event): Promise<void> {
+  private async handleCheckoutCompleted(event: Stripe.Event) {
     const session = event.data.object as Stripe.Checkout.Session;
-
     const customerId = session.customer as string;
     const subscriptionId = session.subscription as string;
 
-    if (!customerId) {
-      logger.error("Missing Stripe customer ID in checkout.session.completed");
-      throw new BadRequestError("Missing Stripe customer ID");
+    if (!customerId || !subscriptionId) {
+      throw new Error("Missing Stripe customer or subscription ID");
     }
 
-    const pending = await pendingCompanyModel.findOne({
-      stripeCustomerId: customerId,
-    });
+    const pending = await this.pendingCompanyRepo.findByStripeId(customerId);
+
     if (!pending) {
-      logger.warn(
-        `No pending company registration for Stripe customer ${customerId}`
-      );
+      logger.warn(`No pending company for customer: ${customerId}`);
       return;
     }
 
-    const subscription = await this.stripeService.getSubscription(
-      subscriptionId
-    );
-    const priceId = subscription.items.data[0]?.price?.id;
-    const productId = subscription.items.data[0]?.price?.product as string;
-    const product = await this.stripeService.getProductById(productId);
-    const allowedUsers = parseInt(product.metadata.allowedUsers || "0", 10);
-    const allowedTranscripts = parseInt(
-      product.metadata.allowedTranscripts || "0",
-      10
-    );
-
-    const company = await this.companyRepo.create({
-      name: pending.companyName,
-      mainEmail: pending.companyMainEmail,
-      phone: pending.companyPhone,
-      address: pending.address,
-      stripeCustomerId: customerId,
-      isActive: true,
-      allowedUsers,
-      allowedTranscripts,
-    });
-
-    const admin = await userModel.create({
-      name: pending.adminName,
-      email: pending.adminEmail,
-      password: pending.password,
-      role: "company_admin",
-      companyId: company._id,
-    });
-
-    await pending.deleteOne();
-
-    //create default criteria for company
-    await this.reviewConfigService.assignDefaultReviewConfigToCompany(
-      company.id
-    );
-
-    //assign api key if business account (3 for now)
-    if (product.metadata.tier === "3")
-      logger.info("Generating API key for business account");
-    await this.keyService.regenerateApiKey(company.id);
-
-    logger.info(
-      `Company ${company.name} and admin ${admin.email} created after checkout.`
-    );
+    await this.companyService.activateCompany(pending.id, subscriptionId);
   }
 
   private async handleProductDeleted(event: Stripe.Event) {

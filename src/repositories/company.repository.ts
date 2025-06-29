@@ -18,8 +18,12 @@ export class CompanyRepository {
     return Company.findByIdAndUpdate(id, updateData, { new: true });
   }
 
-  async delete(id: string) {
-    return Company.findByIdAndDelete(id);
+  async findByStripeCustomerId(customerId: string): Promise<ICompany | null> {
+    return Company.findOne({ stripeCustomerId: customerId });
+  }
+
+  async delete(id: string): Promise<void> {
+    await Company.findByIdAndDelete(id);
   }
 
   async findAll() {

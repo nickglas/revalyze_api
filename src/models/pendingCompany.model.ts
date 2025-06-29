@@ -15,6 +15,8 @@ export interface IPendingCompany extends Document {
   password: string;
   createdAt: Date;
   updatedAt: Date;
+  lastAttempt: Date;
+  attemptCount: number;
 }
 
 const pendingCompanySchema = new Schema<IPendingCompany>(
@@ -30,6 +32,8 @@ const pendingCompanySchema = new Schema<IPendingCompany>(
     adminName: { type: String },
     adminEmail: { type: String },
     password: { type: String },
+    lastAttempt: { type: Date },
+    attemptCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

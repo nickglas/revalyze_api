@@ -16,6 +16,8 @@ export interface ICompany extends Document {
 
   stripeCustomerId: string; // Stripe customer ID (from Stripe API)
   stripeSubscriptionId: string; // Stripe subscription ID (from Stripe API)
+  stripePriceId: string;
+  stripeProductId: string;
   isActive: boolean; // Whether the subscription is active in your system
 
   hashedApiKey?: string; // Hashed representation of the API key
@@ -39,6 +41,9 @@ const companySchema = new Schema<ICompany>(
 
     stripeCustomerId: { type: String, required: true },
     stripeSubscriptionId: { type: String, required: true },
+    stripeProductId: { type: String, required: true },
+
+    stripePriceId: { type: String, required: true },
     isActive: { type: Boolean, required: true, default: false },
 
     hashedApiKey: { type: String, required: false },

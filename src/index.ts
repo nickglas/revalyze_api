@@ -30,8 +30,7 @@ mongoose
       const plans = await seedProducts();
 
       const companySeeder = Container.get(CompanySeederService);
-      const companies = await companySeeder.seedCompanies(plans);
-
+      // const companies = await companySeeder.seedCompanies(plans);
       // await seedUsers(companies);
 
       //cron sync service

@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import Company, { ICompany } from "../models/company.model";
-import User from "../models/user.model";
+import User, { IUser } from "../models/user.model";
 import bcrypt from "bcryptjs";
 import {
   BadRequestError,
@@ -19,6 +19,9 @@ import Stripe from "stripe";
 import Subscription, { ISubscription } from "../models/subscription.model";
 import { RegisterCompanyDto } from "../dto/company/register.company.dto";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
+import { logger } from "../utils/logger";
+import { ReviewConfigService } from "./review.config.service";
+import { ApiKeyService } from "./key.service";
 
 @Service()
 export class CompanyService {
@@ -26,7 +29,9 @@ export class CompanyService {
     private readonly stripeService: StripeService,
     private readonly companyRepository: CompanyRepository,
     private readonly userRepository: UserRepository,
-    private readonly pendingRepository: PendingCompanyRepository
+    private readonly pendingRepository: PendingCompanyRepository,
+    private readonly reviewConfigService: ReviewConfigService,
+    private readonly apiKeyService: ApiKeyService
   ) {}
 
   async registerCompany({
@@ -70,7 +75,7 @@ export class CompanyService {
       customer: customer.id,
       line_items: [
         {
-          price: subscriptionPlanId ?? "price_1Rax57FNTWq4w3FpEexAMksM",
+          price: subscriptionPlanId,
           quantity: 1,
         },
       ],
@@ -107,6 +112,100 @@ export class CompanyService {
     return {
       checkoutUrl: session.url,
     };
+  }
+
+  async activateCompany(
+    pendingCompanyId: string,
+    subscriptionId: string
+  ): Promise<{ company: ICompany; adminUser: IUser }> {
+    const pending = await this.pendingRepository.findById(pendingCompanyId);
+    if (!pending) {
+      throw new Error("Pending company not found");
+    }
+
+    try {
+      // Get subscription details
+      const subscription = await this.stripeService.getSubscription(
+        subscriptionId
+      );
+      const priceId = subscription.items.data[0]?.price?.id;
+      const productId = subscription.items.data[0]?.price?.product as string;
+      const product = await this.stripeService.getProductById(productId);
+
+      // Parse product metadata
+      const allowedUsers = parseInt(product.metadata.allowedUsers || "0", 10);
+      const allowedTranscripts = parseInt(
+        product.metadata.allowedTranscripts || "0",
+        10
+      );
+
+      // Create company
+      const company = await this.companyRepository.create({
+        name: pending.companyName,
+        mainEmail: pending.companyMainEmail,
+        phone: pending.companyPhone,
+        address: pending.address,
+        stripeCustomerId: pending.stripeCustomerId,
+        stripeSubscriptionId: subscriptionId,
+        stripePriceId: priceId,
+        stripeProductId: productId,
+        isActive: true,
+        allowedUsers,
+        allowedTranscripts,
+      });
+
+      // Create admin user
+      const adminUser = await this.userRepository.create({
+        name: pending.adminName,
+        email: pending.adminEmail,
+        password: pending.password,
+        role: "company_admin",
+        companyId: company.id,
+      });
+
+      // Perform additional setup
+      await this.reviewConfigService.assignDefaultReviewConfigToCompany(
+        company.id
+      );
+
+      if (product.metadata.tier === "3") {
+        logger.info("Generating API key for business account");
+        await this.apiKeyService.regenerateApiKey(company.id);
+      }
+
+      // Cleanup pending record
+      await this.pendingRepository.delete(pending.id);
+
+      logger.info(
+        `Company ${company.name} and admin ${adminUser.email} activated successfully`
+      );
+
+      return { company, adminUser };
+    } catch (error: any) {
+      logger.error(`Company activation failed: ${error.message}`, error.stack);
+
+      // Cleanup partially created data
+      await this.rollbackActivation(pending);
+      throw new Error(`Activation failed: ${error.message}`);
+    }
+  }
+
+  private async rollbackActivation(pending: any) {
+    try {
+      // Delete any partially created company
+      if (pending.stripeCustomerId) {
+        const company = await this.companyRepository.findByStripeCustomerId(
+          pending.stripeCustomerId
+        );
+        if (company) await this.companyRepository.delete(company.id);
+      }
+
+      // Delete any partially created user
+      const user = await this.userRepository.findByEmail(pending.adminEmail);
+      if (user) await this.userRepository.delete(user.id);
+    } catch (rollbackError) {
+      logger.error("Rollback failed:", rollbackError);
+    }
   }
 
   async cancelScheduledSubscriptionBySubscription(

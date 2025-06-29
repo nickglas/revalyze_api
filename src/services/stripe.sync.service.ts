@@ -6,16 +6,65 @@ import { PlanRepository } from "../repositories/plan.repository";
 import { PlanInput } from "../dto/plans/plan.input.dto";
 import Stripe from "stripe";
 import { logger } from "../utils/logger";
+import { PendingCompanyRepository } from "../repositories/pending.repository";
+import { CompanyService } from "./company.service";
 
 @Service()
 export class StripeSyncService {
   constructor(
     private readonly stripeService: StripeService,
-    private readonly planRepo: PlanRepository
+    private readonly planRepo: PlanRepository,
+    private readonly pendingCompanyRepo: PendingCompanyRepository,
+    private readonly companyService: CompanyService
   ) {}
 
+  async syncPendingSubscriptions() {
+    logger.info("Syncing pending subscriptions from Stripe...");
+
+    const pendingCompanies = await this.pendingCompanyRepo.find();
+
+    for (const pending of pendingCompanies) {
+      try {
+        //get the session
+        const session = await this.stripeService.getCheckoutSession(
+          pending.stripeSessionId
+        );
+
+        //check if expired
+        if (session.status === "expired") {
+          logger.info(
+            `Deleting expired session for pending company ${pending.id}`
+          );
+
+          await this.pendingCompanyRepo.delete(pending.id);
+        }
+
+        //check if paid
+        if (session.payment_status === "paid") {
+          //verify subscription
+          const subscription = await this.stripeService.getSubscription(
+            session.subscription as string
+          );
+
+          //activate if subscription is active
+          if (subscription.status === "active") {
+            await this.companyService.activateCompany(
+              pending.id,
+              session.subscription as string
+            );
+
+            //remove pending
+            await this.pendingCompanyRepo.delete(pending.id);
+          }
+        }
+      } catch (error) {
+        logger.error(`Sync failed for pending company ${pending._id}:`, error);
+      }
+    }
+  }
+
   async syncProducts() {
-    logger.info("🔁 Fetching products from Stripe...");
+    logger.info("Syncing products from Stripe...");
 
     const products = await this.stripeService.getProducts();
 
@@ -53,7 +102,7 @@ export class StripeSyncService {
 
       await this.planRepo.upsert(doc);
 
-      logger.info(`📦 Synced: ${product.name} (${product.id})`);
+      logger.info(`Synced product: ${product.name} (${product.id})`);
     }
   }
 }

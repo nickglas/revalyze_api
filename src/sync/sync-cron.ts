@@ -19,17 +19,18 @@ export class StripeSyncCron {
     logger.info("Scheduling cron job...");
     this.job = cron.schedule("* * * * *", async () => {
       if (this.isRunning) {
-        logger.info("⚠️ Previous sync still running, skipping this run");
+        logger.info("Previous sync still running, skipping this run");
         return;
       }
 
       this.isRunning = true;
-      logger.info("🔄 Starting Stripe sync...");
+      logger.info("Starting Stripe sync process...");
       try {
         await this.stripeSyncService.syncProducts();
-        logger.info("✅ Sync complete");
+        await this.stripeSyncService.syncPendingSubscriptions();
+        logger.info("Stripe sync process complete");
       } catch (error) {
-        logger.error("❌ Sync failed:", error);
+        logger.error("Stripe sync process failed:", error);
       } finally {
         this.isRunning = false;
       }

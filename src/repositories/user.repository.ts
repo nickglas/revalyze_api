@@ -1,5 +1,5 @@
-import { Service } from 'typedi';
-import User, { IUser } from '../models/user.model';
+import { Service } from "typedi";
+import User, { IUser } from "../models/user.model";
 
 @Service()
 export class UserRepository {
@@ -13,6 +13,10 @@ export class UserRepository {
 
   async create(userData: Partial<IUser>) {
     return User.create(userData);
+  }
+
+  async delete(id: string): Promise<void> {
+    await User.findByIdAndDelete(id).exec();
   }
 
   async countByCompany(companyId: string): Promise<number> {
