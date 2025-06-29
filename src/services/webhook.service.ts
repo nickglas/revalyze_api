@@ -21,8 +21,10 @@ export class StripeWebhookService {
     private readonly stripeService: StripeService,
     private readonly companyRepo: CompanyRepository,
     private readonly planRepo: PlanRepository,
+    private readonly pendingCompanyRepo: PendingCompanyRepository,
     private readonly criteriaService: CriteriaService,
-    private readonly keyService: ApiKeyService
+    private readonly keyService: ApiKeyService,
+    private readonly reviewConfigService: ReviewConfigService
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
