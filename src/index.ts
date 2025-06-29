@@ -2,10 +2,12 @@ import mongoose from "mongoose";
 import app from "./app";
 import dotenv from "dotenv";
 import { seedUsers } from "./db/db.seed.users";
-import { seedCompanies } from "./db/db.seed.companies";
+import { CompanySeederService } from "./db/db.seed.companies";
 import { seedProducts } from "./db/db.seed.plans";
 import { Container } from "typedi";
 import { StripeSyncCron } from "./sync/sync-cron";
+import { logger } from "./utils/logger";
+
 dotenv.config();
 
 const PORT = process.env.PORT || 4500;
@@ -18,16 +20,19 @@ if (!MONGODB_URI) {
 mongoose
   .connect(MONGODB_URI)
   .then(async () => {
-    console.log("Connected to MongoDB");
+    logger.info("Connected to MongoDB");
 
     //Start server FIRST
     app.listen(PORT, async () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      logger.info(`Server running on http://localhost:${PORT}`);
 
       //seeding stripe data
-      const companyMap = await seedCompanies();
-      await seedUsers(companyMap);
-      await seedProducts();
+      const plans = await seedProducts();
+
+      const companySeeder = Container.get(CompanySeederService);
+      const companies = await companySeeder.seedCompanies(plans);
+
+      // await seedUsers(companies);
 
       //cron sync service
       const stripeSyncCron = Container.get(StripeSyncCron);
@@ -35,6 +40,6 @@ mongoose
     });
   })
   .catch((err) => {
-    console.error("MongoDB connection error:", err);
+    logger.error("MongoDB connection error:", err);
     process.exit(1);
   });

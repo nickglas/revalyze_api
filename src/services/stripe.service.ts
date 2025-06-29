@@ -50,16 +50,30 @@ export class StripeService {
     });
   }
 
+  //Get customer by name
+  async findCustomerByName(name: string): Promise<Stripe.Customer | undefined> {
+    const customers = await this.stripe.customers.list({ limit: 100 });
+
+    return customers.data.find(
+      (customer) => customer.name?.toLowerCase() === name.toLowerCase()
+    );
+  }
+
   //Deletes a Stripe customer by ID
   async deleteCustomer(customerId: string): Promise<Stripe.DeletedCustomer> {
     return this.stripe.customers.del(customerId);
   }
 
   //creates a subscription based on the customer and the selected priceId
-  async createSubscription(customerId: string, priceId: string) {
+  async createSubscription(
+    customerId: string,
+    priceId: string,
+    payment_behavior?: Stripe.SubscriptionCreateParams.PaymentBehavior
+  ) {
     return this.stripe.subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
+      payment_behavior,
       // Add trial period, payment method, etc if needed
     });
   }
@@ -168,9 +182,6 @@ export class StripeService {
   }
 
   createSubscriptionSchedule(data: Stripe.SubscriptionScheduleCreateParams) {
-    console.warn(data);
-    console.warn(JSON.stringify(data));
-
     return this.stripe.subscriptionSchedules.create(data);
   }
 
