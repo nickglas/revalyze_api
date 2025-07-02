@@ -8,6 +8,9 @@ import Stripe from "stripe";
 import { logger } from "../utils/logger";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { CompanyService } from "./company.service";
+import { SubscriptionRepository } from "../repositories/subscription.repository";
+import { ISubscription } from "../models/subscription.model";
+import { CompanyRepository } from "../repositories/company.repository";
 
 @Service()
 export class StripeSyncService {
@@ -15,7 +18,9 @@ export class StripeSyncService {
     private readonly stripeService: StripeService,
     private readonly planRepo: PlanRepository,
     private readonly pendingCompanyRepo: PendingCompanyRepository,
-    private readonly companyService: CompanyService
+    private readonly companyService: CompanyService,
+    private readonly subscriptionRepo: SubscriptionRepository,
+    private readonly companyRepository: CompanyRepository
   ) {}
 
   async syncPendingSubscriptions() {
@@ -105,4 +110,174 @@ export class StripeSyncService {
       logger.info(`Synced product: ${product.name} (${product.id})`);
     }
   }
+
+  async syncSubscriptions() {
+    logger.info("Syncing subscriptions from Stripe...");
+
+    // Get current active subscriptions from your DB
+    const activeSubscriptions = await this.subscriptionRepo.find();
+
+    let stripeSubscriptions: Stripe.Subscription[] = [];
+
+    // Check environment
+    const isDevelopment = process.env.NODE_ENV === "development";
+
+    if (isDevelopment) {
+      logger.info(
+        "Development mode: syncing subscriptions from all test clocks"
+      );
+
+      // Fetch all test clocks
+      const testClocks = await this.stripeService.getAllTestClocks();
+
+      for (const clock of testClocks) {
+        const subs = await this.stripeService.getAllSubscriptions(clock.id);
+        stripeSubscriptions.push(...subs);
+      }
+    } else {
+      logger.info("Production mode: syncing subscriptions without test clocks");
+
+      // Only fetch real subscriptions (no test_clock)
+      const subs = await this.stripeService.getAllSubscriptions();
+      stripeSubscriptions.push(...subs);
+    }
+
+    if (!stripeSubscriptions.length) {
+      return logger.info("No subscription data found to sync...");
+    }
+
+    logger.info(`Found ${stripeSubscriptions.length} subscriptions to sync`);
+
+    // Loop over all Stripe subscriptions and sync them
+    await Promise.all(
+      stripeSubscriptions.map(async (s) => {
+        const existing = activeSubscriptions.find(
+          (as) => as.stripeSubscriptionId === s.id
+        );
+
+        if (!existing) {
+          return await this.createSubscription(s);
+        }
+
+        return await this.updateSubscription(existing, s);
+      })
+    );
+  }
+
+  private createSubscription = async (
+    stripeSubscription: Stripe.Subscription
+  ) => {
+    const item = stripeSubscription.items.data[0];
+    const price = item.price;
+    const productId = price.product as string;
+    const product = await this.stripeService.getProductById(productId);
+    const company = await this.companyRepository.findByStripeCustomerId(
+      stripeSubscription.customer as string
+    );
+
+    if (!company)
+      return logger.warn(
+        `Could not create new subscription with stripe id: ${stripeSubscription.id}. Company ${stripeSubscription.customer} was not found as registered company`
+      );
+
+    const newSubscription = {
+      companyId: company?.id,
+      stripeSubscriptionId: stripeSubscription.id,
+      stripeCustomerId: stripeSubscription.customer as string,
+      productId: product.id,
+      productName: product.name,
+      priceId: price.id,
+      amount: price.unit_amount ?? 0,
+      currency: price.currency,
+      interval: price.recurring?.interval ?? "month",
+      status: stripeSubscription.status,
+      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+      currentPeriodStart: new Date(
+        stripeSubscription.items.data[0].current_period_start * 1000
+      ),
+      currentPeriodEnd: new Date(
+        stripeSubscription.items.data[0].current_period_end * 1000
+      ),
+      canceledAt: stripeSubscription.canceled_at
+        ? new Date(stripeSubscription.canceled_at * 1000)
+        : undefined,
+      allowedTranscripts: parseInt(
+        product.metadata["allowedTranscripts"] ?? "0"
+      ),
+      allowedUsers: parseInt(product.metadata["allowedUsers"] ?? "0"),
+      tier: parseInt(product.metadata["tier"] ?? "0"),
+    };
+
+    const newSub = await this.subscriptionRepo.create(newSubscription);
+
+    if (!newSub)
+      return logger.error(
+        `Error saving new subscription from stripe with id ${stripeSubscription.id}`
+      );
+
+    return logger.info(
+      `Saved new subscription with id ${stripeSubscription.id}`
+    );
+  };
+
+  private updateSubscription = async (
+    activeSubscription: ISubscription,
+    stripeSubscription: Stripe.Subscription
+  ) => {
+    const item = stripeSubscription.items.data[0];
+    const price = item.price;
+    const productId = price.product as string;
+    const product = await this.stripeService.getProductById(productId);
+    const company = await this.companyRepository.findByStripeCustomerId(
+      stripeSubscription.customer as string
+    );
+
+    if (!company) {
+      return logger.error(
+        `Cannot update subscription. Company not found for Stripe customer ${stripeSubscription.customer}`
+      );
+    }
+
+    activeSubscription.companyId = company.id;
+    activeSubscription.stripeSubscriptionId = stripeSubscription.id;
+    activeSubscription.stripeCustomerId = stripeSubscription.customer as string;
+    activeSubscription.productId = product.id;
+    activeSubscription.productName = product.name;
+    activeSubscription.priceId = price.id;
+    activeSubscription.amount = price.unit_amount ?? 0;
+    activeSubscription.currency = price.currency;
+    activeSubscription.interval = price.recurring?.interval ?? "month";
+    activeSubscription.status = stripeSubscription.status;
+    activeSubscription.cancelAtPeriodEnd =
+      stripeSubscription.cancel_at_period_end;
+    activeSubscription.currentPeriodStart = new Date(
+      item.current_period_start * 1000
+    );
+    activeSubscription.currentPeriodEnd = new Date(
+      item.current_period_end * 1000
+    );
+    activeSubscription.canceledAt = stripeSubscription.canceled_at
+      ? new Date(stripeSubscription.canceled_at * 1000)
+      : undefined;
+    activeSubscription.allowedTranscripts = parseInt(
+      product.metadata["allowedTranscripts"] ?? "0"
+    );
+    activeSubscription.allowedUsers = parseInt(
+      product.metadata["allowedUsers"] ?? "0"
+    );
+    activeSubscription.tier = parseInt(product.metadata["tier"] ?? "0");
+
+    const updated = await this.subscriptionRepo.update(
+      activeSubscription.id,
+      activeSubscription
+    );
+
+    if (!updated) {
+      return logger.error(
+        `Error updating subscription from Stripe with id ${stripeSubscription.id}`
+      );
+    }
+
+    return logger.info(`Updated subscription with id ${stripeSubscription.id}`);
+  };
 }

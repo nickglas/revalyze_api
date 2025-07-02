@@ -9,7 +9,6 @@ export class CompanyRepository {
     if (!Types.ObjectId.isValid(id)) return null;
     return Company.findById(id);
   }
-
   async create(companyData: Partial<ICompany>) {
     return Company.create(companyData);
   }
@@ -28,6 +27,10 @@ export class CompanyRepository {
 
   async findAll() {
     return Company.find();
+  }
+
+  async find(filter: FilterQuery<ICompany>) {
+    return Company.find(filter);
   }
 
   async findOne(filter: FilterQuery<ICompany>) {

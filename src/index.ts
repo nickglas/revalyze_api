@@ -24,7 +24,9 @@ mongoose
 
     //Start server FIRST
     app.listen(PORT, async () => {
-      logger.info(`Server running on http://localhost:${PORT}`);
+      logger.info(
+        `Server started in ${process.env.NODE_ENV} mode, running on http://localhost:${PORT}`
+      );
 
       //seeding stripe data
       const plans = await seedProducts();

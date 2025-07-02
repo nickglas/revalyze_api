@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
+import Stripe from "stripe";
 
 export interface ISubscription extends Document {
   companyId: mongoose.Types.ObjectId;
@@ -18,7 +19,7 @@ export interface ISubscription extends Document {
   productId: string;
   amount: number;
   currency: string;
-  interval: "month" | "year";
+  interval: Stripe.Price.Recurring.Interval;
 
   allowedUsers: number;
   allowedTranscripts: number;
@@ -30,7 +31,7 @@ export interface ISubscription extends Document {
     priceId: string;
     productId: string;
     amount: number;
-    interval: "month" | "year";
+    interval: Stripe.Price.Recurring.Interval;
     allowedUsers: number;
     allowedTranscripts: number;
     tier: number;

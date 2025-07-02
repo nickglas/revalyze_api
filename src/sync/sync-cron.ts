@@ -28,6 +28,7 @@ export class StripeSyncCron {
       try {
         await this.stripeSyncService.syncProducts();
         await this.stripeSyncService.syncPendingSubscriptions();
+        await this.stripeSyncService.syncSubscriptions();
         logger.info("Stripe sync process complete");
       } catch (error) {
         logger.error("Stripe sync process failed:", error);

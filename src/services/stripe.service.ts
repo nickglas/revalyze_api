@@ -94,6 +94,39 @@ export class StripeService {
     return this.stripe.webhooks.constructEvent(payload, sig, secret);
   }
 
+  //get all test clocks
+  async getAllTestClocks(): Promise<Stripe.TestHelpers.TestClock[]> {
+    const clocks = await this.stripe.testHelpers.testClocks.list({
+      limit: 100,
+    });
+    return clocks.data;
+  }
+
+  //get all subscriptions
+  async getAllSubscriptions(
+    testClockId?: string
+  ): Promise<Stripe.Subscription[]> {
+    let allSubs: Stripe.Subscription[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined = undefined;
+
+    while (hasMore) {
+      const res: Stripe.ApiList<Stripe.Subscription> =
+        await this.stripe.subscriptions.list({
+          status: "all",
+          limit: 100,
+          starting_after: startingAfter,
+          ...(testClockId ? { test_clock: testClockId } : {}),
+        });
+
+      allSubs = [...allSubs, ...res.data];
+      hasMore = res.has_more;
+      startingAfter = hasMore ? res.data[res.data.length - 1].id : undefined;
+    }
+
+    return allSubs;
+  }
+
   async cancelSubscription(
     subscriptionId: string,
     cancel_at_period_end: boolean
@@ -243,8 +276,11 @@ export class StripeService {
     }
   }
 
-  async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
-    return await this.stripe.subscriptions.retrieve(subscriptionId);
+  async getSubscription(
+    subscriptionId: string,
+    params?: Stripe.SubscriptionRetrieveParams
+  ): Promise<Stripe.Subscription> {
+    return this.stripe.subscriptions.retrieve(subscriptionId, params);
   }
 
   async getSubscriptionPeriodEnd(subscriptionId: string): Promise<number> {
