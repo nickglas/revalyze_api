@@ -35,7 +35,6 @@ export class StripeWebhookService {
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
     try {
       switch (event.type) {
-        //for product changes
         case "product.created":
         case "product.updated":
           await this.handleProductEvent(event);
@@ -45,27 +44,25 @@ export class StripeWebhookService {
           await this.handleProductDeleted(event);
           break;
 
-        //for price changes
         case "price.created":
         case "price.updated":
           await this.handlePriceEvent(event);
           break;
 
-        //for subscription changes
         case "customer.subscription.created":
         case "customer.subscription.updated":
         case "customer.subscription.deleted":
           await this.handleSubscriptionEvent(event);
           break;
 
-        //scheduler updates
         case "subscription_schedule.created":
         case "subscription_schedule.updated":
         case "subscription_schedule.completed":
+        case "subscription_schedule.canceled": // NEW: Handle schedule cancellation
+        case "subscription_schedule.released": // NEW: Handle schedule release
           await this.handleScheduleChange(event);
           break;
 
-        //register company when checkout is successful
         case "checkout.session.completed":
           await this.handleCheckoutCompleted(event);
           break;
@@ -75,11 +72,12 @@ export class StripeWebhookService {
           break;
 
         default:
-          console.log(`Unhandled event type ${event.type}`);
+          logger.info(`Unhandled event type ${event.type}`);
       }
     } catch (error: any) {
       logger.error(`Error processing ${event.type} event: ${error.message}`, {
         eventId: event.id,
+        stack: error.stack,
       });
       throw new InternalServerError(
         `Failed to process event: ${error.message}`
@@ -93,6 +91,7 @@ export class StripeWebhookService {
 
     let company: ICompany | null = null;
 
+    // Retry mechanism for eventual consistency
     for (let i = 0; i < 3; i++) {
       company = await this.companyRepo.findOne({
         stripeCustomerId: customerId,
@@ -120,47 +119,79 @@ export class StripeWebhookService {
     );
     const tier = parseInt(product.metadata.tier || "0", 10);
 
+    // Update company with current limits
     company.allowedUsers = allowedUsers;
     company.allowedTranscripts = allowedTranscripts;
     await company.save();
 
+    // Handle immediate upgrades (clear scheduled downgrades)
+    if (event.type === "customer.subscription.updated") {
+      await this.clearScheduledUpdates(subscription, company);
+    }
+
+    // Create/update subscription record
+    await this.upsertSubscription(subscription, company, product, price);
+  }
+
+  // NEW: Clear scheduled updates when upgrading immediately
+  private async clearScheduledUpdates(
+    subscription: Stripe.Subscription,
+    company: ICompany
+  ) {
     const localSub = await Subscription.findOne({
-      stripeSubscriptionId: subscription.id,
+      companyId: company._id,
     });
 
     if (localSub?.scheduledUpdate) {
-      try {
-        const scheduleId = subscription.schedule as string | undefined;
+      const activePriceId = subscription.items.data[0]?.price.id;
+      const scheduledPriceId = localSub.scheduledUpdate.priceId;
 
-        if (scheduleId) {
-          const schedule = await this.stripeService.getSubscriptionScheduleById(
-            scheduleId
+      // If current price doesn't match scheduled price = immediate upgrade
+      if (activePriceId !== scheduledPriceId) {
+        try {
+          // RELEASE schedule instead of canceling
+          await this.stripeService.releaseSubscriptionSchedule(
+            localSub.scheduledUpdate.scheduleId
           );
-          const currentPhase = schedule?.phases?.[0];
 
-          const activePriceId = subscription.items.data[0]?.price.id;
-          const scheduledPriceId = localSub.scheduledUpdate.priceId;
-
-          const now = Math.floor(Date.now() / 1000);
-          const isCurrentPhaseActive = now >= currentPhase.start_date;
-
-          if (isCurrentPhaseActive && activePriceId === scheduledPriceId) {
-            localSub.scheduledUpdate = undefined;
-            await localSub.save();
-            logger.info("Cleared scheduledUpdate after downgrade took effect");
-          }
+          logger.info(
+            `Released schedule ${localSub.scheduledUpdate.scheduleId} for immediate upgrade`
+          );
+        } catch (err: any) {
+          logger.error(`Failed to release schedule: ${err.message}`, {
+            scheduleId: localSub.scheduledUpdate.scheduleId,
+          });
         }
-      } catch (err) {
-        logger.error("Failed to check/clear scheduledUpdate:", err);
+
+        // Clear scheduled update in our system
+        localSub.scheduledUpdate = undefined;
+        await localSub.save();
+        logger.info(
+          `Cleared scheduled downgrade for immediate upgrade to ${activePriceId}`
+        );
       }
     }
+  }
 
-    await Subscription.findOneAndUpdate(
+  private async upsertSubscription(
+    subscription: Stripe.Subscription,
+    company: ICompany,
+    product: Stripe.Product,
+    price: Stripe.Price
+  ) {
+    const allowedUsers = parseInt(product.metadata.allowedUsers || "0", 10);
+    const allowedTranscripts = parseInt(
+      product.metadata.allowedTranscripts || "0",
+      10
+    );
+    const tier = parseInt(product.metadata.tier || "0", 10);
+
+    return Subscription.findOneAndUpdate(
       { companyId: company._id },
       {
         companyId: company._id,
         stripeSubscriptionId: subscription.id,
-        stripeCustomerId: customerId,
+        stripeCustomerId: subscription.customer as string,
         status: subscription.status,
         currentPeriodStart: new Date(
           subscription.items.data[0].current_period_start * 1000
@@ -181,7 +212,7 @@ export class StripeWebhookService {
         productName: product.name,
         amount: price.unit_amount ?? 0,
         currency: price.currency,
-        interval: price.recurring?.interval ?? "month",
+        interval: (price.recurring?.interval as "month" | "year") || "month",
 
         allowedUsers,
         allowedTranscripts,
@@ -191,15 +222,10 @@ export class StripeWebhookService {
       },
       { upsert: true, new: true }
     );
-
-    logger.info(`Subscription stored/updated for company ${company.name}`);
   }
 
-  //This method gets triggered when a payment session expires.
-  //The pending company will be deleted if its found by session id
   private async handleSessionExpired(event: Stripe.Event): Promise<void> {
     const session = event.data.object as Stripe.Checkout.Session;
-
     const pendingCompany = await this.pendingCompanyRepo.findBySessionId(
       session.id
     );
@@ -210,15 +236,13 @@ export class StripeWebhookService {
     logger.info(`Deleted pending company for expired session ${session.id}`);
   }
 
-  //This methods saves a new company when the checkout is completed.
-  //The pending comapny is retrieved and data is copied over.
   private async handleCheckoutCompleted(event: Stripe.Event) {
     const session = event.data.object as Stripe.Checkout.Session;
     const customerId = session.customer as string;
     const subscriptionId = session.subscription as string;
 
     if (!customerId || !subscriptionId) {
-      throw new Error("Missing Stripe customer or subscription ID");
+      throw new BadRequestError("Missing Stripe customer or subscription ID");
     }
 
     const pending = await this.pendingCompanyRepo.findByStripeId(customerId);
@@ -255,6 +279,7 @@ export class StripeWebhookService {
 
     let subscription: ISubscription | null = null;
 
+    // Retry mechanism for eventual consistency
     for (let i = 0; i < 3; i++) {
       subscription = await Subscription.findOne({
         stripeSubscriptionId: subscriptionId,
@@ -266,6 +291,21 @@ export class StripeWebhookService {
 
     if (!subscription) {
       logger.warn(`No subscription found for subscriptionId ${subscriptionId}`);
+      return;
+    }
+
+    // NEW: Handle schedule cancellation/release
+    if (
+      event.type === "subscription_schedule.canceled" ||
+      event.type === "subscription_schedule.released"
+    ) {
+      if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
+        subscription.scheduledUpdate = undefined;
+        await subscription.save();
+        logger.info(
+          `Cleared scheduled update due to schedule ${event.type}: ${schedule.id}`
+        );
+      }
       return;
     }
 
@@ -299,7 +339,7 @@ export class StripeWebhookService {
         productName: product.name,
         productId: product.id,
         amount: price.unit_amount ?? 0,
-        interval: price.recurring?.interval === "year" ? "year" : "month",
+        interval: (price.recurring?.interval as "month" | "year") || "month",
         allowedUsers: parseInt(product.metadata.allowedUsers || "0", 10),
         allowedTranscripts: parseInt(
           product.metadata.allowedTranscripts || "0",
@@ -315,6 +355,7 @@ export class StripeWebhookService {
       logger.error(`Failed to process schedule change: ${error.message}`, {
         subscriptionId,
         scheduleId: schedule.id,
+        stack: error.stack,
       });
       throw error;
     }
@@ -339,7 +380,9 @@ export class StripeWebhookService {
 
       await this.handleProductEvent(simulatedEvent);
     } catch (error: any) {
-      logger.error(`Error handling price event: ${error.message}`);
+      logger.error(`Error handling price event: ${error.message}`, {
+        stack: error.stack,
+      });
       throw error;
     }
   }
@@ -416,7 +459,9 @@ export class StripeWebhookService {
 
       logger.info(`Processed product event for ${product.id}`);
     } catch (error: any) {
-      logger.error(`Error handling product event: ${error.message}`);
+      logger.error(`Error handling product event: ${error.message}`, {
+        stack: error.stack,
+      });
       throw error;
     }
   }

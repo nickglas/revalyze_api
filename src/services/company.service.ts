@@ -114,6 +114,35 @@ export class CompanyService {
     };
   }
 
+  async releaseScheduledSubscriptionBySubscription(
+    scubscription: ISubscription
+  ) {
+    if (!scubscription.scheduledUpdate) return;
+
+    const releasedSchedule =
+      await this.stripeService.releaseSubscriptionSchedule(
+        scubscription.scheduledUpdate.scheduleId
+      );
+
+    if (!releasedSchedule || releasedSchedule.status !== "released") {
+      throw new BadRequestError("Failed to release subscription schedule");
+    }
+  }
+
+  async releaseScheduledSubscriptionByCompanyId(companyId: string) {
+    const companySubscription = await Subscription.findOne({
+      companyId: companyId,
+    });
+
+    if (!companySubscription) throw new BadRequestError("Company not found");
+    if (!companySubscription.scheduledUpdate)
+      throw new BadRequestError("No scheduled subscriptions found");
+
+    return await this.stripeService.releaseSubscriptionSchedule(
+      companySubscription.scheduledUpdate.scheduleId
+    );
+  }
+
   async activateCompany(
     pendingCompanyId: string,
     subscriptionId: string
@@ -264,10 +293,14 @@ export class CompanyService {
       );
     }
 
-    //cancel scheduled ones
-    return await this.cancelScheduledSubscriptionBySubscription(
-      companySubscription
-    );
+    // Use release instead of cancel for scheduled subscriptions
+    if (companySubscription.scheduledUpdate) {
+      await this.releaseScheduledSubscriptionBySubscription(
+        companySubscription
+      );
+    }
+
+    return result;
   }
 
   async getCompanyById(companyId: string) {
@@ -437,7 +470,10 @@ export class CompanyService {
             proration_behavior: "create_prorations",
           }
         );
-        return { message: "Subscription upgraded successfully" };
+        return {
+          id: subscription.id,
+          message: "Subscription upgraded successfully",
+        };
       }
 
       default:

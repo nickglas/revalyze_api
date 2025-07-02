@@ -1,6 +1,7 @@
 // stripe.service.ts
 import Stripe from "stripe";
 import { Service } from "typedi";
+import { logger } from "../utils/logger";
 
 @Service()
 export class StripeService {
@@ -190,10 +191,56 @@ export class StripeService {
     return this.stripe.subscriptionSchedules.create(data);
   }
 
+  async releaseSubscriptionSchedule(
+    scheduleId: string
+  ): Promise<Stripe.SubscriptionSchedule> {
+    try {
+      const schedule = await this.stripe.subscriptionSchedules.retrieve(
+        scheduleId
+      );
+
+      // Only release if not already released/canceled
+      if (schedule.status !== "canceled" && schedule.status !== "released") {
+        return await this.stripe.subscriptionSchedules.release(scheduleId);
+      }
+
+      logger.info(
+        `Schedule ${scheduleId} already in terminal state: ${schedule.status}`
+      );
+      return schedule;
+    } catch (error: any) {
+      if (error.statusCode === 404) {
+        logger.warn(`Schedule ${scheduleId} not found during release`);
+        throw new Error("Schedule not found");
+      }
+      throw error;
+    }
+  }
+
   async cancelSubscriptionSchedule(
     scheduleId: string
   ): Promise<Stripe.SubscriptionSchedule> {
-    return await this.stripe.subscriptionSchedules.release(scheduleId);
+    try {
+      const schedule = await this.stripe.subscriptionSchedules.retrieve(
+        scheduleId
+      );
+
+      // Only cancel if not already released/canceled
+      if (schedule.status !== "canceled" && schedule.status !== "released") {
+        return await this.stripe.subscriptionSchedules.cancel(scheduleId);
+      }
+
+      logger.info(
+        `Schedule ${scheduleId} already in terminal state: ${schedule.status}`
+      );
+      return schedule;
+    } catch (error: any) {
+      if (error.statusCode === 404) {
+        logger.warn(`Schedule ${scheduleId} not found during cancellation`);
+        throw new Error("Schedule not found");
+      }
+      throw error;
+    }
   }
 
   async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
