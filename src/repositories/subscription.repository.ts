@@ -12,9 +12,22 @@ export class SubscriptionRepository {
     return Subscription.find({ status: "active" });
   }
 
+  //finds the latest active subscription for a company
+  async findActiveSubscriptionByStripeCustomerId(
+    stripeCustomerId: string
+  ): Promise<ISubscription | null> {
+    return Subscription.findOne({ stripeCustomerId: stripeCustomerId });
+  }
+
   async findById(id: string): Promise<ISubscription | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return Subscription.findById(id);
+  }
+
+  async findByStripeSubscriptionId(
+    stripeSubscriptionId: string
+  ): Promise<ISubscription | null> {
+    return Subscription.findOne({ stripeSubscriptionId });
   }
 
   async create(data: Partial<ISubscription>): Promise<ISubscription> {

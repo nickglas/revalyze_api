@@ -77,10 +77,7 @@ export const seedProducts = async (): Promise<SeededPlan[]> => {
         plan.features
       );
 
-      logger.info(
-        `Created "${product.name}" with prices:`,
-        prices.map((p) => p.id)
-      );
+      logger.info(`Created "${product.name}"`);
     } catch (error) {
       logger.error(`Failed to seed "${plan.name}":`, error);
     }

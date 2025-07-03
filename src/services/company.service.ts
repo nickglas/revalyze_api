@@ -22,6 +22,7 @@ import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { logger } from "../utils/logger";
 import { ReviewConfigService } from "./review.config.service";
 import { ApiKeyService } from "./key.service";
+import { SubscriptionRepository } from "../repositories/subscription.repository";
 
 @Service()
 export class CompanyService {
@@ -31,7 +32,8 @@ export class CompanyService {
     private readonly userRepository: UserRepository,
     private readonly pendingRepository: PendingCompanyRepository,
     private readonly reviewConfigService: ReviewConfigService,
-    private readonly apiKeyService: ApiKeyService
+    private readonly apiKeyService: ApiKeyService,
+    private readonly subscriptionRepository: SubscriptionRepository
   ) {}
 
   async registerCompany({
@@ -157,16 +159,8 @@ export class CompanyService {
       const subscription = await this.stripeService.getSubscription(
         subscriptionId
       );
-      const priceId = subscription.items.data[0]?.price?.id;
       const productId = subscription.items.data[0]?.price?.product as string;
       const product = await this.stripeService.getProductById(productId);
-
-      // Parse product metadata
-      const allowedUsers = parseInt(product.metadata.allowedUsers || "0", 10);
-      const allowedTranscripts = parseInt(
-        product.metadata.allowedTranscripts || "0",
-        10
-      );
 
       // Create company
       const company = await this.companyRepository.create({
@@ -175,12 +169,7 @@ export class CompanyService {
         phone: pending.companyPhone,
         address: pending.address,
         stripeCustomerId: pending.stripeCustomerId,
-        stripeSubscriptionId: subscriptionId,
-        stripePriceId: priceId,
-        stripeProductId: productId,
         isActive: true,
-        allowedUsers,
-        allowedTranscripts,
       });
 
       // Create admin user
@@ -367,13 +356,18 @@ export class CompanyService {
     const company = await Company.findById(companyId);
     if (!company) throw new BadRequestError("Company not found");
 
-    if (!company.stripeSubscriptionId || !company.stripeCustomerId) {
+    const s =
+      await this.subscriptionRepository.findActiveSubscriptionByStripeCustomerId(
+        company.stripeCustomerId
+      );
+
+    if (!s) {
       throw new BadRequestError("Company has no active subscription");
     }
 
     // 2. Retrieve current subscription
     const subscription = await this.stripeService.getSubscription(
-      company.stripeSubscriptionId
+      s.stripeSubscriptionId
     );
 
     if (!subscription) {

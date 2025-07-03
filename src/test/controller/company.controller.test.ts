@@ -20,6 +20,9 @@ import { UserRepository } from "../../repositories/user.repository";
 import { TranscriptRepository } from "../../repositories/transcript.repository";
 import { PendingCompanyRepository } from "../../repositories/pending.repository";
 import Subscription from "../../models/subscription.model";
+import { SubscriptionRepository } from "../../repositories/subscription.repository";
+import { ApiKeyService } from "../../services/key.service";
+import { ReviewConfigService } from "../../services/review.config.service";
 
 jest.mock("../../services/stripe.service");
 jest.mock("../../utils/plan");
@@ -45,14 +48,19 @@ describe("Company Controller", () => {
     mockStripeService.cancelSubscription = jest.fn();
     const mockCompanyRepository = {} as CompanyRepository;
     const mockUserRepository = {} as UserRepository;
-    const mockTranscriptRepository = {} as TranscriptRepository;
+    const mockReviewConfigService = {} as ReviewConfigService;
     const mockPendingRepository = {} as PendingCompanyRepository;
+    const mockSubscriptionRepository = {} as SubscriptionRepository;
+    const mockApiKeyService = {} as ApiKeyService;
 
     mockCompanyService = new CompanyService(
       mockStripeService,
       mockCompanyRepository,
       mockUserRepository,
-      mockPendingRepository
+      mockPendingRepository,
+      mockReviewConfigService,
+      mockApiKeyService,
+      mockSubscriptionRepository
     ) as jest.Mocked<CompanyService>;
 
     Container.set(StripeService, mockStripeService);
@@ -219,6 +227,9 @@ describe("Company Controller", () => {
       await User.deleteMany({});
 
       mockCompanyService = new CompanyService(
+        {} as any,
+        {} as any,
+        {} as any,
         {} as any,
         {} as any,
         {} as any,

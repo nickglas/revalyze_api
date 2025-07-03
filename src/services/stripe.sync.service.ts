@@ -129,11 +129,14 @@ export class StripeSyncService {
 
       // Fetch all test clocks
       const testClocks = await this.stripeService.getAllTestClocks();
-
       for (const clock of testClocks) {
         const subs = await this.stripeService.getAllSubscriptions(clock.id);
         stripeSubscriptions.push(...subs);
       }
+
+      //Fetch wuthout clocks
+      const subsWithoutClock = await this.stripeService.getAllSubscriptions();
+      stripeSubscriptions.push(...subsWithoutClock);
     } else {
       logger.info("Production mode: syncing subscriptions without test clocks");
 

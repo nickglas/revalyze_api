@@ -18,6 +18,7 @@ import {
   BadRequestError,
 } from "../utils/errors";
 import { CompanyService } from "./company.service";
+import { SubscriptionRepository } from "../repositories/subscription.repository";
 
 @Service()
 export class StripeWebhookService {
@@ -29,7 +30,8 @@ export class StripeWebhookService {
     private readonly companyService: CompanyService,
     private readonly criteriaService: CriteriaService,
     private readonly keyService: ApiKeyService,
-    private readonly reviewConfigService: ReviewConfigService
+    private readonly reviewConfigService: ReviewConfigService,
+    private readonly subscriptionRepository: SubscriptionRepository
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
@@ -58,8 +60,8 @@ export class StripeWebhookService {
         case "subscription_schedule.created":
         case "subscription_schedule.updated":
         case "subscription_schedule.completed":
-        case "subscription_schedule.canceled": // NEW: Handle schedule cancellation
-        case "subscription_schedule.released": // NEW: Handle schedule release
+        case "subscription_schedule.canceled":
+        case "subscription_schedule.released":
           await this.handleScheduleChange(event);
           break;
 
@@ -86,8 +88,8 @@ export class StripeWebhookService {
   }
 
   private async handleSubscriptionEvent(event: Stripe.Event): Promise<void> {
-    const subscription = event.data.object as Stripe.Subscription;
-    const customerId = subscription.customer as string;
+    const stripeSubscription = event.data.object as Stripe.Subscription;
+    const customerId = stripeSubscription.customer as string;
 
     let company: ICompany | null = null;
 
@@ -102,49 +104,39 @@ export class StripeWebhookService {
     }
 
     if (!company) {
-      logger.warn(`No company found for Stripe customer ${customerId}`);
+      logger.error(`No company found for Stripe customer ${customerId}`);
       return;
     }
 
-    const item = subscription.items.data[0];
+    const item = stripeSubscription.items.data[0];
     const price = item.price;
     const product = await this.stripeService.getProductById(
       price.product as string
     );
 
-    const allowedUsers = parseInt(product.metadata.allowedUsers || "0", 10);
-    const allowedTranscripts = parseInt(
-      product.metadata.allowedTranscripts || "0",
-      10
-    );
-    const tier = parseInt(product.metadata.tier || "0", 10);
-
-    // Update company with current limits
-    company.allowedUsers = allowedUsers;
-    company.allowedTranscripts = allowedTranscripts;
-    await company.save();
-
     // Handle immediate upgrades (clear scheduled downgrades)
     if (event.type === "customer.subscription.updated") {
-      await this.clearScheduledUpdates(subscription, company);
+      await this.clearScheduledUpdates(stripeSubscription, company);
     }
 
     // Create/update subscription record
-    await this.upsertSubscription(subscription, company, product, price);
+    await this.upsertSubscription(stripeSubscription, company, product, price);
   }
 
   // NEW: Clear scheduled updates when upgrading immediately
   private async clearScheduledUpdates(
-    subscription: Stripe.Subscription,
+    stripeSubscription: Stripe.Subscription,
     company: ICompany
   ) {
-    const localSub = await Subscription.findOne({
-      companyId: company._id,
-    });
+    const localSub =
+      await this.subscriptionRepository.findByStripeSubscriptionId(
+        stripeSubscription.id
+      );
 
     if (localSub?.scheduledUpdate) {
-      const activePriceId = subscription.items.data[0]?.price.id;
+      const activePriceId = stripeSubscription.items.data[0]?.price.id;
       const scheduledPriceId = localSub.scheduledUpdate.priceId;
+      const now = Date.now();
 
       // If current price doesn't match scheduled price = immediate upgrade
       if (activePriceId !== scheduledPriceId) {
@@ -174,7 +166,7 @@ export class StripeWebhookService {
   }
 
   private async upsertSubscription(
-    subscription: Stripe.Subscription,
+    stripeSubscription: Stripe.Subscription,
     company: ICompany,
     product: Stripe.Product,
     price: Stripe.Price
@@ -190,29 +182,29 @@ export class StripeWebhookService {
       { companyId: company._id },
       {
         companyId: company._id,
-        stripeSubscriptionId: subscription.id,
-        stripeCustomerId: subscription.customer as string,
-        status: subscription.status,
+        stripeSubscriptionId: stripeSubscription.id,
+        stripeCustomerId: stripeSubscription.customer as string,
+        status: stripeSubscription.status,
         currentPeriodStart: new Date(
-          subscription.items.data[0].current_period_start * 1000
+          stripeSubscription.items.data[0].current_period_start * 1000
         ),
         currentPeriodEnd: new Date(
-          subscription.items.data[0].current_period_end * 1000
+          stripeSubscription.items.data[0].current_period_end * 1000
         ),
-        cancelAt: subscription.cancel_at
-          ? new Date(subscription.cancel_at * 1000)
+        cancelAt: stripeSubscription.cancel_at
+          ? new Date(stripeSubscription.cancel_at * 1000)
           : undefined,
-        canceledAt: subscription.canceled_at
-          ? new Date(subscription.canceled_at * 1000)
+        canceledAt: stripeSubscription.canceled_at
+          ? new Date(stripeSubscription.canceled_at * 1000)
           : undefined,
-        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
 
         priceId: price.id,
         productId: product.id,
         productName: product.name,
         amount: price.unit_amount ?? 0,
         currency: price.currency,
-        interval: (price.recurring?.interval as "month" | "year") || "month",
+        interval: price.recurring?.interval,
 
         allowedUsers,
         allowedTranscripts,
