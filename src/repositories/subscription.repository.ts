@@ -45,7 +45,24 @@ export class SubscriptionRepository {
   ): Promise<ISubscription | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
-    return Subscription.findByIdAndUpdate(id, data, {
+    // Prepare update object with $set and $unset
+    const update: any = {};
+    const unset: any = {};
+
+    Object.entries(data).forEach(([key, value]) => {
+      if (value === undefined) {
+        unset[key] = 1;
+      } else {
+        if (!update.$set) update.$set = {};
+        update.$set[key] = value;
+      }
+    });
+
+    if (Object.keys(unset).length > 0) {
+      update.$unset = unset;
+    }
+
+    return Subscription.findByIdAndUpdate(id, update, {
       new: true,
       runValidators: true,
     });

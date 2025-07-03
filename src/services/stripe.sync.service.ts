@@ -1,6 +1,5 @@
 // src/sync/stripe-sync.service.ts
 import { StripeService } from "./stripe.service";
-import ProductModel from "../models/plan.model";
 import { Service } from "typedi";
 import { PlanRepository } from "../repositories/plan.repository";
 import { PlanInput } from "../dto/plans/plan.input.dto";
@@ -30,35 +29,33 @@ export class StripeSyncService {
 
     for (const pending of pendingCompanies) {
       try {
-        //get the session
+        // Get the session
         const session = await this.stripeService.getCheckoutSession(
           pending.stripeSessionId
         );
 
-        //check if expired
+        // Check if expired
         if (session.status === "expired") {
           logger.info(
             `Deleting expired session for pending company ${pending.id}`
           );
-
           await this.pendingCompanyRepo.delete(pending.id);
         }
 
-        //check if paid
+        // Check if paid
         if (session.payment_status === "paid") {
-          //verify subscription
+          // Verify subscription
           const subscription = await this.stripeService.getSubscription(
             session.subscription as string
           );
 
-          //activate if subscription is active
+          // Activate if subscription is active
           if (subscription.status === "active") {
             await this.companyService.activateCompany(
               pending.id,
               session.subscription as string
             );
-
-            //remove pending
+            // Remove pending
             await this.pendingCompanyRepo.delete(pending.id);
           }
         }
@@ -106,7 +103,6 @@ export class StripeSyncService {
       };
 
       await this.planRepo.upsert(doc);
-
       logger.info(`Synced product: ${product.name} (${product.id})`);
     }
   }
@@ -116,11 +112,11 @@ export class StripeSyncService {
 
     // Get current active subscriptions from your DB
     const activeSubscriptions = await this.subscriptionRepo.find();
-
     let stripeSubscriptions: Stripe.Subscription[] = [];
 
     // Check environment
     const isDevelopment = process.env.NODE_ENV === "development";
+    const testClockTimes: Record<string, number> = {};
 
     if (isDevelopment) {
       logger.info(
@@ -130,17 +126,20 @@ export class StripeSyncService {
       // Fetch all test clocks
       const testClocks = await this.stripeService.getAllTestClocks();
       for (const clock of testClocks) {
+        // Store frozen time for each test clock
+        if (clock.frozen_time) {
+          testClockTimes[clock.id] = clock.frozen_time;
+        }
+
         const subs = await this.stripeService.getAllSubscriptions(clock.id);
         stripeSubscriptions.push(...subs);
       }
 
-      //Fetch wuthout clocks
+      // Fetch subscriptions without clocks
       const subsWithoutClock = await this.stripeService.getAllSubscriptions();
       stripeSubscriptions.push(...subsWithoutClock);
     } else {
       logger.info("Production mode: syncing subscriptions without test clocks");
-
-      // Only fetch real subscriptions (no test_clock)
       const subs = await this.stripeService.getAllSubscriptions();
       stripeSubscriptions.push(...subs);
     }
@@ -162,9 +161,146 @@ export class StripeSyncService {
           return await this.createSubscription(s);
         }
 
-        return await this.updateSubscription(existing, s);
+        const updatedSubscription = await this.updateSubscription(existing, s);
+
+        if (updatedSubscription) {
+          // Sync scheduled updates for existing subscriptions
+          if (s.schedule) {
+            await this.syncSubscriptionSchedule(
+              s.schedule as Stripe.SubscriptionSchedule,
+              updatedSubscription,
+              s, // Pass the original Stripe subscription
+              testClockTimes
+            );
+          } else {
+            // Clear scheduled update if schedule was removed
+            if (updatedSubscription.scheduledUpdate) {
+              updatedSubscription.scheduledUpdate = undefined;
+              await this.subscriptionRepo.update(
+                updatedSubscription.id,
+                updatedSubscription
+              );
+            }
+          }
+        }
       })
     );
+  }
+
+  private async syncSubscriptionSchedule(
+    localSchedule: Stripe.SubscriptionSchedule,
+    subscription: ISubscription,
+    stripeSubscription: Stripe.Subscription,
+    testClockTimes: Record<string, number>
+  ): Promise<void> {
+    try {
+      const schedule = await this.stripeService.getSubscriptionScheduleById(
+        localSchedule.id
+      );
+
+      // Get proper current time (real or simulated)
+      const now = this.getCurrentTime(testClockTimes, stripeSubscription);
+
+      // Handle terminal states: canceled, released, completed
+      if (["canceled", "released", "completed"].includes(schedule.status)) {
+        if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
+          subscription.scheduledUpdate = undefined;
+          await this.subscriptionRepo.update(subscription.id, subscription);
+          logger.info(
+            `Cleared scheduled update for ${schedule.status} schedule: ${schedule.id}`
+          );
+        }
+        return;
+      }
+
+      // NEW: Check if the scheduled update has taken effect
+      if (subscription.scheduledUpdate) {
+        const effectiveTime = Math.floor(
+          subscription.scheduledUpdate.effectiveDate.getTime() / 1000
+        );
+
+        if (effectiveTime <= now) {
+          // The scheduled update has taken effect - clear it
+          subscription.scheduledUpdate = undefined;
+          await this.subscriptionRepo.update(subscription.id, subscription);
+          logger.info(
+            `Cleared scheduled update because effective date has passed: ${schedule.id}`
+          );
+
+          // Release the schedule since it's no longer needed
+          try {
+            await this.stripeService.releaseSubscriptionSchedule(schedule.id);
+            logger.info(
+              `Released schedule after effective date: ${schedule.id}`
+            );
+          } catch (error) {
+            logger.error(`Failed to release schedule ${schedule.id}:`, error);
+          }
+          return;
+        }
+      }
+
+      // Find the next upcoming phase
+      const upcomingPhase = schedule.phases?.find(
+        (phase) => phase.start_date && phase.start_date > now
+      );
+
+      if (!upcomingPhase) {
+        // No upcoming phases but schedule is still active
+        if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
+          subscription.scheduledUpdate = undefined;
+          await this.subscriptionRepo.update(subscription.id, subscription);
+          logger.info(
+            `Cleared scheduled update with no upcoming phases: ${schedule.id}`
+          );
+        }
+        return;
+      }
+
+      // Get price details from the upcoming phase
+      const priceId = upcomingPhase.items[0].price as string;
+      const price = await this.stripeService.getPriceById(priceId);
+      const product = await this.stripeService.getProductById(
+        price.product as string
+      );
+
+      // Update scheduled update information
+      subscription.scheduledUpdate = {
+        effectiveDate: new Date(upcomingPhase.start_date! * 1000),
+        priceId: price.id,
+        productName: product.name,
+        productId: product.id,
+        amount: price.unit_amount ?? 0,
+        interval: (price.recurring?.interval as "month" | "year") || "month",
+        allowedUsers: parseInt(product.metadata.allowedUsers || "0", 10),
+        allowedTranscripts: parseInt(
+          product.metadata.allowedTranscripts || "0",
+          10
+        ),
+        tier: parseInt(product.metadata.tier || "0", 10),
+        scheduleId: schedule.id,
+      };
+
+      await this.subscriptionRepo.update(subscription.id, subscription);
+    } catch (error) {
+      logger.error(`Error syncing schedule ${localSchedule.id}:`, error);
+    }
+  }
+
+  private getCurrentTime(
+    testClockTimes: Record<string, number>,
+    subscription: Stripe.Subscription
+  ): number {
+    // Use test clock time if available
+    if (
+      subscription.test_clock &&
+      testClockTimes[subscription.test_clock as string]
+    ) {
+      return testClockTimes[subscription.test_clock as string];
+    }
+
+    // Fallback to real time
+    return Math.floor(Date.now() / 1000);
   }
 
   private createSubscription = async (
@@ -178,13 +314,15 @@ export class StripeSyncService {
       stripeSubscription.customer as string
     );
 
-    if (!company)
-      return logger.warn(
+    if (!company) {
+      logger.warn(
         `Could not create new subscription with stripe id: ${stripeSubscription.id}. Company ${stripeSubscription.customer} was not found as registered company`
       );
+      return;
+    }
 
     const newSubscription = {
-      companyId: company?.id,
+      companyId: company.id,
       stripeSubscriptionId: stripeSubscription.id,
       stripeCustomerId: stripeSubscription.customer as string,
       productId: product.id,
@@ -213,14 +351,15 @@ export class StripeSyncService {
 
     const newSub = await this.subscriptionRepo.create(newSubscription);
 
-    if (!newSub)
-      return logger.error(
+    if (!newSub) {
+      logger.error(
         `Error saving new subscription from stripe with id ${stripeSubscription.id}`
       );
+      return;
+    }
 
-    return logger.info(
-      `Saved new subscription with id ${stripeSubscription.id}`
-    );
+    logger.info(`Saved new subscription with id ${stripeSubscription.id}`);
+    return newSub;
   };
 
   private updateSubscription = async (
@@ -236,9 +375,10 @@ export class StripeSyncService {
     );
 
     if (!company) {
-      return logger.error(
+      logger.error(
         `Cannot update subscription. Company not found for Stripe customer ${stripeSubscription.customer}`
       );
+      return;
     }
 
     activeSubscription.companyId = company.id;
@@ -276,11 +416,13 @@ export class StripeSyncService {
     );
 
     if (!updated) {
-      return logger.error(
+      logger.error(
         `Error updating subscription from Stripe with id ${stripeSubscription.id}`
       );
+    } else {
+      logger.info(`Updated subscription with id ${stripeSubscription.id}`);
     }
 
-    return logger.info(`Updated subscription with id ${stripeSubscription.id}`);
+    return updated;
   };
 }

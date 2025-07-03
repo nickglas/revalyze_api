@@ -115,6 +115,7 @@ export class StripeService {
         await this.stripe.subscriptions.list({
           status: "all",
           limit: 100,
+          expand: ["data.schedule"],
           starting_after: startingAfter,
           ...(testClockId ? { test_clock: testClockId } : {}),
         });
@@ -232,8 +233,10 @@ export class StripeService {
         scheduleId
       );
 
+      console.warn(schedule);
+
       // Only release if not already released/canceled
-      if (schedule.status !== "canceled" && schedule.status !== "released") {
+      if (!["released", "canceled", "completed"].includes(schedule.status)) {
         return await this.stripe.subscriptionSchedules.release(scheduleId);
       }
 
