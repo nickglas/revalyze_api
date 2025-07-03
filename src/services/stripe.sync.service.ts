@@ -8,7 +8,7 @@ import { logger } from "../utils/logger";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
-import { ISubscription } from "../models/subscription.model";
+import Subscription, { ISubscription } from "../models/subscription.model";
 import { CompanyRepository } from "../repositories/company.repository";
 
 @Service()
@@ -198,14 +198,13 @@ export class StripeSyncService {
         localSchedule.id
       );
 
-      // Get proper current time (real or simulated)
       const now = this.getCurrentTime(testClockTimes, stripeSubscription);
 
-      // Handle terminal states: canceled, released, completed
       if (["canceled", "released", "completed"].includes(schedule.status)) {
         if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
-          subscription.scheduledUpdate = undefined;
-          await this.subscriptionRepo.update(subscription.id, subscription);
+          delete subscription.scheduledUpdate;
+          subscription.markModified("scheduledUpdate");
+          await subscription.save();
           logger.info(
             `Cleared scheduled update for ${schedule.status} schedule: ${schedule.id}`
           );
@@ -213,21 +212,19 @@ export class StripeSyncService {
         return;
       }
 
-      // NEW: Check if the scheduled update has taken effect
       if (subscription.scheduledUpdate) {
         const effectiveTime = Math.floor(
           subscription.scheduledUpdate.effectiveDate.getTime() / 1000
         );
 
         if (effectiveTime <= now) {
-          // The scheduled update has taken effect - clear it
-          subscription.scheduledUpdate = undefined;
-          await this.subscriptionRepo.update(subscription.id, subscription);
+          delete subscription.scheduledUpdate;
+          subscription.markModified("scheduledUpdate");
+          await subscription.save();
           logger.info(
             `Cleared scheduled update because effective date has passed: ${schedule.id}`
           );
 
-          // Release the schedule since it's no longer needed
           try {
             await this.stripeService.releaseSubscriptionSchedule(schedule.id);
             logger.info(
@@ -240,16 +237,15 @@ export class StripeSyncService {
         }
       }
 
-      // Find the next upcoming phase
       const upcomingPhase = schedule.phases?.find(
         (phase) => phase.start_date && phase.start_date > now
       );
 
       if (!upcomingPhase) {
-        // No upcoming phases but schedule is still active
         if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
-          subscription.scheduledUpdate = undefined;
-          await this.subscriptionRepo.update(subscription.id, subscription);
+          delete subscription.scheduledUpdate;
+          subscription.markModified("scheduledUpdate");
+          await subscription.save();
           logger.info(
             `Cleared scheduled update with no upcoming phases: ${schedule.id}`
           );
@@ -257,14 +253,12 @@ export class StripeSyncService {
         return;
       }
 
-      // Get price details from the upcoming phase
       const priceId = upcomingPhase.items[0].price as string;
       const price = await this.stripeService.getPriceById(priceId);
       const product = await this.stripeService.getProductById(
         price.product as string
       );
 
-      // Update scheduled update information
       subscription.scheduledUpdate = {
         effectiveDate: new Date(upcomingPhase.start_date! * 1000),
         priceId: price.id,
@@ -280,8 +274,7 @@ export class StripeSyncService {
         tier: parseInt(product.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };
-
-      await this.subscriptionRepo.update(subscription.id, subscription);
+      await subscription.save();
     } catch (error) {
       logger.error(`Error syncing schedule ${localSchedule.id}:`, error);
     }
@@ -414,6 +407,8 @@ export class StripeSyncService {
       activeSubscription.id,
       activeSubscription
     );
+
+    await activeSubscription.save();
 
     if (!updated) {
       logger.error(
