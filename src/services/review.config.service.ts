@@ -5,6 +5,7 @@ import ReviewConfig, { IReviewConfig } from "../models/review.config.model";
 import { BadRequestError, NotFoundError } from "../utils/errors";
 import { CriteriaRepository } from "../repositories/criteria.repository";
 import { ICriterion } from "../models/criterion.model";
+import { UpdateReviewConfigDto } from "../dto/review.config/review.config.update.dto";
 
 interface FilterOptions {
   name?: string;
@@ -188,11 +189,12 @@ export class ReviewConfigService {
   async updateReviewConfig(
     id: string,
     companyId: mongoose.Types.ObjectId,
-    updates: Partial<IReviewConfig>
+    updates: UpdateReviewConfigDto
   ): Promise<IReviewConfig> {
     if (!id) throw new BadRequestError("No review config id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
+    // Find existing config
     const config = await this.reviewConfigRepository.findOne({
       _id: new mongoose.Types.ObjectId(id),
       companyId,
@@ -201,10 +203,46 @@ export class ReviewConfigService {
     if (!config)
       throw new NotFoundError(`Review config with id ${id} not found`);
 
-    return this.reviewConfigRepository.update(
-      id,
-      updates
-    ) as Promise<IReviewConfig>;
+    // Convert criteriaIds strings to ObjectId[]
+    if (updates.criteriaIds) {
+      const criteriaObjectIds = updates.criteriaIds.map(
+        (cid) => new mongoose.Types.ObjectId(cid)
+      );
+
+      // Check if criteriaIds exist in DB
+      const existingCriteria = await this.criteriaRepository.findManyByIds(
+        criteriaObjectIds
+      );
+      if (existingCriteria.length !== criteriaObjectIds.length) {
+        throw new BadRequestError("One or more criteriaIds are invalid");
+      }
+
+      config.criteriaIds = criteriaObjectIds;
+    }
+
+    // Update other fields safely
+    if (updates.name !== undefined) config.name = updates.name;
+
+    if (updates.modelSettings !== undefined) {
+      config.modelSettings = {
+        ...config.modelSettings, // keep existing keys
+        ...updates.modelSettings, // overwrite with updates
+      };
+    }
+
+    if (updates.isActive !== undefined) config.isActive = updates.isActive;
+
+    // Save updated document
+    const updatedConfig = await this.reviewConfigRepository.update(
+      config._id,
+      config
+    );
+
+    if (!updatedConfig) {
+      throw new NotFoundError(`Failed to update review config with id ${id}`);
+    }
+
+    return updatedConfig;
   }
 
   /**

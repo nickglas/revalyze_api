@@ -45,4 +45,10 @@ export class CriteriaRepository {
   async insertMany(documents: ICriterion[]) {
     return Criterion.insertMany(documents);
   }
+
+  async findManyByIds(ids: mongoose.Types.ObjectId[]): Promise<ICriterion[]> {
+    return Criterion.find({
+      _id: { $in: ids },
+    }).exec();
+  }
 }

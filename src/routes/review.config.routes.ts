@@ -14,6 +14,7 @@ import {
   updateReviewConfig,
 } from "../controllers/review.config.controller";
 import { CreateReviewConfigDto } from "../dto/review.config/review.config.create.dto";
+import { UpdateReviewConfigDto } from "../dto/review.config/review.config.update.dto";
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.put(
   "/:id",
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
+  validateDto(UpdateReviewConfigDto),
   updateReviewConfig
 );
 router.patch(
