@@ -39,16 +39,26 @@ export const authenticate = (
   }
 };
 
-export const authorizeRole = (allowedRoles: string[]) => {
+export enum UserRole {
+  SUPER_ADMIN = "super_admin",
+  COMPANY_ADMIN = "company_admin",
+  EMPLOYEE = "employee",
+}
+
+export const authorizeRole = (allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ message: "Unauthorized" });
       return;
     }
-    if (!allowedRoles.includes(req.user.role)) {
+
+    const userRole = req.user.role as UserRole;
+
+    if (!allowedRoles.includes(userRole)) {
       res.status(403).json({ message: "Forbidden: insufficient permissions" });
       return;
     }
+
     next();
   };
 };

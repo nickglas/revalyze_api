@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Container } from "typedi";
 import { ReviewConfigService } from "../services/review.config.service";
+import { BadRequestError } from "../utils/errors";
 
 /**
  * Controller to handle GET /review-configs
@@ -107,6 +108,85 @@ export const createReviewConfig = async (
     );
 
     res.status(201).json(created);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controller to handle PUT /review-configs/:id
+ * Updates an existing review configuration.
+ */
+export const updateReviewConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { id } = req.params;
+    const updates = req.body;
+
+    const reviewConfigService = Container.get(ReviewConfigService);
+    const updated = await reviewConfigService.updateReviewConfig(
+      id,
+      companyId,
+      updates
+    );
+
+    res.status(200).json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controller to handle PATCH /review-configs/:id
+ * Deactivates a review configuration.
+ */
+export const toggleReviewConfigActivationStatus = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new BadRequestError("Invalid review config ID");
+    }
+
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+
+    const reviewConfigService = Container.get(ReviewConfigService);
+    const updated = await reviewConfigService.toggleActivationStatus(
+      companyId,
+      new mongoose.Types.ObjectId(id)
+    );
+
+    res.status(200).json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controller to handle DELETE /review-configs/:id
+ * Deletes a review configuration.
+ */
+export const deleteReviewConfig = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { id } = req.params;
+
+    const reviewConfigService = Container.get(ReviewConfigService);
+    const deleted = await reviewConfigService.deleteReviewConfig(id, companyId);
+
+    res.status(200).json(deleted);
   } catch (error) {
     next(error);
   }

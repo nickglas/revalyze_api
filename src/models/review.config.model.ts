@@ -12,6 +12,7 @@ export interface IReviewConfig extends Document {
   criteriaIds: Types.ObjectId[];
   modelSettings: ModelSettings;
   companyId: Types.ObjectId;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +52,7 @@ const reviewConfigurationSchema = new Schema<IReviewConfig>(
       required: true,
       index: true,
     },
+    isActive: { type: Boolean, required: false, default: true },
   },
   {
     timestamps: true,

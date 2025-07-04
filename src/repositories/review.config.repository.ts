@@ -62,7 +62,10 @@ export class ReviewConfigRepository {
     return ReviewConfig.findOne(filter);
   }
 
-  async update(id: string, update: Partial<IReviewConfig>) {
+  async update(
+    id: string | mongoose.Types.ObjectId,
+    update: Partial<IReviewConfig>
+  ) {
     return ReviewConfig.findByIdAndUpdate(id, update, { new: true });
   }
 

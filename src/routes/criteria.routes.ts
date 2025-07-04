@@ -1,5 +1,9 @@
 import { RequestHandler, Router } from "express";
-import { authenticate, authorizeRole } from "../middlewares/auth.middleware";
+import {
+  authenticate,
+  authorizeRole,
+  UserRole,
+} from "../middlewares/auth.middleware";
 import { validateDto } from "../middlewares/validate.middleware";
 import { CreateCriterionDto } from "../dto/criterion/criterion.create.dto";
 import {
@@ -21,7 +25,7 @@ router.get(
 router.post(
   "/",
   authenticate,
-  authorizeRole(["company_admin"]),
+  authorizeRole([UserRole.COMPANY_ADMIN]),
   validateDto(CreateCriterionDto),
   createCriterion
 );
@@ -29,7 +33,7 @@ router.post(
 router.patch(
   "/:id/status",
   authenticate,
-  authorizeRole(["company_admin"]),
+  authorizeRole([UserRole.COMPANY_ADMIN]),
   updateStatus
 );
 

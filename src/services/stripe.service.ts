@@ -49,7 +49,6 @@ export class StripeService {
       .list()
       .autoPagingToArray({ limit: 100 });
 
-    console.log(customers);
     return customers;
   }
 

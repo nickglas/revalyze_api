@@ -208,6 +208,33 @@ export class ReviewConfigService {
   }
 
   /**
+   * Toggles the activation status (isActive) of a review configuration,
+   * ensuring it belongs to the given company.
+   *
+   * @param companyId - The ObjectId of the company that owns the configuration.
+   * @param configId - The ObjectId of the review configuration to toggle.
+   * @returns Promise resolving to the updated review configuration document.
+   * @throws NotFoundError if the configuration is not found or doesn't belong to the company.
+   */
+  async toggleActivationStatus(
+    companyId: mongoose.Types.ObjectId,
+    configId: mongoose.Types.ObjectId
+  ) {
+    const config = await this.reviewConfigRepository.findOne({
+      _id: configId,
+      companyId,
+    });
+
+    if (!config) {
+      throw new NotFoundError(`Could not find config with id ${configId}`);
+    }
+
+    config.isActive = !config.isActive;
+
+    return await this.reviewConfigRepository.update(config._id, config);
+  }
+
+  /**
    * Deletes a review configuration by ID, validating it belongs to the given company.
    *
    * @param id - The review config document ID to delete.
