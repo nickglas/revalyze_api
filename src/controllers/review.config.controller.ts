@@ -184,9 +184,10 @@ export const deleteReviewConfig = async (
     const { id } = req.params;
 
     const reviewConfigService = Container.get(ReviewConfigService);
-    const deleted = await reviewConfigService.deleteReviewConfig(id, companyId);
 
-    res.status(200).json(deleted);
+    await reviewConfigService.deleteReviewConfig(id, companyId);
+
+    res.status(204);
   } catch (error) {
     next(error);
   }
