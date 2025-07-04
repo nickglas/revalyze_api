@@ -8,7 +8,7 @@ import {
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { ModelSettingsDto } from "./review.model.settings.dto";
+import { ModelSettingsDto } from "./review.model.create.settings.dto";
 
 export class CreateReviewConfigDto {
   @IsString({ message: "Name must be a string." })
