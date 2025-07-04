@@ -10,6 +10,8 @@ import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import Subscription, { ISubscription } from "../models/subscription.model";
 import { CompanyRepository } from "../repositories/company.repository";
+import { ICompany } from "../models/company.model";
+import { createWriteStream } from "fs";
 
 @Service()
 export class StripeSyncService {
@@ -105,6 +107,97 @@ export class StripeSyncService {
       await this.planRepo.upsert(doc);
       logger.info(`Synced product: ${product.name} (${product.id})`);
     }
+  }
+
+  async syncCompanies() {
+    logger.info("Syncing companies from Stripe...");
+
+    const localCompanies = await this.companyRepository.findAll();
+    const stripeCompanies = await this.stripeService.getCustomers();
+
+    logger.info(stripeCompanies);
+    if (!stripeCompanies) {
+      return logger.info("No company data found to sync...");
+    }
+
+    logger.info(`Found ${stripeCompanies.length} companies to sync`);
+
+    // Loop over all Stripe customers and sync them
+    await Promise.all(
+      stripeCompanies.map(async (sc) => {
+        //get the localCompany
+        const existingCompany = localCompanies.find(
+          (lc) => lc.stripeCustomerId === sc.id
+        );
+
+        //if not found (create a new company but dont activate it since no user can be created yet)
+        //otherwise find the company and forcefully update its data.
+        if (!existingCompany) {
+          await this.createCompany(sc);
+        } else {
+          await this.updateCompany(existingCompany, sc);
+        }
+
+        logger.info(`Synced company: ${sc.name} (${sc.id})`);
+      })
+    );
+  }
+
+  private async createCompany(stripeCompany: Stripe.Customer) {
+    if (!stripeCompany.name || !stripeCompany.email) {
+      logger.warn(
+        `Cannot create company: missing name or email for Stripe customer ${stripeCompany.id}`
+      );
+      return;
+    }
+
+    const newCompany: Partial<ICompany> = {
+      name: stripeCompany.name,
+      mainEmail: stripeCompany.email,
+      stripeCustomerId: stripeCompany.id,
+      isActive: false, // Don't activate yet (no user exists)
+    };
+
+    if (stripeCompany.phone) {
+      newCompany.phone = stripeCompany.phone;
+    }
+
+    if (stripeCompany.address?.city) {
+      newCompany.address = stripeCompany.address.city;
+    }
+
+    await this.companyRepository.create(newCompany);
+
+    logger.info(
+      `Created new company from Stripe: ${stripeCompany.name} (${stripeCompany.id})`
+    );
+  }
+
+  private async updateCompany(
+    localCompany: ICompany,
+    stripeCompany: Stripe.Customer
+  ) {
+    if (!stripeCompany.name || !stripeCompany.email) {
+      logger.warn(
+        `Missing required fields in Stripe customer ${stripeCompany.id}: name or email`
+      );
+      return;
+    }
+
+    localCompany.name = stripeCompany.name;
+    localCompany.mainEmail = stripeCompany.email;
+    localCompany.stripeCustomerId = stripeCompany.id;
+
+    // Optional fields
+    if (stripeCompany.phone !== null && stripeCompany.phone !== undefined) {
+      localCompany.phone = stripeCompany.phone;
+    }
+
+    if (stripeCompany.address?.city) {
+      localCompany.address = stripeCompany.address.city;
+    }
+
+    await this.companyRepository.update(localCompany.id, localCompany);
   }
 
   async syncSubscriptions() {

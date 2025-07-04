@@ -43,9 +43,19 @@ export class StripeService {
       });
   }
 
+  //Get all customers
+  async getCustomers(limit = 1000): Promise<Stripe.Customer[]> {
+    const customers = await this.stripe.customers
+      .list()
+      .autoPagingToArray({ limit: 100 });
+
+    console.log(customers);
+    return customers;
+  }
+
   //creates a customer within the stripe platform
   async createCustomer(email: string, name: string) {
-    return this.stripe.customers.create({
+    return await this.stripe.customers.create({
       email,
       name,
     });
