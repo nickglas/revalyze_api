@@ -14,6 +14,7 @@ import subscriptionAdminRoutes from "./routes/subscription.admin.routes";
 import subscriptionRoutes from "./routes/subscription.routes";
 import criteriaRoutes from "./routes/criteria.routes";
 import reviewConfigRoutes from "./routes/review.config.routes";
+import externalCompanyRoutes from "./routes/external.company.routes";
 
 import webhookRoutes from "./routes/webhook.routes";
 
@@ -52,6 +53,7 @@ app.use("/api/v1/companies", companyRoutes);
 app.use("/api/v1/subscriptions", subscriptionRoutes);
 app.use("/api/v1/criteria", criteriaRoutes);
 app.use("/api/v1/review-configs", reviewConfigRoutes);
+app.use("/api/v1/exteral-companies", externalCompanyRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);
