@@ -138,7 +138,10 @@ export const toggleUserStatus = async (
     const userId = req.params.id;
 
     const userService = Container.get(UserService);
-    const updatedUser = userService.toggleActivationStatus(userId, companyId);
+    const updatedUser = await userService.toggleActivationStatus(
+      userId,
+      companyId
+    );
 
     res.status(200).json(updatedUser);
   } catch (err) {

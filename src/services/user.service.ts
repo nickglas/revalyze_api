@@ -8,10 +8,14 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../utils/errors";
+import { SubscriptionRepository } from "../repositories/subscription.repository";
 
 @Service()
 export class UserService {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly subscriptionRepository: SubscriptionRepository
+  ) {}
 
   /**
    * Finds a user by email.
@@ -91,19 +95,39 @@ export class UserService {
   ): Promise<IUser> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
-    userData.companyId =
+    const normalizedCompanyId =
       typeof companyId === "string"
         ? new mongoose.Types.ObjectId(companyId)
         : companyId;
 
+    userData.companyId = normalizedCompanyId;
+
     if (!userData.email) throw new BadRequestError("Email is missing");
-
     if (!userData.name) throw new BadRequestError("Name is missing");
-
     if (!userData.role) throw new BadRequestError("Role is missing");
 
-    const existing = await this.userRepository.findByEmail(userData.email);
+    const subscription = await this.subscriptionRepository.findOne({
+      companyId: normalizedCompanyId,
+      status: "active",
+    });
 
+    if (!subscription) {
+      throw new BadRequestError("No active subscription found for company.");
+    }
+
+    const userCount = await this.userRepository.countActiveUsersByCompany(
+      normalizedCompanyId
+    );
+
+    console.warn(userCount);
+
+    if (userCount >= subscription.allowedUsers) {
+      throw new BadRequestError(
+        "User limit reached for current subscription plan."
+      );
+    }
+
+    const existing = await this.userRepository.findByEmail(userData.email);
     if (existing) throw new BadRequestError("Email already in use");
 
     return this.userRepository.create(userData);
@@ -172,17 +196,45 @@ export class UserService {
     companyId: string | mongoose.Types.ObjectId
   ) {
     if (!userId) throw new BadRequestError("User ID is missing");
-
     if (!companyId) throw new BadRequestError("Company ID is missing");
+
+    const normalizedCompanyId =
+      typeof companyId === "string"
+        ? new mongoose.Types.ObjectId(companyId)
+        : companyId;
 
     const user = await this.userRepository.findByIdWithinCompany(
       userId,
-      companyId
+      normalizedCompanyId
     );
 
     if (!user) throw new NotFoundError("User not found");
 
-    user.isActive = !user.isActive;
+    // Deactivate immediately
+    if (user.isActive) {
+      user.isActive = false;
+      return await this.userRepository.update(user.id, user);
+    }
+
+    // Enforce limits on activation
+    const subscription = await this.subscriptionRepository.findOne({
+      companyId: normalizedCompanyId,
+      status: "active",
+    });
+
+    if (!subscription) {
+      throw new BadRequestError("No active subscription found.");
+    }
+
+    const activeUsers = await this.userRepository.countActiveUsersByCompany(
+      normalizedCompanyId
+    );
+
+    if (activeUsers >= subscription.allowedUsers) {
+      throw new BadRequestError("Cannot activate user: user limit reached.");
+    }
+
+    user.isActive = true;
     return await this.userRepository.update(user.id, user);
   }
 
@@ -226,18 +278,22 @@ export class UserService {
     const isSelf = actingUserId === targetUserId;
     const isAdmin = actingUserRole === "company_admin";
 
-    // Prevent normal users from updating others
     if (!isAdmin && !isSelf) {
       throw new UnauthorizedError("You are not authorized to update this user");
     }
 
-    // Only allow safe fields
+    const user = await this.userRepository.findByIdWithinCompany(
+      targetUserId,
+      companyId
+    );
+    if (!user) throw new NotFoundError("User not found");
+
     let allowedFields: (keyof IUser)[] = [];
 
     if (isAdmin && isSelf) {
       allowedFields = ["name", "email"];
     } else if (isAdmin && !isSelf) {
-      allowedFields = ["name", "email", "role"];
+      allowedFields = ["name", "email", "role", "isActive"];
     } else if (!isAdmin && isSelf) {
       allowedFields = ["name", "email"];
     }
@@ -248,6 +304,35 @@ export class UserService {
       )
     );
 
-    return this.updateUser(targetUserId, safeUpdates, companyId);
+    // If admin attempts to activate a user, enforce subscription user limit
+    if (
+      isAdmin &&
+      !isSelf &&
+      "isActive" in safeUpdates &&
+      safeUpdates.isActive === true &&
+      user.isActive === false // only validate when going from inactive to active
+    ) {
+      const subscription = await this.subscriptionRepository.findOne({
+        companyId,
+        status: "active",
+      });
+
+      if (!subscription) {
+        throw new BadRequestError("No active subscription found.");
+      }
+
+      const activeUsers = await this.userRepository.countActiveUsersByCompany(
+        companyId
+      );
+
+      if (activeUsers >= subscription.allowedUsers) {
+        throw new BadRequestError("Cannot activate user: user limit reached.");
+      }
+    }
+
+    return this.userRepository.update(user.id, {
+      ...user,
+      ...safeUpdates,
+    }) as Promise<IUser>;
   }
 }

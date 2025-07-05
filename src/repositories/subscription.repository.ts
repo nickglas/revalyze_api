@@ -1,11 +1,15 @@
 import { Service } from "typedi";
-import mongoose from "mongoose";
+import mongoose, { FilterQuery } from "mongoose";
 import Subscription, { ISubscription } from "../models/subscription.model";
 
 @Service()
 export class SubscriptionRepository {
   async find(): Promise<ISubscription[]> {
     return Subscription.find();
+  }
+
+  async findOne(filter: FilterQuery<ISubscription>) {
+    return Subscription.findOne(filter).exec();
   }
 
   async findActive(): Promise<ISubscription[]> {
