@@ -457,6 +457,26 @@ export class CompanyService {
       }
 
       case "upgrade": {
+        if (subscription.schedule) {
+          try {
+            await this.stripeService.releaseSubscriptionSchedule(
+              subscription.schedule as string
+            );
+            logger.info(
+              `Released existing schedule before upgrading subscription ${subscription.id}`
+            );
+          } catch (error) {
+            logger.error(
+              `Failed to release existing schedule ${subscription.schedule}:`,
+              error
+            );
+            throw new BadRequestError(
+              "Cannot upgrade because existing schedule could not be released"
+            );
+          }
+        }
+
+        // ✅ Proceed with upgrade
         await this.stripeService.updateSubscription(
           subscription.id,
           newPriceId,
@@ -464,6 +484,7 @@ export class CompanyService {
             proration_behavior: "create_prorations",
           }
         );
+
         return {
           id: subscription.id,
           message: "Subscription upgraded successfully",

@@ -286,13 +286,35 @@ export class StripeWebhookService {
       return;
     }
 
-    // NEW: Handle schedule cancellation/release
+    // Fetch full Stripe subscription to access test_clock (if any)
+    const stripeSubscription = await this.stripeService.getSubscription(
+      subscriptionId
+    );
+
+    let now = Math.floor(Date.now() / 1000); // Default to real time
+
+    if (stripeSubscription.test_clock) {
+      try {
+        const clock = await this.stripeService.getTestClockById(
+          stripeSubscription.test_clock as string
+        );
+        now = clock.frozen_time;
+        logger.info(`Using test clock time: ${now}`);
+      } catch (err: any) {
+        logger.warn(
+          `Failed to fetch test clock, using real time instead: ${err.message}`
+        );
+      }
+    }
+
+    // Handle canceled or released schedules
     if (
       event.type === "subscription_schedule.canceled" ||
       event.type === "subscription_schedule.released"
     ) {
       if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
         subscription.scheduledUpdate = undefined;
+        subscription.markModified("scheduledUpdate");
         await subscription.save();
         logger.info(
           `Cleared scheduled update due to schedule ${event.type}: ${schedule.id}`
@@ -301,15 +323,46 @@ export class StripeWebhookService {
       return;
     }
 
-    const upcomingPhase = schedule.phases?.find((phase) => {
-      const now = Math.floor(Date.now() / 1000);
-      return phase.start_date > now;
-    });
+    // If scheduled update is due (based on test clock or real time), clear and release it
+    if (subscription.scheduledUpdate) {
+      const effectiveTime = Math.floor(
+        subscription.scheduledUpdate.effectiveDate.getTime() / 1000
+      );
+
+      if (effectiveTime <= now) {
+        subscription.scheduledUpdate = undefined;
+        subscription.markModified("scheduledUpdate");
+        await subscription.save();
+        logger.info(
+          `Cleared scheduled update because effective date has passed: ${schedule.id}`
+        );
+
+        try {
+          await this.stripeService.releaseSubscriptionSchedule(schedule.id);
+          logger.info(`Released schedule after effective date: ${schedule.id}`);
+        } catch (error) {
+          logger.error(`Failed to release schedule ${schedule.id}:`, error);
+        }
+
+        return;
+      }
+    }
+
+    // Handle upcoming scheduled upgrade/downgrade
+    const upcomingPhase = schedule.phases?.find(
+      (phase) => phase.start_date && phase.start_date > now
+    );
 
     if (!upcomingPhase) {
       logger.warn("No upcoming phase found in subscription schedule");
-      subscription.scheduledUpdate = undefined;
-      await subscription.save();
+      if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
+        subscription.scheduledUpdate = undefined;
+        subscription.markModified("scheduledUpdate");
+        await subscription.save();
+        logger.info(
+          `Cleared scheduled update with no upcoming phases: ${schedule.id}`
+        );
+      }
       return;
     }
 

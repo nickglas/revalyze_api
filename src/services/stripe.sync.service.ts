@@ -293,9 +293,10 @@ export class StripeSyncService {
 
       const now = this.getCurrentTime(testClockTimes, stripeSubscription);
 
+      // Case 1: Schedule is canceled/completed/released
       if (["canceled", "released", "completed"].includes(schedule.status)) {
         if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
-          delete subscription.scheduledUpdate;
+          subscription.scheduledUpdate = undefined;
           subscription.markModified("scheduledUpdate");
           await subscription.save();
           logger.info(
@@ -305,13 +306,14 @@ export class StripeSyncService {
         return;
       }
 
+      // Case 2: Effective date has passed
       if (subscription.scheduledUpdate) {
         const effectiveTime = Math.floor(
           subscription.scheduledUpdate.effectiveDate.getTime() / 1000
         );
 
         if (effectiveTime <= now) {
-          delete subscription.scheduledUpdate;
+          subscription.scheduledUpdate = undefined;
           subscription.markModified("scheduledUpdate");
           await subscription.save();
           logger.info(
@@ -330,13 +332,14 @@ export class StripeSyncService {
         }
       }
 
+      // Case 3: No upcoming phase found
       const upcomingPhase = schedule.phases?.find(
         (phase) => phase.start_date && phase.start_date > now
       );
 
       if (!upcomingPhase) {
         if (subscription.scheduledUpdate?.scheduleId === schedule.id) {
-          delete subscription.scheduledUpdate;
+          subscription.scheduledUpdate = undefined;
           subscription.markModified("scheduledUpdate");
           await subscription.save();
           logger.info(
@@ -346,6 +349,7 @@ export class StripeSyncService {
         return;
       }
 
+      // Case 4: Save new upcoming phase
       const priceId = upcomingPhase.items[0].price as string;
       const price = await this.stripeService.getPriceById(priceId);
       const product = await this.stripeService.getProductById(
@@ -367,6 +371,8 @@ export class StripeSyncService {
         tier: parseInt(product.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };
+
+      subscription.markModified("scheduledUpdate");
       await subscription.save();
     } catch (error) {
       logger.error(`Error syncing schedule ${localSchedule.id}:`, error);

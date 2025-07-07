@@ -111,6 +111,20 @@ export class StripeService {
     return clocks.data;
   }
 
+  // Get test clock by ID
+  async getTestClockById(
+    clockId: string
+  ): Promise<Stripe.TestHelpers.TestClock> {
+    try {
+      const clock = await this.stripe.testHelpers.testClocks.retrieve(clockId);
+      return clock;
+    } catch (error: any) {
+      throw new Error(
+        `Failed to retrieve test clock with ID ${clockId}: ${error.message}`
+      );
+    }
+  }
+
   //get all subscriptions
   async getAllSubscriptions(
     testClockId?: string
