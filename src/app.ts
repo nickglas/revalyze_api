@@ -17,6 +17,7 @@ import reviewConfigRoutes from "./routes/review.config.routes";
 import externalCompanyRoutes from "./routes/external.company.routes";
 import contactRoutes from "./routes/contact.routes";
 import userRoutes from "./routes/user.routes";
+import transcriptRoutes from "./routes/transcript.routes";
 
 import webhookRoutes from "./routes/webhook.routes";
 
@@ -58,6 +59,7 @@ app.use("/api/v1/review-configs", reviewConfigRoutes);
 app.use("/api/v1/exteral-companies", externalCompanyRoutes);
 app.use("/api/v1/contacts", contactRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/transcripts", transcriptRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);

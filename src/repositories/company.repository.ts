@@ -1,11 +1,11 @@
 import { Service } from "typedi";
 import Company, { ICompany } from "../models/company.model";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { FilterQuery } from "mongoose";
 
 @Service()
 export class CompanyRepository {
-  async findById(id: string) {
+  async findById(id: mongoose.Types.ObjectId | string) {
     if (!Types.ObjectId.isValid(id)) return null;
     return Company.findById(id);
   }
