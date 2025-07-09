@@ -31,15 +31,15 @@ export class CriteriaRepository {
   }
 
   async create(data: ICriterion) {
-    return data.save();
+    return await data.save();
   }
 
   async findById(id: string) {
-    return Criterion.findById(id);
+    return await Criterion.findById(id).exec();
   }
 
   async findOne(filter: FilterQuery<ICriterion>) {
-    return Criterion.findOne(filter);
+    return await Criterion.findOne(filter).exec();
   }
 
   async insertMany(documents: ICriterion[]) {

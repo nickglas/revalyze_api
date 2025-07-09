@@ -8,32 +8,36 @@ import { Types, UpdateQuery } from "mongoose";
 export class PendingCompanyRepository {
   async create(data: Partial<IPendingCompany>) {
     const pending = new PendingCompanyRegistration(data);
-    return pending.save();
+    return await pending.save();
   }
 
   async find() {
-    return PendingCompanyRegistration.find();
+    return await PendingCompanyRegistration.find().exec();
   }
 
   async findById(id: string) {
-    return PendingCompanyRegistration.findById(id);
+    return await PendingCompanyRegistration.findById(id).exec();
   }
 
   async delete(id: string) {
-    return PendingCompanyRegistration.findByIdAndDelete(id);
+    return await PendingCompanyRegistration.findByIdAndDelete(id).exec();
   }
 
   async findBySessionId(id: string) {
-    return PendingCompanyRegistration.findOne({ stripeSessionId: id });
+    return await PendingCompanyRegistration.findOne({
+      stripeSessionId: id,
+    }).exec();
   }
 
   async findByStripeId(id: string) {
-    return PendingCompanyRegistration.findOne({ stripeCustomerId: id });
+    return await PendingCompanyRegistration.findOne({
+      stripeCustomerId: id,
+    }).exec();
   }
 
   async updateById(id: Types.ObjectId, update: UpdateQuery<IPendingCompany>) {
-    return PendingCompanyRegistration.findByIdAndUpdate(id, update, {
+    return await PendingCompanyRegistration.findByIdAndUpdate(id, update, {
       new: true,
-    });
+    }).exec();
   }
 }

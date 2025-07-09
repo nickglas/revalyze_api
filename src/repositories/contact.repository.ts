@@ -68,7 +68,7 @@ export class ContactRepository {
    * @returns Promise resolving to the saved contact.
    */
   async create(data: IContact) {
-    return data.save();
+    return await data.save();
   }
 
   /**

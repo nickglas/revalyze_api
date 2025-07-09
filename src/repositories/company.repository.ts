@@ -1,39 +1,46 @@
 import { Service } from "typedi";
 import Company, { ICompany } from "../models/company.model";
-import mongoose, { Types } from "mongoose";
-import { FilterQuery } from "mongoose";
+import mongoose, { Types, FilterQuery } from "mongoose";
 
 @Service()
 export class CompanyRepository {
-  async findById(id: mongoose.Types.ObjectId | string) {
+  async findById(
+    id: mongoose.Types.ObjectId | string
+  ): Promise<ICompany | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    return Company.findById(id);
-  }
-  async create(companyData: Partial<ICompany>) {
-    return Company.create(companyData);
+    return await Company.findById(id).exec();
   }
 
-  async update(id: string, updateData: Partial<ICompany>) {
-    return Company.findByIdAndUpdate(id, updateData, { new: true });
+  async create(companyData: Partial<ICompany>): Promise<ICompany> {
+    return await Company.create(companyData);
+  }
+
+  async update(
+    id: string,
+    updateData: Partial<ICompany>
+  ): Promise<ICompany | null> {
+    return await Company.findByIdAndUpdate(id, updateData, {
+      new: true,
+    }).exec();
   }
 
   async findByStripeCustomerId(customerId: string): Promise<ICompany | null> {
-    return Company.findOne({ stripeCustomerId: customerId });
+    return await Company.findOne({ stripeCustomerId: customerId }).exec();
   }
 
   async delete(id: string): Promise<void> {
-    await Company.findByIdAndDelete(id);
+    await Company.findByIdAndDelete(id).exec();
   }
 
-  async findAll() {
-    return Company.find();
+  async findAll(): Promise<ICompany[]> {
+    return await Company.find().exec();
   }
 
-  async find(filter: FilterQuery<ICompany>) {
-    return Company.find(filter);
+  async find(filter: FilterQuery<ICompany>): Promise<ICompany[]> {
+    return await Company.find(filter).exec();
   }
 
-  async findOne(filter: FilterQuery<ICompany>) {
-    return Company.findOne(filter);
+  async findOne(filter: FilterQuery<ICompany>): Promise<ICompany | null> {
+    return await Company.findOne(filter).exec();
   }
 }

@@ -6,30 +6,30 @@ import { PlanInput } from "../dto/plans/plan.input.dto";
 @Service()
 export class PlanRepository {
   async findByStripeProductId(productId: string): Promise<IPlan | null> {
-    return Plan.findOne({ stripeProductId: productId });
+    return await Plan.findOne({ stripeProductId: productId }).exec();
   }
 
   async create(planData: Partial<IPlan>): Promise<IPlan> {
     const plan = new Plan(planData);
-    return plan.save();
+    return await plan.save();
   }
 
   async update(plan: IPlan): Promise<IPlan> {
-    return plan.save();
+    return await plan.save();
   }
 
   async findAll(): Promise<IPlan[]> {
-    return Plan.find({});
+    return await Plan.find({}).exec();
   }
 
   async findById(planId: string): Promise<IPlan | null> {
-    return Plan.findById(planId);
+    return await Plan.findById(planId).exec();
   }
 
   async deleteByStripeProductId(
     productId: string
   ): Promise<{ deletedCount?: number }> {
-    return Plan.deleteOne({ stripeProductId: productId });
+    return await Plan.deleteOne({ stripeProductId: productId }).exec();
   }
 
   async upsert(planInput: PlanInput): Promise<IPlan> {
@@ -38,8 +38,8 @@ export class PlanRepository {
     );
     if (existingPlan) {
       Object.assign(existingPlan, planInput);
-      return existingPlan.save();
+      return await existingPlan.save();
     }
-    return this.create(planInput);
+    return await this.create(planInput);
   }
 }

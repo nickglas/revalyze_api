@@ -105,19 +105,19 @@ export class ReviewRepository {
     id: string | mongoose.Types.ObjectId
   ): Promise<IReview | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Review.findById(id).exec();
+    return await Review.findById(id).exec();
   }
 
   async findOne(filter: FilterQuery<IReview>): Promise<IReview | null> {
-    return Review.findOne(filter).exec();
+    return await Review.findOne(filter).exec();
   }
 
   async create(data: Partial<IReview>): Promise<IReview> {
-    return Review.create(data);
+    return await Review.create(data);
   }
 
   async deleteById(id: string): Promise<IReview | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Review.findByIdAndDelete(id).exec();
+    return await Review.findByIdAndDelete(id).exec();
   }
 }

@@ -89,35 +89,35 @@ export class TranscriptRepository {
 
   async findById(id: string): Promise<ITranscript | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Transcript.findById(id).exec();
+    return await Transcript.findById(id).exec();
   }
 
   async findOne(filter: FilterQuery<ITranscript>): Promise<ITranscript | null> {
-    return Transcript.findOne(filter).exec();
+    return await Transcript.findOne(filter).exec();
   }
 
   async findManyByIds(ids: mongoose.Types.ObjectId[]): Promise<ITranscript[]> {
-    return Transcript.find({ _id: { $in: ids } }).exec();
+    return await Transcript.find({ _id: { $in: ids } }).exec();
   }
 
   async count(filter: FilterQuery<ITranscript>): Promise<number> {
-    return Transcript.countDocuments(filter).exec();
+    return await Transcript.countDocuments(filter).exec();
   }
 
   async create(data: Partial<ITranscript>): Promise<ITranscript> {
-    return Transcript.create(data);
+    return await Transcript.create(data);
   }
 
   async insertMany(documents: ITranscript[]): Promise<ITranscript[]> {
-    return Transcript.insertMany(documents);
+    return await Transcript.insertMany(documents);
   }
 
   async deleteById(id: string): Promise<ITranscript | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Transcript.findByIdAndDelete(id).exec();
+    return await Transcript.findByIdAndDelete(id).exec();
   }
 
   async countByCompany(companyId: mongoose.Types.ObjectId): Promise<number> {
-    return Transcript.countDocuments({ companyId }).exec();
+    return await Transcript.countDocuments({ companyId }).exec();
   }
 }

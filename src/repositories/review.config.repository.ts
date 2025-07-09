@@ -20,9 +20,7 @@ export class ReviewConfigRepository {
       limit?: number;
     }
   ): Promise<{ configs: IReviewConfig[]; total: number }> {
-    const filter: FilterQuery<IReviewConfig> = {
-      companyId,
-    };
+    const filter: FilterQuery<IReviewConfig> = { companyId };
 
     if (name) {
       filter.name = { $regex: name, $options: "i" };
@@ -51,29 +49,31 @@ export class ReviewConfigRepository {
 
   async create(data: Partial<IReviewConfig>) {
     const config = new ReviewConfig(data);
-    return config.save();
+    return await config.save();
   }
 
   async findById(id: string) {
-    return ReviewConfig.findById(id);
+    return await ReviewConfig.findById(id).exec();
   }
 
   async findOne(filter: FilterQuery<IReviewConfig>) {
-    return ReviewConfig.findOne(filter);
+    return await ReviewConfig.findOne(filter).exec();
   }
 
   async update(
     id: string | mongoose.Types.ObjectId,
     update: Partial<IReviewConfig>
   ) {
-    return ReviewConfig.findByIdAndUpdate(id, update, { new: true });
+    return await ReviewConfig.findByIdAndUpdate(id, update, {
+      new: true,
+    }).exec();
   }
 
   async delete(id: string) {
-    return ReviewConfig.findByIdAndDelete(id);
+    return await ReviewConfig.findByIdAndDelete(id).exec();
   }
 
   async insertMany(docs: Partial<IReviewConfig>[]) {
-    return ReviewConfig.insertMany(docs);
+    return await ReviewConfig.insertMany(docs);
   }
 }

@@ -14,15 +14,16 @@ export class ExternalCompanyRepository {
     page = 1,
     limit = 20
   ): Promise<{ companies: IExternalCompany[]; total: number }> {
-    const filter: FilterQuery<IExternalCompany> = {};
+    const filter: FilterQuery<IExternalCompany> = { companyId };
 
-    filter.companyId = companyId;
     if (name) {
       filter.name = { $regex: name, $options: "i" };
     }
+
     if (typeof isActive === "boolean") {
       filter.isActive = isActive;
     }
+
     if (createdAfter) {
       filter.createdAt = { $gte: createdAfter };
     }
@@ -38,25 +39,27 @@ export class ExternalCompanyRepository {
   }
 
   async create(data: IExternalCompany) {
-    return data.save();
+    return await data.save();
   }
 
   async findById(id: mongoose.Types.ObjectId | string) {
-    return ExternalCompany.findById(id);
+    return await ExternalCompany.findById(id).exec();
   }
 
   async findOne(filter: FilterQuery<IExternalCompany>) {
-    return ExternalCompany.findOne(filter);
+    return await ExternalCompany.findOne(filter).exec();
   }
 
   async update(
     id: mongoose.Types.ObjectId | string,
     updates: Partial<IExternalCompany>
   ) {
-    return ExternalCompany.findByIdAndUpdate(id, updates, { new: true }).exec();
+    return await ExternalCompany.findByIdAndUpdate(id, updates, {
+      new: true,
+    }).exec();
   }
 
   async delete(id: mongoose.Types.ObjectId | string) {
-    return ExternalCompany.findByIdAndDelete(id).exec();
+    return await ExternalCompany.findByIdAndDelete(id).exec();
   }
 }

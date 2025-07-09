@@ -5,42 +5,44 @@ import Subscription, { ISubscription } from "../models/subscription.model";
 @Service()
 export class SubscriptionRepository {
   async find(): Promise<ISubscription[]> {
-    return Subscription.find();
+    return await Subscription.find().exec();
   }
 
-  async findOne(filter: FilterQuery<ISubscription>) {
-    return Subscription.findOne(filter).exec();
+  async findOne(
+    filter: FilterQuery<ISubscription>
+  ): Promise<ISubscription | null> {
+    return await Subscription.findOne(filter).exec();
   }
 
   async findActive(): Promise<ISubscription[]> {
-    return Subscription.find({ status: "active" });
+    return await Subscription.find({ status: "active" }).exec();
   }
 
-  //finds the latest active subscription for a company
+  // Finds the latest active subscription for a company by stripeCustomerId
   async findActiveSubscriptionByStripeCustomerId(
     stripeCustomerId: string
   ): Promise<ISubscription | null> {
-    return Subscription.findOne({ stripeCustomerId: stripeCustomerId });
+    return await Subscription.findOne({ stripeCustomerId }).exec();
   }
 
   async findById(id: string): Promise<ISubscription | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Subscription.findById(id);
+    return await Subscription.findById(id).exec();
   }
 
   async findByStripeSubscriptionId(
     stripeSubscriptionId: string
   ): Promise<ISubscription | null> {
-    return Subscription.findOne({ stripeSubscriptionId });
+    return await Subscription.findOne({ stripeSubscriptionId }).exec();
   }
 
   async create(data: Partial<ISubscription>): Promise<ISubscription> {
-    return Subscription.create(data);
+    return await Subscription.create(data);
   }
 
   async deleteById(id: string): Promise<ISubscription | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Subscription.findByIdAndDelete(id);
+    return await Subscription.findByIdAndDelete(id).exec();
   }
 
   async update(
@@ -49,7 +51,6 @@ export class SubscriptionRepository {
   ): Promise<ISubscription | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
-    // Prepare update object with $set and $unset
     const update: any = {};
     const unset: any = {};
 
@@ -66,9 +67,9 @@ export class SubscriptionRepository {
       update.$unset = unset;
     }
 
-    return Subscription.findByIdAndUpdate(id, update, {
+    return await Subscription.findByIdAndUpdate(id, update, {
       new: true,
       runValidators: true,
-    });
+    }).exec();
   }
 }

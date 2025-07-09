@@ -1,31 +1,32 @@
-import { Service } from 'typedi';
-import RefreshToken from '../models/refreshToken.model';
+import { Service } from "typedi";
+import RefreshToken from "../models/refreshToken.model";
 
 @Service()
 export class RefreshTokenRepository {
   async create(tokenData: { userId: string; token: string; expiresAt: Date }) {
-    return RefreshToken.create(tokenData);
+    return await RefreshToken.create(tokenData);
   }
 
   async findByToken(token: string) {
-    return RefreshToken.findOne({ token });
+    return await RefreshToken.findOne({ token }).exec();
   }
 
   async findOldTokens(userId: string, keepLatest: number = 5) {
-    return RefreshToken.find({ userId })
+    return await RefreshToken.find({ userId })
       .sort({ createdAt: -1 })
-      .skip(keepLatest);
+      .skip(keepLatest)
+      .exec();
   }
 
   async deleteManyByIds(ids: string[]) {
-    return RefreshToken.deleteMany({ _id: { $in: ids } });
+    return await RefreshToken.deleteMany({ _id: { $in: ids } }).exec();
   }
 
   async deleteById(id: string) {
-    return RefreshToken.deleteOne({ _id: id });
+    return await RefreshToken.deleteOne({ _id: id }).exec();
   }
 
   async deleteAllByUserId(userId: string) {
-    return RefreshToken.deleteMany({ userId });
+    return await RefreshToken.deleteMany({ userId }).exec();
   }
 }

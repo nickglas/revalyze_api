@@ -13,7 +13,7 @@ export class UserRepository {
    * @returns The found user document or null.
    */
   async findByEmail(email: string): Promise<IUser | null> {
-    return User.findOne({ email }).exec();
+    return await User.findOne({ email }).exec();
   }
 
   /**
@@ -23,7 +23,7 @@ export class UserRepository {
    * @returns The found user document or null.
    */
   async findById(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return User.findById(id).exec();
+    return await User.findById(id).exec();
   }
 
   /**
@@ -57,7 +57,7 @@ export class UserRepository {
 
     const [users, total] = await Promise.all([
       User.find(filter).skip(skip).limit(limit).select("-password").exec(),
-      User.countDocuments(filter),
+      User.countDocuments(filter).exec(),
     ]);
 
     return { users, total };
@@ -70,7 +70,7 @@ export class UserRepository {
    * @returns The created user document.
    */
   async create(userData: Partial<IUser>): Promise<IUser> {
-    return User.create(userData);
+    return await User.create(userData);
   }
 
   /**
@@ -84,7 +84,7 @@ export class UserRepository {
     id: string | mongoose.Types.ObjectId,
     updates: Partial<IUser>
   ): Promise<IUser | null> {
-    return User.findByIdAndUpdate(id, updates, { new: true }).exec();
+    return await User.findByIdAndUpdate(id, updates, { new: true }).exec();
   }
 
   /**
@@ -96,7 +96,7 @@ export class UserRepository {
   async deactivate(
     id: string | mongoose.Types.ObjectId
   ): Promise<IUser | null> {
-    return User.findByIdAndUpdate(
+    return await User.findByIdAndUpdate(
       id,
       { isActive: false },
       { new: true }
@@ -110,7 +110,11 @@ export class UserRepository {
    * @returns The updated (reactivated) user or null.
    */
   async activate(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return User.findByIdAndUpdate(id, { isActive: true }, { new: true }).exec();
+    return await User.findByIdAndUpdate(
+      id,
+      { isActive: true },
+      { new: true }
+    ).exec();
   }
 
   /**
@@ -121,9 +125,8 @@ export class UserRepository {
    * @returns The deleted user or null.
    */
   async delete(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return User.findByIdAndDelete(id).exec();
+    return await User.findByIdAndDelete(id).exec();
   }
-
   /**
    * Counts the total number of users in a company.
    *
@@ -133,7 +136,7 @@ export class UserRepository {
   async countByCompany(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<number> {
-    return User.countDocuments({ companyId }).exec();
+    return await User.countDocuments({ companyId }).exec();
   }
 
   /**
@@ -145,7 +148,7 @@ export class UserRepository {
   async countActiveUsersByCompany(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<number> {
-    return User.countDocuments({ companyId, isActive: true }).exec();
+    return await User.countDocuments({ companyId, isActive: true }).exec();
   }
 
   /**
@@ -160,6 +163,6 @@ export class UserRepository {
     id: string | mongoose.Types.ObjectId,
     companyId: string | mongoose.Types.ObjectId
   ): Promise<IUser | null> {
-    return User.findOne({ _id: id, companyId }).exec();
+    return await User.findOne({ _id: id, companyId }).exec();
   }
 }
