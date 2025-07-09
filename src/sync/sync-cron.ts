@@ -17,7 +17,7 @@ export class StripeSyncCron {
     }
 
     logger.info("Scheduling cron job for every 30 minutes...");
-    this.job = cron.schedule("* * * * *", async () => {
+    this.job = cron.schedule("*/30 * * * *", async () => {
       if (this.isRunning) {
         logger.info("Previous sync still running, skipping this run");
         return;
