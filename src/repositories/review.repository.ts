@@ -108,6 +108,9 @@ export class ReviewRepository {
     return await Review.findById(id).exec();
   }
 
+  async find(filter: FilterQuery<IReview>): Promise<IReview[] | null> {
+    return await Review.find(filter).exec();
+  }
   async findOne(filter: FilterQuery<IReview>): Promise<IReview | null> {
     return await Review.findOne(filter).exec();
   }

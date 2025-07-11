@@ -11,6 +11,7 @@ import {
   deleteTranscript,
   getTranscriptById,
   getTranscripts,
+  getReviewsByTranscriptId,
 } from "../controllers/transcript.controller";
 
 const router = Router();
@@ -25,6 +26,12 @@ router.get(
   "/:id",
   authenticate as RequestHandler,
   getTranscriptById as RequestHandler
+);
+
+router.get(
+  "/:id/reviews",
+  authenticate as RequestHandler,
+  getReviewsByTranscriptId as RequestHandler
 );
 
 router.post(

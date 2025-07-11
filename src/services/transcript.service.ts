@@ -15,6 +15,8 @@ import { ExternalCompanyRepository } from "../repositories/external.company.repo
 import { ContactRepository } from "../repositories/contact.repository";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { UserRepository } from "../repositories/user.repository";
+import { IReview } from "../models/review.model";
+import { ReviewRepository } from "../repositories/review.repository";
 
 @Service()
 export class TranscriptService {
@@ -24,7 +26,8 @@ export class TranscriptService {
     private readonly externalCompanyRepository: ExternalCompanyRepository,
     private readonly contactRepository: ContactRepository,
     private readonly subscriptionRepository: SubscriptionRepository,
-    private readonly userRepository: UserRepository
+    private readonly userRepository: UserRepository,
+    private readonly reviewRepository: ReviewRepository
   ) {}
 
   /**
@@ -73,6 +76,26 @@ export class TranscriptService {
       page,
       limit,
     });
+  }
+
+  async getReviewsById(
+    transcriptId: string | mongoose.Types.ObjectId,
+    companyId: string | mongoose.Types.ObjectId
+  ): Promise<IReview[]> {
+    if (!transcriptId) throw new BadRequestError("No transcript id specified");
+    if (!companyId) throw new BadRequestError("No company id specified");
+
+    const reviews = await this.reviewRepository.find({
+      transcriptId: transcriptId,
+      companyId: companyId,
+    });
+
+    if (!reviews)
+      throw new NotFoundError(
+        `No reviews found for transcript with id ${transcriptId}`
+      );
+
+    return reviews;
   }
 
   /**

@@ -86,6 +86,28 @@ export const getTranscriptById = async (
 };
 
 /**
+ * GET /transcripts/:id/reviews
+ * Fetch all reviews for a specific transcript.
+ */
+export const getReviewsByTranscriptId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { id } = req.params;
+
+    const transcriptService = Container.get(TranscriptService);
+    const reviews = await transcriptService.getReviewsById(id, companyId);
+
+    res.status(200).json(reviews);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /transcripts
  * Create a new transcript.
  */
