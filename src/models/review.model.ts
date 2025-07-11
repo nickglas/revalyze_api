@@ -1,19 +1,30 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
+export enum ReviewStatus {
+  NOT_STARTED = "NOT_STARTED",
+  STARTED = "STARTED",
+  REVIEWED = "REVIEWED",
+  ERROR = "ERROR",
+}
+
 export interface ICriteriaScore {
   criterionName: string;
   criterionDescription?: string;
   score: number;
   comment?: string;
   quote?: string;
+  feedback?: string;
 }
 
 export interface IReview extends Document {
   transcriptId: Types.ObjectId;
   reviewConfig: object;
   type: "performance" | "sentiment" | "both";
+  reviewStatus: ReviewStatus;
+  overallScore: number;
+  overallFeedback: string;
   criteriaScores: ICriteriaScore[];
-  sentimentScore?: number; // 0 to 10
+  sentimentScore?: number;
   externalCompanyId: Types.ObjectId;
   employeeId: Types.ObjectId;
   clientId: Types.ObjectId;
@@ -48,6 +59,11 @@ const criteriaScoreSchema = new Schema<ICriteriaScore>(
       required: false,
       trim: true,
     },
+    feedback: {
+      type: String,
+      required: false,
+      trim: true,
+    },
   },
   { _id: false }
 );
@@ -61,8 +77,13 @@ const reviewSchema = new Schema<IReview>(
       index: true,
     },
     reviewConfig: {
-      type: Schema.Types.Mixed, // hard copy of the config at time of review
+      type: Schema.Types.Mixed,
       required: true,
+    },
+    reviewStatus: {
+      type: String,
+      enum: Object.values(ReviewStatus),
+      default: ReviewStatus.NOT_STARTED,
     },
     type: {
       type: String,
@@ -71,8 +92,21 @@ const reviewSchema = new Schema<IReview>(
     },
     criteriaScores: {
       type: [criteriaScoreSchema],
-      required: true,
+      required: false,
       default: [],
+    },
+    overallScore: {
+      type: Number,
+      required: false,
+      min: 0,
+      max: 10,
+      default: 0,
+    },
+    overallFeedback: {
+      type: String,
+      required: false,
+      default: "",
+      trim: true,
     },
     sentimentScore: {
       type: Number,

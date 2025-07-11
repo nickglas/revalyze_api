@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
+import { ICriterion } from "./criterion.model";
 
 export interface ModelSettings {
   temperature?: number;
@@ -10,6 +11,7 @@ export interface IReviewConfig extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   criteriaIds: Types.ObjectId[];
+  criteria: ICriterion[];
   modelSettings: ModelSettings;
   companyId: Types.ObjectId;
   isActive: boolean;

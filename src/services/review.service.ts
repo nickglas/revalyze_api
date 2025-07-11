@@ -11,11 +11,14 @@ import {
   NotFoundError,
 } from "../utils/errors";
 import { CreateReviewDto } from "../dto/review/review.create.dto";
-import { ITranscript } from "../models/transcript.model";
+import { ITranscript, ReviewStatus } from "../models/transcript.model";
 import { IReviewConfig } from "../models/review.config.model";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { CriteriaRepository } from "../repositories/criteria.repository";
+import { OpenAIService } from "./openAI.service";
+import ReviewProcessInfo from "../dto/review/review.process.dto";
+import { ICriterion } from "../models/criterion.model";
 
 @Service()
 export class ReviewService {
@@ -23,7 +26,8 @@ export class ReviewService {
     private readonly reviewRepository: ReviewRepository,
     private readonly transcriptRepository: TranscriptRepository,
     private readonly reviewConfigRepository: ReviewConfigRepository,
-    private readonly criteriaRepository: CriteriaRepository
+    private readonly criteriaRepository: CriteriaRepository,
+    private readonly openAIService: OpenAIService
   ) {}
 
   /**
@@ -128,53 +132,47 @@ export class ReviewService {
   ): Promise<IReview> {
     if (!companyId) throw new BadRequestError("Missing company ID");
 
-    // 1. Get and validate transcript
+    // 1. Validate transcript
     const transcript = await this.transcriptRepository.findOne({
       _id: new mongoose.Types.ObjectId(dto.transcriptId),
       companyId,
     });
-
     if (!transcript) {
       throw new NotFoundError(
         `Transcript with ID ${dto.transcriptId} not found or doesn't belong to company ${companyId}`
       );
     }
 
-    // 2. Get and validate review config
+    // 2. Validate review config
     const config = await this.reviewConfigRepository.findOne({
       _id: new mongoose.Types.ObjectId(dto.reviewConfigId),
       companyId,
     });
-
     if (!config) {
       throw new NotFoundError(
         `Review configuration with ID ${dto.reviewConfigId} not found or doesn't belong to company ${companyId}`
       );
     }
-
     if (!config.isActive) {
       throw new ForbiddenError("Review configuration is not active");
     }
 
-    // 3. Fetch and validate all criteria
+    // 3. Validate criteria
     const criterionIds = config.criteriaIds.map(
       (id) => new mongoose.Types.ObjectId(id)
     );
-
     const criteria = await this.criteriaRepository.findManyByIds(criterionIds);
-
     if (criteria.length !== criterionIds.length) {
       const foundIds = criteria.map((c) => c._id.toString());
       const missing = criterionIds.filter(
         (id) => !foundIds.includes(id.toString())
       );
-
       throw new NotFoundError(
         `Missing criteria with IDs: ${missing.join(", ")}`
       );
     }
 
-    // 4. Create review object
+    // 2. Create review with status NOT_STARTED
     const reviewData: Partial<IReview> = {
       transcriptId: transcript.id,
       reviewConfig: {
@@ -187,9 +185,58 @@ export class ReviewService {
       employeeId: transcript.employeeId,
       clientId: transcript.contactId,
       companyId: transcript.companyId,
+      reviewStatus: ReviewStatus.NOT_STARTED,
     };
+    const review = await this.reviewRepository.create(reviewData);
 
-    // 5. Save review
-    return await this.reviewRepository.create(reviewData);
+    // 3. Fire and forget OpenAI processing — do NOT await it
+    this.processOpenAIReview(review, config, transcript, criteria).catch(
+      (err) => {
+        console.error("Async OpenAI processing failed:", err);
+      }
+    );
+
+    // 4. Immediately return created review (status NOT_STARTED)
+    return review;
+  }
+
+  // Helper method to process OpenAI review asynchronously
+  private async processOpenAIReview(
+    review: IReview,
+    config: IReviewConfig,
+    transcript: ITranscript,
+    criteria: ICriterion[]
+  ) {
+    try {
+      review.reviewStatus = ReviewStatus.STARTED;
+      await review.save();
+
+      const aiResult = await this.openAIService.createChatCompletion(
+        config,
+        transcript,
+        criteria
+      );
+
+      console.warn("AI Result parsed:", aiResult);
+
+      if (!aiResult) {
+        throw new Error("AI result is empty or invalid");
+      }
+
+      review.overallScore = aiResult.overallScore;
+      review.overallFeedback = aiResult.overallFeedback;
+      review.criteriaScores = aiResult.criteriaScores;
+
+      review.reviewStatus = ReviewStatus.REVIEWED;
+      await review.save();
+
+      transcript.isReviewed = true;
+      transcript.reviewStatus = ReviewStatus.REVIEWED;
+      await transcript.save();
+    } catch (error) {
+      console.error("Error processing OpenAI review:", error);
+      review.reviewStatus = ReviewStatus.ERROR;
+      await review.save();
+    }
   }
 }
