@@ -25,6 +25,8 @@ export interface IReview extends Document {
   overallFeedback: string;
   criteriaScores: ICriteriaScore[];
   sentimentScore?: number;
+  sentimentLabel?: "negative" | "neutral" | "positive";
+  sentimentAnalysis?: string;
   externalCompanyId: Types.ObjectId;
   employeeId: Types.ObjectId;
   clientId: Types.ObjectId;
@@ -113,6 +115,16 @@ const reviewSchema = new Schema<IReview>(
       min: 0,
       max: 10,
       required: false,
+    },
+    sentimentLabel: {
+      type: String,
+      enum: ["negative", "neutral", "positive"],
+      required: false,
+    },
+    sentimentAnalysis: {
+      type: String,
+      required: false,
+      trim: true,
     },
     externalCompanyId: {
       type: Schema.Types.ObjectId,

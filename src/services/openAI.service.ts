@@ -16,6 +16,9 @@ interface OpenAIResponse {
   }[];
   overall_score?: number;
   overall_feedback?: string;
+  sentimentScore?: number;
+  sentimentLabel?: "negative" | "neutral" | "positive";
+  sentimentAnalysis?: string;
 }
 
 @Service()
@@ -45,54 +48,60 @@ export class OpenAIService {
 
     return `
       Use the following transcript:
-      ${transcript.content}
+    ${transcript.content}
 
-      Transcript ID: ${transcript.id}
+    Transcript ID: ${transcript.id}
 
-      Clean and format the transcript using only the criteria below — do not add or infer any new ones.
+    Clean and format the transcript using only the criteria below — do not add or infer any new ones.
 
-      Use the weights to guide how strictly each criterion is evaluated. Higher-weighted criteria should be graded more strictly and considered more important in feedback.
+    Use the weights to guide how strictly each criterion is evaluated. Higher-weighted criteria should be graded more strictly and considered more important in feedback.
 
-      CRITERIA: ${criteria.map((c) => c.title).join(", ")}
+    CRITERIA: ${criteria.map((c) => c.title).join(", ")}
 
-      Criteria details: [${criteriaList}]
+    Criteria details: [${criteriaList}]
 
-      Include the full configuration object as provided in the input under the key "configuration", exactly as found in the original input. This should be embedded as an object within the output JSON.
+    Include the full configuration object as provided in the input under the key "configuration", exactly as found in the original input. This should be embedded as an object within the output JSON.
 
-      Output Format:
+    Output Format:
 
-      Return a single valid JSON object, containing:
+    Return a single valid JSON object, containing:
 
-      - "results" — an array of objects, each including:
-        - "criterion" (must match one of the titles)
-        - "score" (1–10)
-        - "comment"
-        - "quote"
-        - "feedback"
-      - "overall_score" — number between 0 and 10, computed as the weighted average of the individual scores
-      - "overall_feedback" — paragraph summarizing overall agent performance, highlighting strengths and suggesting specific areas for improvement
+    - "results" — an array of objects, each including:
+      - "criterion" (must match one of the titles)
+      - "score" (1–10)
+      - "comment"
+      - "quote"
+      - "feedback"
+    - "overall_score" — number between 0 and 10, computed as the weighted average of the individual scores
+    - "overall_feedback" — paragraph summarizing overall agent performance, highlighting strengths and suggesting specific areas for improvement
+    - "sentimentScore" — number between 0 and 10 representing the customer's overall emotional tone (10 = very positive, 0 = very negative)
+    - "sentimentLabel" — one of: "positive", "neutral", "negative"
+    - "sentimentAnalysis" — a paragraph summarizing the emotional tone of the client, referencing specific phrases or tone indicators that justify the sentimentScore and sentimentLabel
 
-      ### Example Output:
+    ### Example Output:
 
-      {
-        "results": [
-          {
-            "criterion": "Empathy",
-            "score": 8,
-            "comment": "Agent showed understanding",
-            "quote": "I completely understand how frustrating that must be.",
-            "feedback": "You did well acknowledging the customer's frustration. For an even higher score, try adding reassurance or proactive follow-up, like offering immediate solutions."
-          }
-        ],
-        "overall_score": 7.9,
-        "overall_feedback": "The agent demonstrated strong empathy and clarity in communication, which helped the customer feel heard and informed. However, there were missed opportunities for proactive support and deeper personalization. Focus on using the customer's name more often, anticipating concerns, and giving detailed explanations of next steps to improve overall customer experience."
-      }
+    {
+      "results": [
+        {
+          "criterion": "Empathy",
+          "score": 8,
+          "comment": "Agent showed understanding",
+          "quote": "I completely understand how frustrating that must be.",
+          "feedback": "You did well acknowledging the customer's frustration. For an even higher score, try adding reassurance or proactive follow-up, like offering immediate solutions."
+        }
+      ],
+      "overall_score": 7.9,
+      "overall_feedback": "The agent demonstrated strong empathy and clarity in communication, which helped the customer feel heard and informed. However, there were missed opportunities for proactive support and deeper personalization. Focus on using the customer's name more often, anticipating concerns, and giving detailed explanations of next steps to improve overall customer experience.",
+      "sentimentScore": 8.5,
+      "sentimentLabel": "positive"
+      "sentimentAnalysis": "The client was very happy with the service and expressed satisfaction multiple times throughout the interaction. Their tone was consistently positive, and they responded warmly to the agent’s assistance. Phrases such as 'Thanks so much!' and 'You've been incredibly helpful' indicate a high level of contentment and trust in the support received."
+    }
 
-      STRICT RULES:
-        - Do not add any extra criteria.
-        - Output must be a single, clean JSON object.
-        - Do not wrap or escape the JSON.
-        - The output must start with { and end with }.
+    STRICT RULES:
+      - Do not add any extra criteria.
+      - Output must be a single, clean JSON object.
+      - Do not wrap or escape the JSON.
+      - The output must start with { and end with }.
         `;
   };
 
@@ -102,6 +111,9 @@ export class OpenAIService {
     overallScore: number;
     overallFeedback: string;
     criteriaScores: ICriteriaScore[];
+    sentimentScore: number;
+    sentimentLabel: "negative" | "neutral" | "positive";
+    sentimentAnalysis: string;
   } => {
     const data: OpenAIResponse = JSON.parse(aiResponseStr);
 
@@ -115,6 +127,9 @@ export class OpenAIService {
         quote: r.quote,
         feedback: r.feedback,
       })),
+      sentimentScore: data.sentimentScore ?? 0,
+      sentimentLabel: data.sentimentLabel ?? "neutral",
+      sentimentAnalysis: data.sentimentAnalysis ?? "",
     };
   };
 
@@ -131,6 +146,9 @@ export class OpenAIService {
     overallScore: number;
     overallFeedback: string;
     criteriaScores: ICriteriaScore[];
+    sentimentScore: number;
+    sentimentLabel: "negative" | "neutral" | "positive";
+    sentimentAnalysis: string;
   }> {
     try {
       const model = reviewConfig.modelSettings?.model ?? "gpt-4o-mini";

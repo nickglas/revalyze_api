@@ -227,6 +227,10 @@ export class ReviewService {
       review.overallFeedback = aiResult.overallFeedback;
       review.criteriaScores = aiResult.criteriaScores;
 
+      review.sentimentScore = aiResult.sentimentScore;
+      review.sentimentLabel = aiResult.sentimentLabel;
+      review.sentimentAnalysis = aiResult.sentimentAnalysis;
+
       review.reviewStatus = ReviewStatus.REVIEWED;
       await review.save();
 
