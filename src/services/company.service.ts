@@ -338,10 +338,7 @@ export class CompanyService {
       newPrice
     );
 
-    const action = this.getSubscriptionActionOrThrow(
-      currentProduct,
-      newProduct
-    );
+    const action = this.getSubscriptionActionOrThrow(currentPrice, newPrice);
 
     if (action === "same") {
       throw new BadRequestError("Already in the same tier");
@@ -423,10 +420,6 @@ export class CompanyService {
     if (!currentProduct) throw new BadRequestError("Current product not found");
     if (!newProduct) throw new BadRequestError("New product not found");
 
-    if (!currentProduct.metadata?.tier || !newProduct.metadata?.tier) {
-      throw new BadRequestError("Product tier metadata missing");
-    }
-
     return [currentProduct, newProduct];
   }
 
@@ -435,7 +428,7 @@ export class CompanyService {
     const newTier = Number(newPrice.metadata?.tier);
 
     if (isNaN(currentTier) || isNaN(newTier)) {
-      throw new Error("Invalid tier metadata on subscription prices");
+      throw new BadRequestError("Invalid tier metadata on subscription prices");
     }
 
     return compareTiers(currentTier, newTier);

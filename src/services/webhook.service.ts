@@ -203,7 +203,6 @@ export class StripeWebhookService {
 
       allowedUsers,
       allowedTranscripts,
-      tier,
     });
   }
 
@@ -381,6 +380,7 @@ export class StripeWebhookService {
           product.metadata.allowedTranscripts || "0",
           10
         ),
+        allowedReviews: parseInt(product.metadata.allowedReviews || "0", 10),
         tier: parseInt(product.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };

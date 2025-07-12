@@ -11,6 +11,7 @@ export interface IScheduledUpdate {
   interval: Stripe.Price.Recurring.Interval;
   allowedUsers: number;
   allowedTranscripts: number;
+  allowedReviews: number;
   tier: number;
   scheduleId: string;
 }
@@ -37,7 +38,7 @@ export interface ISubscriptionData {
 
   allowedUsers: number;
   allowedTranscripts: number;
-  tier: number;
+  allowedReviews: number;
 
   scheduledUpdate?: IScheduledUpdate;
 

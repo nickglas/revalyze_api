@@ -1162,6 +1162,18 @@ describe("CompanyService", () => {
       },
     };
 
+    it("should throw if tier metadata is missing or invalid", () => {
+      const currentPrice = { metadata: {} };
+      const newPrice = { metadata: { tier: "2" } };
+
+      expect(() => {
+        (companyService as any).getSubscriptionActionOrThrow(
+          currentPrice,
+          newPrice
+        );
+      }).toThrow("Invalid tier metadata on subscription prices");
+    });
+
     it("should return the action from compareTiers", () => {
       (compareTiers as jest.Mock).mockReturnValue("upgrade");
 
@@ -1269,30 +1281,6 @@ describe("CompanyService", () => {
       await expect(
         (companyService as any).getProductsOrThrow(currentPrice, newPrice)
       ).rejects.toThrow("New product not found");
-    });
-
-    it("should throw if tier metadata missing in currentProduct", async () => {
-      const current = { ...currentProduct, metadata: {} };
-
-      stripeService.getProductById
-        .mockResolvedValueOnce(current as any)
-        .mockResolvedValueOnce(newProduct as any);
-
-      await expect(
-        (companyService as any).getProductsOrThrow(currentPrice, newPrice)
-      ).rejects.toThrow("Product tier metadata missing");
-    });
-
-    it("should throw if tier metadata missing in newProduct", async () => {
-      const newP = { ...newProduct, metadata: {} };
-
-      stripeService.getProductById
-        .mockResolvedValueOnce(currentProduct as any)
-        .mockResolvedValueOnce(newP as any);
-
-      await expect(
-        (companyService as any).getProductsOrThrow(currentPrice, newPrice)
-      ).rejects.toThrow("Product tier metadata missing");
     });
   });
   describe("getPricesOrThrow", () => {

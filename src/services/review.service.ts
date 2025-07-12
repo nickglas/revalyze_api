@@ -142,6 +142,8 @@ export class ReviewService {
   ): Promise<IReviewDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
 
+    //get the current review count and enforce limits
+
     // 1. Validate transcript
     const transcript = await this.transcriptRepository.findOne({
       _id: new mongoose.Types.ObjectId(dto.transcriptId),

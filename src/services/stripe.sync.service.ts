@@ -368,6 +368,7 @@ export class StripeSyncService {
           product.metadata.allowedTranscripts || "0",
           10
         ),
+        allowedReviews: parseInt(product.metadata.allowedReviews || "0", 10),
         tier: parseInt(product.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };
@@ -437,6 +438,7 @@ export class StripeSyncService {
       allowedTranscripts: parseInt(
         product.metadata["allowedTranscripts"] ?? "0"
       ),
+      allowedReviews: parseInt(product.metadata["allowedReviews"] ?? "0"),
       allowedUsers: parseInt(product.metadata["allowedUsers"] ?? "0"),
       tier: parseInt(product.metadata["tier"] ?? "0"),
     };
@@ -500,7 +502,9 @@ export class StripeSyncService {
     activeSubscription.allowedUsers = parseInt(
       product.metadata["allowedUsers"] ?? "0"
     );
-    activeSubscription.tier = parseInt(product.metadata["tier"] ?? "0");
+    activeSubscription.allowedReviews = parseInt(
+      product.metadata["allowedReviews"] ?? "0"
+    );
 
     const updated = await this.subscriptionRepo.update(
       activeSubscription.id,
