@@ -110,7 +110,6 @@ export class CompanyService {
     pendingCompanyId: string,
     subscriptionId: string
   ): Promise<{ company: ICompanyData; adminUser: IUserData }> {
-    // 1. Fetch pending company
     const pending: IPendingCompanyDocument | null =
       await this.pendingRepository.findById(pendingCompanyId);
     if (!pending) {
@@ -118,7 +117,6 @@ export class CompanyService {
     }
 
     try {
-      // 2. Get subscription and product info from Stripe
       const subscription = await this.stripeService.getSubscription(
         subscriptionId
       );
@@ -137,7 +135,6 @@ export class CompanyService {
 
       const product = await this.stripeService.getProductById(productRef);
 
-      // 3. Create company and admin user from pending data
       const company: ICompanyDocument = await this.createCompanyFromPending(
         pending
       );
@@ -147,18 +144,15 @@ export class CompanyService {
         company.id
       );
 
-      // 4. Assign default review config
       await this.reviewConfigService.assignDefaultReviewConfigToCompany(
         company._id
       );
 
-      // 5. Generate API key if product tier requires it
       if (product.metadata?.tier === "3") {
         logger.info(`Generating API key for companyId=${company._id}`);
         await this.apiKeyService.regenerateApiKey(company._id.toString());
       }
 
-      // 6. Delete the pending record
       await this.pendingRepository.delete(pendingCompanyId);
 
       logger.info(
@@ -172,6 +166,11 @@ export class CompanyService {
         error.stack
       );
       await this.rollbackActivation(pending);
+
+      if (error instanceof BadRequestError) {
+        throw error;
+      }
+
       throw new Error(`Activation failed: ${error.message}`);
     }
   }
