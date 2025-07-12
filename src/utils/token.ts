@@ -1,10 +1,12 @@
 import jwt from "jsonwebtoken";
-import { IUser } from "../models/.old/x.user.model";
-import Company from "../models/.old/x.company.model";
+
 import { IUserDocument } from "../models/entities/user.entity";
+import { CompanyModel } from "../models/entities/company.entity";
 
 export const generateTokens = async (user: IUserDocument) => {
-  const company = await Company.findById(user.companyId).select("isActive");
+  const company = await CompanyModel.findById(user.companyId).select(
+    "isActive"
+  );
 
   const accessToken = jwt.sign(
     {

@@ -319,33 +319,83 @@ export class CompanyService {
   }
 
   async updateSubscription(companyId: string, newPriceId: string) {
-    // 1. Find the company
+    const company = await this.getCompanyOrThrow(companyId);
+    const activeSubscription = await this.getActiveSubscriptionOrThrow(company);
+    const stripeSubscription = await this.getStripeSubscriptionOrThrow(
+      activeSubscription
+    );
+
+    const currentPriceId =
+      this.extractCurrentPriceIdOrThrow(stripeSubscription);
+    this.ensureNewPriceIdIsValid(newPriceId);
+
+    const [currentPrice, newPrice] = await this.getPricesOrThrow(
+      currentPriceId,
+      newPriceId
+    );
+    const [currentProduct, newProduct] = await this.getProductsOrThrow(
+      currentPrice,
+      newPrice
+    );
+
+    const action = this.getSubscriptionActionOrThrow(
+      currentProduct,
+      newProduct
+    );
+
+    if (action === "same") {
+      throw new BadRequestError("Already in the same tier");
+    }
+
+    if (action === "downgrade") {
+      return await this.handleDowngrade(stripeSubscription, newPriceId);
+    }
+
+    if (action === "upgrade") {
+      return await this.handleUpgrade(stripeSubscription, newPriceId);
+    }
+
+    throw new Error("Unknown subscription action");
+  }
+
+  //helpers
+  private async getCompanyOrThrow(companyId: string) {
     const company = await this.companyRepository.findById(companyId);
     if (!company) throw new BadRequestError("Company not found");
+    return company;
+  }
 
-    const s =
+  private async getActiveSubscriptionOrThrow(company: ICompanyDocument) {
+    const subscription =
       await this.subscriptionRepository.findActiveSubscriptionByStripeCustomerId(
         company.stripeCustomerId
       );
-
-    if (!s) {
+    if (!subscription)
       throw new BadRequestError("Company has no active subscription");
-    }
+    return subscription;
+  }
 
-    // 2. Retrieve current subscription
-    const subscription = await this.stripeService.getSubscription(
-      s.stripeSubscriptionId
+  private async getStripeSubscriptionOrThrow(
+    subscription: ISubscriptionDocument
+  ) {
+    const stripeSub = await this.stripeService.getSubscription(
+      subscription.stripeSubscriptionId
     );
+    if (!stripeSub) throw new BadRequestError("No active subscription found");
+    return stripeSub;
+  }
 
-    if (!subscription) {
-      throw new BadRequestError("No active subscription found");
-    }
+  private extractCurrentPriceIdOrThrow(subscription: any): string {
+    const priceId = subscription?.items?.data?.[0]?.price?.id;
+    if (!priceId) throw new BadRequestError("Current price ID missing");
+    return priceId;
+  }
 
-    const currentPriceId = subscription.items.data[0]?.price.id;
-    if (!currentPriceId) throw new BadRequestError("Current price ID missing");
-
+  private ensureNewPriceIdIsValid(newPriceId: string) {
     if (!newPriceId) throw new BadRequestError("New price ID missing");
+  }
 
+  private async getPricesOrThrow(currentPriceId: string, newPriceId: string) {
     const [currentPrice, newPrice] = await Promise.all([
       this.stripeService.getPriceById(currentPriceId),
       this.stripeService.getPriceById(newPriceId),
@@ -354,6 +404,10 @@ export class CompanyService {
     if (!currentPrice) throw new BadRequestError("Current price not found");
     if (!newPrice) throw new BadRequestError("New price not found");
 
+    return [currentPrice, newPrice];
+  }
+
+  private async getProductsOrThrow(currentPrice: any, newPrice: any) {
     const currentProductId = currentPrice.product as string;
     const newProductId = newPrice.product as string;
 
@@ -369,101 +423,79 @@ export class CompanyService {
     if (!currentProduct) throw new BadRequestError("Current product not found");
     if (!newProduct) throw new BadRequestError("New product not found");
 
-    // Optionally check for tier metadata existence
     if (!currentProduct.metadata?.tier || !newProduct.metadata?.tier) {
       throw new BadRequestError("Product tier metadata missing");
     }
 
-    const action = compareTiers(
-      currentProduct.metadata.tier,
-      newProduct.metadata.tier
-    );
-
-    switch (action) {
-      case "same":
-        throw new BadRequestError("Already in the same tier");
-
-      case "downgrade": {
-        const item = subscription.items.data[0];
-        if (!item) {
-          throw new BadRequestError("Subscription item data missing");
-        }
-        const currentPeriodStart = item.current_period_start;
-        const currentPeriodEnd = item.current_period_end;
-
-        if (!currentPeriodStart || !currentPeriodEnd) {
-          throw new BadRequestError("Subscription period dates missing");
-        }
-
-        // Step 1: Create schedule without phases or end_behavior
-        const schedule = await this.stripeService.createSubscriptionSchedule({
-          from_subscription: subscription.id,
-        });
-
-        if (!schedule || !schedule.id) {
-          throw new Error("Failed to create subscription schedule");
-        }
-
-        // Step 2: Add downgrade phases and set end_behavior
-        const addScheduleResult =
-          await this.stripeService.addDowngradePhasesToSchedule(
-            schedule.id,
-            subscription,
-            newPriceId,
-            currentPeriodStart,
-            currentPeriodEnd
-          );
-
-        if (!addScheduleResult || !addScheduleResult.id)
-          throw new BadRequestError("Could not add new subscription");
-
-        return {
-          message: "Downgrade scheduled successfully",
-          scheduleId: schedule.id,
-        };
-      }
-
-      case "upgrade": {
-        if (subscription.schedule) {
-          try {
-            await this.stripeService.releaseSubscriptionSchedule(
-              subscription.schedule as string
-            );
-            logger.info(
-              `Released existing schedule before upgrading subscription ${subscription.id}`
-            );
-          } catch (error) {
-            logger.error(
-              `Failed to release existing schedule ${subscription.schedule}:`,
-              error
-            );
-            throw new BadRequestError(
-              "Cannot upgrade because existing schedule could not be released"
-            );
-          }
-        }
-
-        // ✅ Proceed with upgrade
-        await this.stripeService.updateSubscription(
-          subscription.id,
-          newPriceId,
-          {
-            proration_behavior: "create_prorations",
-          }
-        );
-
-        return {
-          id: subscription.id,
-          message: "Subscription upgraded successfully",
-        };
-      }
-
-      default:
-        throw new Error("Unknown subscription action");
-    }
+    return [currentProduct, newProduct];
   }
 
-  //helpers
+  private getSubscriptionActionOrThrow(currentProduct: any, newProduct: any) {
+    return compareTiers(currentProduct.metadata.tier, newProduct.metadata.tier);
+  }
+
+  private async handleDowngrade(subscription: any, newPriceId: string) {
+    const item = subscription.items.data[0];
+    if (!item) throw new BadRequestError("Subscription item data missing");
+
+    const { current_period_start, current_period_end } = item;
+    if (!current_period_start || !current_period_end) {
+      throw new BadRequestError("Subscription period dates missing");
+    }
+
+    const schedule = await this.stripeService.createSubscriptionSchedule({
+      from_subscription: subscription.id,
+    });
+    if (!schedule || !schedule.id)
+      throw new Error("Failed to create subscription schedule");
+
+    const result = await this.stripeService.addDowngradePhasesToSchedule(
+      schedule.id,
+      subscription,
+      newPriceId,
+      current_period_start,
+      current_period_end
+    );
+
+    if (!result || !result.id)
+      throw new BadRequestError("Could not add new subscription");
+
+    return {
+      message: "Downgrade scheduled successfully",
+      scheduleId: schedule.id,
+    };
+  }
+
+  private async handleUpgrade(subscription: any, newPriceId: string) {
+    if (subscription.schedule) {
+      try {
+        await this.stripeService.releaseSubscriptionSchedule(
+          subscription.schedule as string
+        );
+        logger.info(
+          `Released existing schedule before upgrading subscription ${subscription.id}`
+        );
+      } catch (error) {
+        logger.error(
+          `Failed to release existing schedule ${subscription.schedule}:`,
+          error
+        );
+        throw new BadRequestError(
+          "Cannot upgrade because existing schedule could not be released"
+        );
+      }
+    }
+
+    await this.stripeService.updateSubscription(subscription.id, newPriceId, {
+      proration_behavior: "create_prorations",
+    });
+
+    return {
+      id: subscription.id,
+      message: "Subscription upgraded successfully",
+    };
+  }
+
   private async ensureCompanyEmailIsUnique(email: string) {
     const existing = await this.companyRepository.findOne({ mainEmail: email });
     if (existing)
