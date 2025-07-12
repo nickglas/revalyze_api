@@ -1,12 +1,7 @@
-export const compareTiers = (currentTier: string, newTier: string): 'upgrade' | 'downgrade' | 'same' => {
-  const current = Number(currentTier);
-  const next = Number(newTier);
-
-  if (isNaN(current) || isNaN(next)) {
-    throw new Error('Invalid tier metadata');
-  }
-
-  if (next > current) return 'upgrade';
-  if (next < current) return 'downgrade';
-  return 'same';
+export function compareTiers(
+  current: number,
+  next: number
+): "same" | "upgrade" | "downgrade" {
+  if (current === next) return "same";
+  return current < next ? "upgrade" : "downgrade";
 }

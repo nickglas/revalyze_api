@@ -1148,14 +1148,15 @@ describe("CompanyService", () => {
       ).rejects.toThrow(BadRequestError);
     });
   });
+
   describe("getSubscriptionActionOrThrow", () => {
-    const currentProduct = {
+    const currentPrice = {
       metadata: {
         tier: "1",
       },
     };
 
-    const newProduct = {
+    const newPrice = {
       metadata: {
         tier: "2",
       },
@@ -1165,11 +1166,11 @@ describe("CompanyService", () => {
       (compareTiers as jest.Mock).mockReturnValue("upgrade");
 
       const result = (companyService as any).getSubscriptionActionOrThrow(
-        currentProduct,
-        newProduct
+        currentPrice,
+        newPrice
       );
 
-      expect(compareTiers).toHaveBeenCalledWith("1", "2");
+      expect(compareTiers).toHaveBeenCalledWith(1, 2);
       expect(result).toBe("upgrade");
     });
 
@@ -1177,11 +1178,11 @@ describe("CompanyService", () => {
       (compareTiers as jest.Mock).mockReturnValue("same");
 
       const result = (companyService as any).getSubscriptionActionOrThrow(
-        currentProduct,
-        newProduct
+        currentPrice,
+        newPrice
       );
 
-      expect(compareTiers).toHaveBeenCalledWith("1", "2");
+      expect(compareTiers).toHaveBeenCalledWith(1, 2);
       expect(result).toBe("same");
     });
 
@@ -1189,14 +1190,26 @@ describe("CompanyService", () => {
       (compareTiers as jest.Mock).mockReturnValue("downgrade");
 
       const result = (companyService as any).getSubscriptionActionOrThrow(
-        currentProduct,
-        newProduct
+        currentPrice,
+        newPrice
       );
 
-      expect(compareTiers).toHaveBeenCalledWith("1", "2");
+      expect(compareTiers).toHaveBeenCalledWith(1, 2);
       expect(result).toBe("downgrade");
     });
+
+    it("should throw if tier metadata is missing or invalid", () => {
+      const brokenPrice = { metadata: {} };
+
+      expect(() => {
+        (companyService as any).getSubscriptionActionOrThrow(
+          brokenPrice,
+          brokenPrice
+        );
+      }).toThrow("Invalid tier metadata on subscription prices");
+    });
   });
+
   describe("getProductsOrThrow", () => {
     const currentPrice = { product: "prod_1" };
     const newPrice = { product: "prod_2" };

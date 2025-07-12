@@ -333,11 +333,14 @@ export class StripeService {
     return products.data.some((p) => p.name === name && !p.deleted);
   }
 
-  //create a new subscription plan
   async createSubscriptionPlan(
     name: string,
     currency: string,
-    prices: { interval: "month" | "year"; amount: number }[],
+    prices: {
+      interval: "month" | "year";
+      amount: number;
+      tier?: number;
+    }[],
     meta: Record<string, string | number | boolean | undefined> = {},
     features?: string[]
   ) {
@@ -352,14 +355,27 @@ export class StripeService {
     });
 
     const createdPrices = await Promise.all(
-      prices.map((p) =>
-        this.stripe.prices.create({
+      prices.map((p) => {
+        const mergedMetadata: Stripe.MetadataParam = Object.fromEntries(
+          Object.entries({
+            ...cleanedMeta,
+            tier: p.tier?.toString(),
+          })
+            .filter(([_, v]) => v !== undefined)
+            .map(([k, v]) => [
+              k,
+              v === undefined ? null : (v as string | number | null),
+            ])
+        );
+
+        return this.stripe.prices.create({
           product: product.id,
           unit_amount: p.amount,
           currency,
           recurring: { interval: p.interval },
-        })
-      )
+          metadata: mergedMetadata,
+        });
+      })
     );
 
     return { product, prices: createdPrices };

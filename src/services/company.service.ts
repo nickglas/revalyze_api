@@ -430,8 +430,15 @@ export class CompanyService {
     return [currentProduct, newProduct];
   }
 
-  private getSubscriptionActionOrThrow(currentProduct: any, newProduct: any) {
-    return compareTiers(currentProduct.metadata.tier, newProduct.metadata.tier);
+  private getSubscriptionActionOrThrow(currentPrice: any, newPrice: any) {
+    const currentTier = Number(currentPrice.metadata?.tier);
+    const newTier = Number(newPrice.metadata?.tier);
+
+    if (isNaN(currentTier) || isNaN(newTier)) {
+      throw new Error("Invalid tier metadata on subscription prices");
+    }
+
+    return compareTiers(currentTier, newTier);
   }
 
   private async handleDowngrade(subscription: any, newPriceId: string) {
