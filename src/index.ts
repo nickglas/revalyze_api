@@ -7,8 +7,10 @@ import { seedProducts } from "./db/db.seed.plans";
 import { Container } from "typedi";
 import { StripeSyncCron } from "./sync/sync-cron";
 import { logger } from "./utils/logger";
+import { validateEnv } from "./utils/validate.env";
 
 dotenv.config();
+validateEnv();
 
 const PORT = process.env.PORT || 4500;
 const MONGODB_URI = process.env.MONGODB_URI;

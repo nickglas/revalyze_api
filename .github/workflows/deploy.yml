@@ -25,6 +25,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate environment variables
+        run: npm run validate-env
+        env:
+          PORT: 4500
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          STRIPE_SUCCESS_URL: ${{ secrets.STRIPE_SUCCESS_URL }}
+          STRIPE_CANCEL_URL: ${{ secrets.STRIPE_CANCEL_URL }}
+
       - name: Run tests
         run: npm test
         env:
