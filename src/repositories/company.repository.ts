@@ -1,46 +1,58 @@
+// src/repositories/company.repository.ts
 import { Service } from "typedi";
-import Company, { ICompany } from "../models/company.model";
 import mongoose, { Types, FilterQuery } from "mongoose";
+import {
+  ICompanyDocument,
+  CompanyModel,
+} from "../models/entities/company.entity";
 
 @Service()
 export class CompanyRepository {
   async findById(
     id: mongoose.Types.ObjectId | string
-  ): Promise<ICompany | null> {
+  ): Promise<ICompanyDocument | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    return await Company.findById(id).exec();
+    return await CompanyModel.findById(id).exec();
   }
 
-  async create(companyData: Partial<ICompany>): Promise<ICompany> {
-    return await Company.create(companyData);
+  async create(
+    companyData: Partial<ICompanyDocument>
+  ): Promise<ICompanyDocument> {
+    return await CompanyModel.create(companyData);
   }
 
   async update(
     id: string,
-    updateData: Partial<ICompany>
-  ): Promise<ICompany | null> {
-    return await Company.findByIdAndUpdate(id, updateData, {
+    updateData: Partial<ICompanyDocument>
+  ): Promise<ICompanyDocument | null> {
+    return await CompanyModel.findByIdAndUpdate(id, updateData, {
       new: true,
     }).exec();
   }
 
-  async findByStripeCustomerId(customerId: string): Promise<ICompany | null> {
-    return await Company.findOne({ stripeCustomerId: customerId }).exec();
+  async findByStripeCustomerId(
+    customerId: string
+  ): Promise<ICompanyDocument | null> {
+    return await CompanyModel.findOne({ stripeCustomerId: customerId }).exec();
   }
 
   async delete(id: string): Promise<void> {
-    await Company.findByIdAndDelete(id).exec();
+    await CompanyModel.findByIdAndDelete(id).exec();
   }
 
-  async findAll(): Promise<ICompany[]> {
-    return await Company.find().exec();
+  async findAll(): Promise<ICompanyDocument[]> {
+    return await CompanyModel.find().exec();
   }
 
-  async find(filter: FilterQuery<ICompany>): Promise<ICompany[]> {
-    return await Company.find(filter).exec();
+  async find(
+    filter: FilterQuery<ICompanyDocument>
+  ): Promise<ICompanyDocument[]> {
+    return await CompanyModel.find(filter).exec();
   }
 
-  async findOne(filter: FilterQuery<ICompany>): Promise<ICompany | null> {
-    return await Company.findOne(filter).exec();
+  async findOne(
+    filter: FilterQuery<ICompanyDocument>
+  ): Promise<ICompanyDocument | null> {
+    return await CompanyModel.findOne(filter).exec();
   }
 }

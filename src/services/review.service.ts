@@ -4,21 +4,31 @@ import {
   ReviewRepository,
   ReviewFilterOptions,
 } from "../repositories/review.repository";
-import { IReview } from "../models/review.model";
+import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
 } from "../utils/errors";
 import { CreateReviewDto } from "../dto/review/review.create.dto";
-import { ITranscript, ReviewStatus } from "../models/transcript.model";
-import { IReviewConfig } from "../models/review.config.model";
+import {
+  TranscriptModel,
+  ITranscriptDocument,
+} from "../models/entities/transcript.entity";
+import {
+  IReviewConfigDocument,
+  ReviewConfigModel,
+} from "../models/entities/review.config.entity";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { CriteriaRepository } from "../repositories/criteria.repository";
 import { OpenAIService } from "./openAI.service";
 import ReviewProcessInfo from "../dto/review/review.process.dto";
-import { ICriterion } from "../models/criterion.model";
+import {
+  CriterionModel,
+  ICriterionDocument,
+} from "../models/entities/criterion.entity";
+import { ReviewStatus } from "../models/types/transcript.type";
 
 @Service()
 export class ReviewService {
@@ -55,7 +65,7 @@ export class ReviewService {
     createdAtTo?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ reviews: IReview[]; total: number }> {
+  ): Promise<{ reviews: IReviewDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     const filter: ReviewFilterOptions = { companyId };
@@ -105,7 +115,7 @@ export class ReviewService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IReview> {
+  ): Promise<IReviewDocument> {
     if (!id) throw new BadRequestError("No review id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -129,7 +139,7 @@ export class ReviewService {
   async createReview(
     dto: CreateReviewDto,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IReview> {
+  ): Promise<IReviewDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
 
     // 1. Validate transcript
@@ -173,7 +183,7 @@ export class ReviewService {
     }
 
     // 2. Create review with status NOT_STARTED
-    const reviewData: Partial<IReview> = {
+    const reviewData: Partial<IReviewDocument> = {
       transcriptId: transcript.id,
       reviewConfig: {
         ...config.toJSON?.(),
@@ -202,10 +212,10 @@ export class ReviewService {
 
   // Helper method to process OpenAI review asynchronously
   private async processOpenAIReview(
-    review: IReview,
-    config: IReviewConfig,
-    transcript: ITranscript,
-    criteria: ICriterion[]
+    review: IReviewDocument,
+    config: IReviewConfigDocument,
+    transcript: ITranscriptDocument,
+    criteria: ICriterionDocument[]
   ) {
     try {
       review.reviewStatus = ReviewStatus.STARTED;

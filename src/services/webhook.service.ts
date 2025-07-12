@@ -1,11 +1,7 @@
 import { Service } from "typedi";
 import { StripeService } from "./stripe.service";
-import { ICompany } from "../models/company.model";
 import Stripe from "stripe";
 import { CompanyRepository } from "../repositories/company.repository";
-import pendingCompanyModel from "../models/pendingCompany.model";
-import userModel from "../models/user.model";
-import Subscription, { ISubscription } from "../models/subscription.model";
 import { PlanRepository } from "../repositories/plan.repository";
 import { CriteriaService } from "./criteria.service";
 import { ApiKeyService } from "../services/key.service";
@@ -19,6 +15,8 @@ import {
 } from "../utils/errors";
 import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
+import { ICompanyDocument } from "../models/entities/company.entity";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
 @Service()
 export class StripeWebhookService {
@@ -91,7 +89,7 @@ export class StripeWebhookService {
     const stripeSubscription = event.data.object as Stripe.Subscription;
     const customerId = stripeSubscription.customer as string;
 
-    let company: ICompany | null = null;
+    let company: ICompanyDocument | null = null;
 
     // Retry mechanism for eventual consistency
     for (let i = 0; i < 3; i++) {
@@ -126,7 +124,7 @@ export class StripeWebhookService {
   // NEW: Clear scheduled updates when upgrading immediately
   private async clearScheduledUpdates(
     stripeSubscription: Stripe.Subscription,
-    company: ICompany
+    company: ICompanyDocument
   ) {
     const localSub =
       await this.subscriptionRepository.findByStripeSubscriptionId(
@@ -167,7 +165,7 @@ export class StripeWebhookService {
 
   private async upsertSubscription(
     stripeSubscription: Stripe.Subscription,
-    company: ICompany,
+    company: ICompanyDocument,
     product: Stripe.Product,
     price: Stripe.Price
   ) {
@@ -178,42 +176,35 @@ export class StripeWebhookService {
     );
     const tier = parseInt(product.metadata.tier || "0", 10);
 
-    return Subscription.findOneAndUpdate(
-      { companyId: company._id },
-      {
-        companyId: company._id,
-        stripeSubscriptionId: stripeSubscription.id,
-        stripeCustomerId: stripeSubscription.customer as string,
-        status: stripeSubscription.status,
-        currentPeriodStart: new Date(
-          stripeSubscription.items.data[0].current_period_start * 1000
-        ),
-        currentPeriodEnd: new Date(
-          stripeSubscription.items.data[0].current_period_end * 1000
-        ),
-        cancelAt: stripeSubscription.cancel_at
-          ? new Date(stripeSubscription.cancel_at * 1000)
-          : undefined,
-        canceledAt: stripeSubscription.canceled_at
-          ? new Date(stripeSubscription.canceled_at * 1000)
-          : undefined,
-        cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    await this.subscriptionRepository.upsertByCompanyId(company._id, {
+      stripeSubscriptionId: stripeSubscription.id,
+      stripeCustomerId: stripeSubscription.customer as string,
+      status: stripeSubscription.status,
+      currentPeriodStart: new Date(
+        stripeSubscription.items.data[0].current_period_start * 1000
+      ),
+      currentPeriodEnd: new Date(
+        stripeSubscription.items.data[0].current_period_end * 1000
+      ),
+      cancelAt: stripeSubscription.cancel_at
+        ? new Date(stripeSubscription.cancel_at * 1000)
+        : undefined,
+      canceledAt: stripeSubscription.canceled_at
+        ? new Date(stripeSubscription.canceled_at * 1000)
+        : undefined,
+      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
 
-        priceId: price.id,
-        productId: product.id,
-        productName: product.name,
-        amount: price.unit_amount ?? 0,
-        currency: price.currency,
-        interval: price.recurring?.interval,
+      priceId: price.id,
+      productId: product.id,
+      productName: product.name,
+      amount: price.unit_amount ?? 0,
+      currency: price.currency,
+      interval: price.recurring?.interval,
 
-        allowedUsers,
-        allowedTranscripts,
-        tier,
-
-        updatedAt: new Date(),
-      },
-      { upsert: true, new: true }
-    );
+      allowedUsers,
+      allowedTranscripts,
+      tier,
+    });
   }
 
   private async handleSessionExpired(event: Stripe.Event): Promise<void> {
@@ -269,11 +260,11 @@ export class StripeWebhookService {
       return;
     }
 
-    let subscription: ISubscription | null = null;
+    let subscription: ISubscriptionDocument | null = null;
 
     // Retry mechanism for eventual consistency
     for (let i = 0; i < 3; i++) {
-      subscription = await Subscription.findOne({
+      subscription = await this.subscriptionRepository.findOne({
         stripeSubscriptionId: subscriptionId,
       });
       if (subscription) break;

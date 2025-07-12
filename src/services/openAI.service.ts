@@ -1,10 +1,10 @@
 import { Service } from "typedi";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { IReviewConfig } from "../models/review.config.model";
-import { ITranscript } from "../models/transcript.model";
-import { ICriteriaScore, IReview } from "../models/review.model";
-import { ICriterion } from "../models/criterion.model";
+import { ITranscriptDocument } from "../models/entities/transcript.entity";
+import { ICriterionDocument } from "../models/entities/criterion.entity";
+import { ICriteriaScore } from "../models/types/review.type";
+import { IReviewConfigDocument } from "../models/entities/review.config.entity";
 
 interface OpenAIResponse {
   results: {
@@ -37,8 +37,8 @@ export class OpenAIService {
   }
 
   private createPrompt = (
-    transcript: ITranscript,
-    criteria: ICriterion[]
+    transcript: ITranscriptDocument,
+    criteria: ICriterionDocument[]
   ): string => {
     const criteriaList = criteria
       .map(
@@ -139,9 +139,9 @@ export class OpenAIService {
    * @param model - Optional model name, default to gpt-4o-mini or your preferred.
    */
   async createChatCompletion(
-    reviewConfig: IReviewConfig,
-    transcript: ITranscript,
-    criteria: ICriterion[]
+    reviewConfig: IReviewConfigDocument,
+    transcript: ITranscriptDocument,
+    criteria: ICriterionDocument[]
   ): Promise<{
     overallScore: number;
     overallFeedback: string;

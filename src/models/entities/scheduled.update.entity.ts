@@ -1,8 +1,8 @@
-// src/models/scheduled.model.ts
+// src/entities/scheduled.update.entity.ts
 import { Schema } from "mongoose";
-import Stripe from "stripe";
+import { IScheduledUpdate } from "../types/scheduled.update.type";
 
-export const scheduledUpdateSchema = new Schema(
+export const scheduledUpdateSchema = new Schema<IScheduledUpdate>(
   {
     productName: { type: String, required: true },
     effectiveDate: { type: Date, required: true },

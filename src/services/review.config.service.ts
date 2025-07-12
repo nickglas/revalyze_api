@@ -1,10 +1,16 @@
 import { Service } from "typedi";
 import mongoose from "mongoose";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
-import ReviewConfig, { IReviewConfig } from "../models/review.config.model";
+import {
+  IReviewConfigDocument,
+  ReviewConfigModel,
+} from "../models/entities/review.config.entity";
 import { BadRequestError, NotFoundError } from "../utils/errors";
 import { CriteriaRepository } from "../repositories/criteria.repository";
-import { ICriterion } from "../models/criterion.model";
+import {
+  CriterionModel,
+  ICriterionDocument,
+} from "../models/entities/criterion.entity";
 import { UpdateReviewConfigDto } from "../dto/review.config/review.config.update.dto";
 
 interface FilterOptions {
@@ -34,7 +40,7 @@ export class ReviewConfigService {
   async getReviewConfigs(
     companyId: mongoose.Types.ObjectId,
     filters: FilterOptions = {}
-  ): Promise<{ configs: IReviewConfig[]; total: number }> {
+  ): Promise<{ configs: IReviewConfigDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.reviewConfigRepository.findByCompanyIdWithFilters(
@@ -55,7 +61,7 @@ export class ReviewConfigService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IReviewConfig> {
+  ): Promise<IReviewConfigDocument> {
     if (!id) throw new BadRequestError("No review config id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -80,8 +86,8 @@ export class ReviewConfigService {
    */
   async createReviewConfig(
     companyId: mongoose.Types.ObjectId,
-    data: Partial<IReviewConfig>
-  ): Promise<IReviewConfig> {
+    data: Partial<IReviewConfigDocument>
+  ): Promise<IReviewConfigDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.reviewConfigRepository.create({
@@ -92,12 +98,12 @@ export class ReviewConfigService {
 
   async assignDefaultReviewConfigToCompany(
     companyId: mongoose.Types.ObjectId,
-    data: Partial<IReviewConfig> = {}
-  ): Promise<IReviewConfig> {
+    data: Partial<IReviewConfigDocument> = {}
+  ): Promise<IReviewConfigDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     // Default criteria data with titles and descriptions
-    const defaultCriteriaData: Partial<ICriterion>[] = [
+    const defaultCriteriaData: Partial<ICriterionDocument>[] = [
       {
         title: "Empathie",
         description:
@@ -158,7 +164,7 @@ export class ReviewConfigService {
 
     // Insert many criteria
     const savedCriteria = await this.criteriaRepository.insertMany(
-      defaultCriteriaData as ICriterion[]
+      defaultCriteriaData as ICriterionDocument[]
     );
 
     // Extract criteria ids
@@ -190,7 +196,7 @@ export class ReviewConfigService {
     id: string,
     companyId: mongoose.Types.ObjectId,
     updates: UpdateReviewConfigDto
-  ): Promise<IReviewConfig> {
+  ): Promise<IReviewConfigDocument> {
     if (!id) throw new BadRequestError("No review config id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -284,7 +290,7 @@ export class ReviewConfigService {
   async deleteReviewConfig(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IReviewConfig | null> {
+  ): Promise<IReviewConfigDocument | null> {
     if (!id) throw new BadRequestError("No review config id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 

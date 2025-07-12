@@ -1,6 +1,6 @@
 import { Service } from "typedi";
-import Review, { IReview } from "../models/review.model";
 import mongoose, { FilterQuery } from "mongoose";
+import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 
 type DateRange = { from?: Date; to?: Date };
 
@@ -21,7 +21,7 @@ export interface ReviewFilterOptions {
 export class ReviewRepository {
   async getAll(
     options: ReviewFilterOptions = {}
-  ): Promise<{ reviews: IReview[]; total: number }> {
+  ): Promise<{ reviews: IReviewDocument[]; total: number }> {
     const {
       transcriptId,
       type,
@@ -35,7 +35,7 @@ export class ReviewRepository {
       limit = 20,
     } = options;
 
-    const filter: FilterQuery<IReview> = {};
+    const filter: FilterQuery<IReviewDocument> = {};
 
     if (transcriptId && mongoose.Types.ObjectId.isValid(transcriptId)) {
       filter.transcriptId = new mongoose.Types.ObjectId(transcriptId);
@@ -90,12 +90,12 @@ export class ReviewRepository {
     const skip = (page - 1) * limit;
 
     const [reviews, total] = await Promise.all([
-      Review.find(filter)
+      ReviewModel.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec(),
-      Review.countDocuments(filter).exec(),
+      ReviewModel.countDocuments(filter).exec(),
     ]);
 
     return { reviews, total };
@@ -103,24 +103,27 @@ export class ReviewRepository {
 
   async findById(
     id: string | mongoose.Types.ObjectId
-  ): Promise<IReview | null> {
+  ): Promise<IReviewDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Review.findById(id).exec();
+    return await ReviewModel.findById(id).exec();
   }
 
-  async find(filter: FilterQuery<IReview>): Promise<IReview[] | null> {
-    return await Review.find(filter).exec();
-  }
-  async findOne(filter: FilterQuery<IReview>): Promise<IReview | null> {
-    return await Review.findOne(filter).exec();
+  async find(filter: FilterQuery<IReviewDocument>): Promise<IReviewDocument[]> {
+    return await ReviewModel.find(filter).exec();
   }
 
-  async create(data: Partial<IReview>): Promise<IReview> {
-    return await Review.create(data);
+  async findOne(
+    filter: FilterQuery<IReviewDocument>
+  ): Promise<IReviewDocument | null> {
+    return await ReviewModel.findOne(filter).exec();
   }
 
-  async deleteById(id: string): Promise<IReview | null> {
+  async create(data: Partial<IReviewDocument>): Promise<IReviewDocument> {
+    return await ReviewModel.create(data);
+  }
+
+  async deleteById(id: string): Promise<IReviewDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Review.findByIdAndDelete(id).exec();
+    return await ReviewModel.findByIdAndDelete(id).exec();
   }
 }

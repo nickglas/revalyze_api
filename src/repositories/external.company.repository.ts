@@ -1,8 +1,9 @@
 import { Service } from "typedi";
-import ExternalCompany, {
-  IExternalCompany,
-} from "../models/external.company.model";
 import mongoose, { FilterQuery } from "mongoose";
+import {
+  IExternalCompanyDocument,
+  ExternalCompanyModel,
+} from "../models/entities/external.company.entity";
 
 @Service()
 export class ExternalCompanyRepository {
@@ -13,8 +14,8 @@ export class ExternalCompanyRepository {
     createdAfter?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ companies: IExternalCompany[]; total: number }> {
-    const filter: FilterQuery<IExternalCompany> = { companyId };
+  ): Promise<{ companies: IExternalCompanyDocument[]; total: number }> {
+    const filter: FilterQuery<IExternalCompanyDocument> = { companyId };
 
     if (name) {
       filter.name = { $regex: name, $options: "i" };
@@ -31,35 +32,35 @@ export class ExternalCompanyRepository {
     const skip = (page - 1) * limit;
 
     const [companies, total] = await Promise.all([
-      ExternalCompany.find(filter).skip(skip).limit(limit).exec(),
-      ExternalCompany.countDocuments(filter).exec(),
+      ExternalCompanyModel.find(filter).skip(skip).limit(limit).exec(),
+      ExternalCompanyModel.countDocuments(filter).exec(),
     ]);
 
     return { companies, total };
   }
 
-  async create(data: IExternalCompany) {
-    return await data.save();
+  async create(data: Partial<IExternalCompanyDocument>) {
+    return await ExternalCompanyModel.create(data);
   }
 
   async findById(id: mongoose.Types.ObjectId | string) {
-    return await ExternalCompany.findById(id).exec();
+    return await ExternalCompanyModel.findById(id).exec();
   }
 
-  async findOne(filter: FilterQuery<IExternalCompany>) {
-    return await ExternalCompany.findOne(filter).exec();
+  async findOne(filter: FilterQuery<IExternalCompanyDocument>) {
+    return await ExternalCompanyModel.findOne(filter).exec();
   }
 
   async update(
     id: mongoose.Types.ObjectId | string,
-    updates: Partial<IExternalCompany>
+    updates: Partial<IExternalCompanyDocument>
   ) {
-    return await ExternalCompany.findByIdAndUpdate(id, updates, {
+    return await ExternalCompanyModel.findByIdAndUpdate(id, updates, {
       new: true,
     }).exec();
   }
 
   async delete(id: mongoose.Types.ObjectId | string) {
-    return await ExternalCompany.findByIdAndDelete(id).exec();
+    return await ExternalCompanyModel.findByIdAndDelete(id).exec();
   }
 }

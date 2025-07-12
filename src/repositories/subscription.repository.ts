@@ -1,54 +1,58 @@
 import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
-import Subscription, { ISubscription } from "../models/subscription.model";
+import {
+  SubscriptionModel,
+  ISubscriptionDocument,
+} from "../models/entities/subscription.entity";
 
 @Service()
 export class SubscriptionRepository {
-  async find(): Promise<ISubscription[]> {
-    return await Subscription.find().exec();
+  async find(): Promise<ISubscriptionDocument[]> {
+    return await SubscriptionModel.find().exec();
   }
 
   async findOne(
-    filter: FilterQuery<ISubscription>
-  ): Promise<ISubscription | null> {
-    return await Subscription.findOne(filter).exec();
+    filter: FilterQuery<ISubscriptionDocument>
+  ): Promise<ISubscriptionDocument | null> {
+    return await SubscriptionModel.findOne(filter).exec();
   }
 
-  async findActive(): Promise<ISubscription[]> {
-    return await Subscription.find({ status: "active" }).exec();
+  async findActive(): Promise<ISubscriptionDocument[]> {
+    return await SubscriptionModel.find({ status: "active" }).exec();
   }
 
-  // Finds the latest active subscription for a company by stripeCustomerId
   async findActiveSubscriptionByStripeCustomerId(
     stripeCustomerId: string
-  ): Promise<ISubscription | null> {
-    return await Subscription.findOne({ stripeCustomerId }).exec();
+  ): Promise<ISubscriptionDocument | null> {
+    return await SubscriptionModel.findOne({ stripeCustomerId }).exec();
   }
 
-  async findById(id: string): Promise<ISubscription | null> {
+  async findById(id: string): Promise<ISubscriptionDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Subscription.findById(id).exec();
+    return await SubscriptionModel.findById(id).exec();
   }
 
   async findByStripeSubscriptionId(
     stripeSubscriptionId: string
-  ): Promise<ISubscription | null> {
-    return await Subscription.findOne({ stripeSubscriptionId }).exec();
+  ): Promise<ISubscriptionDocument | null> {
+    return await SubscriptionModel.findOne({ stripeSubscriptionId }).exec();
   }
 
-  async create(data: Partial<ISubscription>): Promise<ISubscription> {
-    return await Subscription.create(data);
+  async create(
+    data: Partial<ISubscriptionDocument>
+  ): Promise<ISubscriptionDocument> {
+    return await SubscriptionModel.create(data);
   }
 
-  async deleteById(id: string): Promise<ISubscription | null> {
+  async deleteById(id: string): Promise<ISubscriptionDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Subscription.findByIdAndDelete(id).exec();
+    return await SubscriptionModel.findByIdAndDelete(id).exec();
   }
 
   async update(
     id: string,
-    data: Partial<ISubscription>
-  ): Promise<ISubscription | null> {
+    data: Partial<ISubscriptionDocument>
+  ): Promise<ISubscriptionDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
     const update: any = {};
@@ -67,9 +71,20 @@ export class SubscriptionRepository {
       update.$unset = unset;
     }
 
-    return await Subscription.findByIdAndUpdate(id, update, {
+    return await SubscriptionModel.findByIdAndUpdate(id, update, {
       new: true,
       runValidators: true,
     }).exec();
+  }
+
+  async upsertByCompanyId(
+    companyId: mongoose.Types.ObjectId,
+    updateData: Partial<ISubscriptionDocument>
+  ): Promise<ISubscriptionDocument> {
+    return await SubscriptionModel.findOneAndUpdate(
+      { companyId },
+      { ...updateData, companyId, updatedAt: new Date() },
+      { upsert: true, new: true }
+    ).exec();
   }
 }

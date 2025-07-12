@@ -1,6 +1,9 @@
 import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
-import Contact, { IContact } from "../models/contact.model";
+import {
+  ContactModel,
+  IContactDocument,
+} from "../models/entities/contact.entity";
 
 @Service()
 export class ContactRepository {
@@ -27,8 +30,8 @@ export class ContactRepository {
     createdAfter?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ contacts: IContact[]; total: number }> {
-    const filter: FilterQuery<IContact> = {
+  ): Promise<{ contacts: IContactDocument[]; total: number }> {
+    const filter: FilterQuery<IContactDocument> = {
       companyId,
     };
 
@@ -54,8 +57,8 @@ export class ContactRepository {
     const skip = (page - 1) * limit;
 
     const [contacts, total] = await Promise.all([
-      Contact.find(filter).skip(skip).limit(limit).exec(),
-      Contact.countDocuments(filter).exec(),
+      ContactModel.find(filter).skip(skip).limit(limit).exec(),
+      ContactModel.countDocuments(filter).exec(),
     ]);
 
     return { contacts, total };
@@ -67,7 +70,7 @@ export class ContactRepository {
    * @param data - The contact document instance to save.
    * @returns Promise resolving to the saved contact.
    */
-  async create(data: IContact) {
+  async create(data: IContactDocument) {
     return await data.save();
   }
 
@@ -78,7 +81,7 @@ export class ContactRepository {
    * @returns Promise resolving to the found contact, or `null` if not found.
    */
   async findById(id: mongoose.Types.ObjectId | string) {
-    return Contact.findById(id).exec();
+    return ContactModel.findById(id).exec();
   }
 
   /**
@@ -87,8 +90,8 @@ export class ContactRepository {
    * @param filter - A MongoDB filter object to find a contact.
    * @returns Promise resolving to the first matching contact, or `null` if none found.
    */
-  async findOne(filter: FilterQuery<IContact>) {
-    return Contact.findOne(filter).exec();
+  async findOne(filter: FilterQuery<IContactDocument>) {
+    return ContactModel.findOne(filter).exec();
   }
 
   /**
@@ -101,9 +104,9 @@ export class ContactRepository {
    */
   async update(
     id: mongoose.Types.ObjectId | string,
-    updates: Partial<IContact>
+    updates: Partial<IContactDocument>
   ) {
-    return Contact.findByIdAndUpdate(id, updates, { new: true }).exec();
+    return ContactModel.findByIdAndUpdate(id, updates, { new: true }).exec();
   }
 
   /**
@@ -115,6 +118,6 @@ export class ContactRepository {
    * @returns Promise resolving to the deleted contact document, or `null` if not found.
    */
   async delete(id: mongoose.Types.ObjectId | string) {
-    return Contact.findByIdAndDelete(id).exec();
+    return ContactModel.findByIdAndDelete(id).exec();
   }
 }

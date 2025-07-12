@@ -1,21 +1,23 @@
 import { Service } from "typedi";
 import mongoose from "mongoose";
 import { TranscriptRepository } from "../repositories/transcript.repository";
-import { ITranscript } from "../models/transcript.model";
+import {
+  TranscriptModel,
+  ITranscriptDocument,
+} from "../models/entities/transcript.entity";
 import {
   BadRequestError,
   NotFoundError,
   UnauthorizedError,
   ForbiddenError,
 } from "../utils/errors";
-import { TranscriptFilterOptions } from "../repositories/transcript.repository";
 import { CreateTranscriptDto } from "../dto/transcript/transcript.create.dto";
 import { CompanyRepository } from "../repositories/company.repository";
 import { ExternalCompanyRepository } from "../repositories/external.company.repository";
 import { ContactRepository } from "../repositories/contact.repository";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { UserRepository } from "../repositories/user.repository";
-import { IReview } from "../models/review.model";
+import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import { ReviewRepository } from "../repositories/review.repository";
 
 @Service()
@@ -57,7 +59,7 @@ export class TranscriptService {
     createdAtTo?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ transcripts: ITranscript[]; total: number }> {
+  ): Promise<{ transcripts: ITranscriptDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.transcriptRepository.findByCompanyId(companyId, {
@@ -81,7 +83,7 @@ export class TranscriptService {
   async getReviewsById(
     transcriptId: string | mongoose.Types.ObjectId,
     companyId: string | mongoose.Types.ObjectId
-  ): Promise<IReview[]> {
+  ): Promise<IReviewDocument[]> {
     if (!transcriptId) throw new BadRequestError("No transcript id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -107,7 +109,7 @@ export class TranscriptService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<ITranscript> {
+  ): Promise<ITranscriptDocument> {
     if (!id) throw new BadRequestError("No transcript id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -150,7 +152,7 @@ export class TranscriptService {
     employeeIdFromToken: mongoose.Types.ObjectId,
     uploadedBy: mongoose.Types.ObjectId,
     userRole: string
-  ): Promise<ITranscript> {
+  ): Promise<ITranscriptDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
     if (!employeeIdFromToken) throw new BadRequestError("Missing employee ID");
     if (!uploadedBy) throw new BadRequestError("Missing uploader ID");
@@ -246,7 +248,7 @@ export class TranscriptService {
     }
 
     // Prepare transcript data
-    const transcriptData: Partial<ITranscript> = {
+    const transcriptData: Partial<ITranscriptDocument> = {
       companyId,
       employeeId: finalEmployeeId,
       uploadedBy,
@@ -269,7 +271,7 @@ export class TranscriptService {
   async deleteTranscriptById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<ITranscript> {
+  ): Promise<ITranscriptDocument> {
     if (!id) throw new BadRequestError("No transcript id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 

@@ -1,32 +1,46 @@
+// src/repositories/refresh.token.repository.ts
 import { Service } from "typedi";
-import RefreshToken from "../models/refreshToken.model";
+import {
+  RefreshTokenModel,
+  IRefreshTokenDocument,
+} from "../models/entities/refresh.token.entity";
+import mongoose from "mongoose";
 
 @Service()
 export class RefreshTokenRepository {
-  async create(tokenData: { userId: string; token: string; expiresAt: Date }) {
-    return await RefreshToken.create(tokenData);
+  async create(tokenData: {
+    userId: string | mongoose.Types.ObjectId;
+    token: string;
+    expiresAt: Date;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<IRefreshTokenDocument> {
+    return await RefreshTokenModel.create(tokenData);
   }
 
-  async findByToken(token: string) {
-    return await RefreshToken.findOne({ token }).exec();
+  async findByToken(token: string): Promise<IRefreshTokenDocument | null> {
+    return await RefreshTokenModel.findOne({ token }).exec();
   }
 
-  async findOldTokens(userId: string, keepLatest: number = 5) {
-    return await RefreshToken.find({ userId })
+  async findOldTokens(
+    userId: string | mongoose.Types.ObjectId,
+    keepLatest: number = 5
+  ): Promise<IRefreshTokenDocument[]> {
+    return await RefreshTokenModel.find({ userId })
       .sort({ createdAt: -1 })
       .skip(keepLatest)
       .exec();
   }
 
-  async deleteManyByIds(ids: string[]) {
-    return await RefreshToken.deleteMany({ _id: { $in: ids } }).exec();
+  async deleteManyByIds(ids: (string | mongoose.Types.ObjectId)[]) {
+    return await RefreshTokenModel.deleteMany({ _id: { $in: ids } }).exec();
   }
 
-  async deleteById(id: string) {
-    return await RefreshToken.deleteOne({ _id: id }).exec();
+  async deleteById(id: string | mongoose.Types.ObjectId) {
+    return await RefreshTokenModel.deleteOne({ _id: id }).exec();
   }
 
-  async deleteAllByUserId(userId: string) {
-    return await RefreshToken.deleteMany({ userId }).exec();
+  async deleteAllByUserId(userId: string | mongoose.Types.ObjectId) {
+    return await RefreshTokenModel.deleteMany({ userId }).exec();
   }
 }

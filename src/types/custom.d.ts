@@ -1,14 +1,14 @@
-import { IUser } from '../models/user.model';
+import { IUser } from "../models/.old/x.user.model";
 
 declare global {
   namespace Express {
     interface Request {
       user?: {
         id: string;
-        role: IUser['role'];
+        role: IUser["role"];
         email: string;
         name: string;
-        companyId: string
+        companyId: string;
       };
     }
   }

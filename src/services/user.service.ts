@@ -2,13 +2,13 @@
 import { Service } from "typedi";
 import mongoose, { Mongoose, Types } from "mongoose";
 import { UserRepository } from "../repositories/user.repository";
-import { IUser } from "../models/user.model";
 import {
   BadRequestError,
   NotFoundError,
   UnauthorizedError,
 } from "../utils/errors";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
+import { IUserDocument } from "../models/entities/user.entity";
 
 @Service()
 export class UserService {
@@ -25,7 +25,7 @@ export class UserService {
    * @throws NotFoundError when User not found
    * @returns The found user or throws NotFoundError.
    */
-  async findByEmail(email: string): Promise<IUser> {
+  async findByEmail(email: string): Promise<IUserDocument> {
     if (!email) throw new BadRequestError("Email is required");
 
     const user = await this.userRepository.findByEmail(email);
@@ -42,7 +42,9 @@ export class UserService {
    * @throws NotFoundError when User not found
    * @returns The found user or throws NotFoundError.
    */
-  async findById(userId: string | mongoose.Types.ObjectId): Promise<IUser> {
+  async findById(
+    userId: string | mongoose.Types.ObjectId
+  ): Promise<IUserDocument> {
     if (!userId) throw new BadRequestError("User ID is required");
 
     const user = await this.userRepository.findById(userId);
@@ -65,7 +67,7 @@ export class UserService {
   async findByIdWithinCompany(
     userId: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IUser> {
+  ): Promise<IUserDocument> {
     if (!userId) throw new BadRequestError("User ID is required");
 
     if (!companyId) throw new BadRequestError("Company ID is required");
@@ -91,8 +93,8 @@ export class UserService {
    */
   async createUser(
     companyId: mongoose.Types.ObjectId | string,
-    userData: Partial<IUser>
-  ): Promise<IUser> {
+    userData: Partial<IUserDocument>
+  ): Promise<IUserDocument> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     const normalizedCompanyId =
@@ -149,7 +151,7 @@ export class UserService {
     role?: "employee" | "company_admin",
     page = 1,
     limit = 20
-  ): Promise<{ users: IUser[]; total: number }> {
+  ): Promise<{ users: IUserDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("Company ID is required");
 
     return this.userRepository.findByCompanyId(
@@ -175,9 +177,9 @@ export class UserService {
    */
   async updateUser(
     userId: string,
-    updates: Partial<IUser>,
+    updates: Partial<IUserDocument>,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IUser> {
+  ): Promise<IUserDocument> {
     if (!userId) throw new BadRequestError("User ID is missing");
 
     if (!companyId) throw new BadRequestError("Company ID is missing");
@@ -188,7 +190,10 @@ export class UserService {
     );
     if (!user) throw new NotFoundError("User not found");
 
-    return this.userRepository.update(userId, updates) as Promise<IUser>;
+    return this.userRepository.update(
+      userId,
+      updates
+    ) as Promise<IUserDocument>;
   }
 
   async toggleActivationStatus(
@@ -271,8 +276,8 @@ export class UserService {
     actingUserRole: "employee" | "company_admin" | "super_admin",
     targetUserId: string,
     companyId: mongoose.Types.ObjectId,
-    updates: Partial<IUser>
-  ): Promise<IUser> {
+    updates: Partial<IUserDocument>
+  ): Promise<IUserDocument> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     const isSelf = actingUserId === targetUserId;
@@ -288,7 +293,7 @@ export class UserService {
     );
     if (!user) throw new NotFoundError("User not found");
 
-    let allowedFields: (keyof IUser)[] = [];
+    let allowedFields: (keyof IUserDocument)[] = [];
 
     if (isAdmin && isSelf) {
       allowedFields = ["name", "email"];
@@ -300,7 +305,7 @@ export class UserService {
 
     const safeUpdates = Object.fromEntries(
       Object.entries(updates).filter(([key]) =>
-        allowedFields.includes(key as keyof IUser)
+        allowedFields.includes(key as keyof IUserDocument)
       )
     );
 
@@ -333,6 +338,6 @@ export class UserService {
     return this.userRepository.update(user.id, {
       ...user,
       ...safeUpdates,
-    }) as Promise<IUser>;
+    }) as Promise<IUserDocument>;
   }
 }

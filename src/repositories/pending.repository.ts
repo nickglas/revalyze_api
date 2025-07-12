@@ -1,42 +1,50 @@
 import { Service } from "typedi";
-import PendingCompanyRegistration, {
-  IPendingCompany,
-} from "../models/pendingCompany.model";
-import { Types, UpdateQuery } from "mongoose";
+import {
+  IPendingCompanyDocument,
+  PendingCompanyModel,
+} from "../models/entities/pending.company.entity";
+import { FilterQuery, Types, UpdateQuery } from "mongoose";
 
 @Service()
 export class PendingCompanyRepository {
-  async create(data: Partial<IPendingCompany>) {
-    const pending = new PendingCompanyRegistration(data);
+  async create(data: Partial<IPendingCompanyDocument>) {
+    const pending = new PendingCompanyModel(data);
     return await pending.save();
   }
 
   async find() {
-    return await PendingCompanyRegistration.find().exec();
+    return await PendingCompanyModel.find().exec();
+  }
+
+  async findOne(filter: FilterQuery<IPendingCompanyDocument>) {
+    return await PendingCompanyModel.findOne(filter).exec();
   }
 
   async findById(id: string) {
-    return await PendingCompanyRegistration.findById(id).exec();
+    return await PendingCompanyModel.findById(id).exec();
   }
 
   async delete(id: string) {
-    return await PendingCompanyRegistration.findByIdAndDelete(id).exec();
+    return await PendingCompanyModel.findByIdAndDelete(id).exec();
   }
 
   async findBySessionId(id: string) {
-    return await PendingCompanyRegistration.findOne({
+    return await PendingCompanyModel.findOne({
       stripeSessionId: id,
     }).exec();
   }
 
   async findByStripeId(id: string) {
-    return await PendingCompanyRegistration.findOne({
+    return await PendingCompanyModel.findOne({
       stripeCustomerId: id,
     }).exec();
   }
 
-  async updateById(id: Types.ObjectId, update: UpdateQuery<IPendingCompany>) {
-    return await PendingCompanyRegistration.findByIdAndUpdate(id, update, {
+  async updateById(
+    id: Types.ObjectId,
+    update: UpdateQuery<IPendingCompanyDocument>
+  ) {
+    return await PendingCompanyModel.findByIdAndUpdate(id, update, {
       new: true,
     }).exec();
   }

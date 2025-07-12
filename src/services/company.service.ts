@@ -1,6 +1,4 @@
 import { Types } from "mongoose";
-import Company, { ICompany } from "../models/company.model";
-import User, { IUser } from "../models/user.model";
 import bcrypt from "bcryptjs";
 import {
   BadRequestError,
@@ -11,18 +9,22 @@ import { CompanyRepository } from "../repositories/company.repository";
 import { StripeService } from "./stripe.service";
 import { Service } from "typedi";
 import { UserRepository } from "../repositories/user.repository";
-import { TranscriptRepository } from "../repositories/transcript.repository";
-import pendingCompanyModel from "../models/pendingCompany.model";
 import { compareTiers } from "../utils/plan";
-import { url } from "inspector";
-import Stripe from "stripe";
-import Subscription, { ISubscription } from "../models/subscription.model";
 import { RegisterCompanyDto } from "../dto/company/register.company.dto";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { logger } from "../utils/logger";
 import { ReviewConfigService } from "./review.config.service";
 import { ApiKeyService } from "./key.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
+import { mapRegisterDtoToPendingCompany } from "../mappers/company.mapper";
+import { IPendingCompanyDocument } from "../models/entities/pending.company.entity";
+import { ICompanyData } from "../models/types/company.type";
+import { IUserData } from "../models/types/user.type";
+import {
+  CompanyModel,
+  ICompanyDocument,
+} from "../models/entities/company.entity";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
 @Service()
 export class CompanyService {
@@ -36,88 +38,47 @@ export class CompanyService {
     private readonly subscriptionRepository: SubscriptionRepository
   ) {}
 
-  async registerCompany({
-    companyName,
-    companyMainEmail,
-    companyPhone,
-    address,
-    subscriptionPlanId,
-    adminName,
-    adminEmail,
-    password,
-  }: RegisterCompanyDto) {
-    const existing = await this.companyRepository.findOne({
-      mainEmail: companyMainEmail,
-    });
+  async registerCompany(dto: RegisterCompanyDto) {
+    //Validate
+    await this.ensureCompanyEmailIsUnique(dto.companyMainEmail);
+    await this.ensureNoPendingRegistration(dto.companyMainEmail);
+    await this.ensureAdminIsUnique(dto.adminEmail);
 
-    if (existing) {
-      throw new BadRequestError("Company with this email already exists");
-    }
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const user = await this.userRepository.findByEmail(adminEmail);
-    if (user) {
-      throw new BadRequestError("User with this email is already registered");
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create Stripe customer
-    const customer = await this.stripeService.createCustomer(
-      companyMainEmail,
-      companyName
+    //Stripe Setup
+    const customer = await this.createStripeCustomer(
+      dto.companyMainEmail,
+      dto.companyName
+    );
+    const session = await this.createStripeCheckoutSession(
+      customer.id,
+      dto.subscriptionPlanId
     );
 
-    if (!customer?.id) {
-      throw new BadRequestError("Failed to create Stripe customer");
-    }
-
-    // Create Stripe Checkout session
-    const session = await this.stripeService.createCheckoutSession({
-      mode: "subscription",
-      customer: customer.id,
-      line_items: [
-        {
-          price: subscriptionPlanId,
-          quantity: 1,
-        },
-      ],
-      expires_at: Math.floor(Date.now() / 1000) + 1800,
-      success_url: "https://www.google.com",
-      cancel_url: "https://www.google.com",
+    //Prepare Pending Company
+    const pending = mapRegisterDtoToPendingCompany({
+      ...dto,
+      password: hashedPassword,
+      stripeCustomerId: customer.id,
+      stripeSessionId: session.id,
+      stripePaymentLink: session.url!,
+      stripeSessionExpiresAtTimestamp: session.expires_at,
     });
 
-    if (!session?.url) {
-      throw new BadRequestError("Failed to create Stripe Checkout session");
-    }
-
+    //Save or rollback
     try {
-      const pending = new pendingCompanyModel({
-        stripeSessionId: session.id,
-        stripeCustomerId: customer.id,
-        stripePaymentLink: session.url,
-        stripeSessionExpiresAtTimestamp: session.expires_at,
-        companyName,
-        companyMainEmail,
-        companyPhone,
-        address,
-        adminName,
-        adminEmail,
-        password: hashedPassword,
-      });
-
       await this.pendingRepository.create(pending);
-    } catch (error) {
+    } catch (err) {
       await this.stripeService.deleteCustomer(customer.id);
-      throw error;
+      throw err;
     }
 
-    return {
-      checkoutUrl: session.url,
-    };
+    return { checkoutUrl: session.url };
   }
 
   async releaseScheduledSubscriptionBySubscription(
-    scubscription: ISubscription
+    scubscription: ISubscriptionDocument
   ) {
     if (!scubscription.scheduledUpdate) return;
 
@@ -132,7 +93,7 @@ export class CompanyService {
   }
 
   async releaseScheduledSubscriptionByCompanyId(companyId: string) {
-    const companySubscription = await Subscription.findOne({
+    const companySubscription = await this.subscriptionRepository.findOne({
       companyId: companyId,
     });
 
@@ -148,61 +109,68 @@ export class CompanyService {
   async activateCompany(
     pendingCompanyId: string,
     subscriptionId: string
-  ): Promise<{ company: ICompany; adminUser: IUser }> {
-    const pending = await this.pendingRepository.findById(pendingCompanyId);
+  ): Promise<{ company: ICompanyData; adminUser: IUserData }> {
+    // 1. Fetch pending company
+    const pending: IPendingCompanyDocument | null =
+      await this.pendingRepository.findById(pendingCompanyId);
     if (!pending) {
-      throw new Error("Pending company not found");
+      throw new BadRequestError("Pending company not found");
     }
 
     try {
-      // Get subscription details
+      // 2. Get subscription and product info from Stripe
       const subscription = await this.stripeService.getSubscription(
         subscriptionId
       );
-      const productId = subscription.items.data[0]?.price?.product as string;
-      const product = await this.stripeService.getProductById(productId);
+      const productId = subscription.items.data[0]?.price?.product;
+      if (!productId) {
+        throw new BadRequestError("Invalid subscription product");
+      }
 
-      // Create company
-      const company = await this.companyRepository.create({
-        name: pending.companyName,
-        mainEmail: pending.companyMainEmail,
-        phone: pending.companyPhone,
-        address: pending.address,
-        stripeCustomerId: pending.stripeCustomerId,
-        isActive: true,
-      });
+      const productRef = subscription.items.data[0]?.price?.product;
 
-      // Create admin user
-      const adminUser = await this.userRepository.create({
-        name: pending.adminName,
-        email: pending.adminEmail,
-        password: pending.password,
-        role: "company_admin",
-        companyId: company.id,
-      });
+      if (typeof productRef !== "string") {
+        throw new BadRequestError(
+          "Subscription product ID is invalid or expanded object"
+        );
+      }
 
-      // Perform additional setup
-      await this.reviewConfigService.assignDefaultReviewConfigToCompany(
+      const product = await this.stripeService.getProductById(productRef);
+
+      // 3. Create company and admin user from pending data
+      const company: ICompanyDocument = await this.createCompanyFromPending(
+        pending
+      );
+
+      const adminUser: IUserData = await this.createAdminUserFromPending(
+        pending,
         company.id
       );
 
-      if (product.metadata.tier === "3") {
-        logger.info("Generating API key for business account");
-        await this.apiKeyService.regenerateApiKey(company.id);
+      // 4. Assign default review config
+      await this.reviewConfigService.assignDefaultReviewConfigToCompany(
+        company._id
+      );
+
+      // 5. Generate API key if product tier requires it
+      if (product.metadata?.tier === "3") {
+        logger.info(`Generating API key for companyId=${company._id}`);
+        await this.apiKeyService.regenerateApiKey(company._id.toString());
       }
 
-      // Cleanup pending record
-      await this.pendingRepository.delete(pending.id);
+      // 6. Delete the pending record
+      await this.pendingRepository.delete(pendingCompanyId);
 
       logger.info(
-        `Company ${company.name} and admin ${adminUser.email} activated successfully`
+        `Activated company ${company.name} with admin ${adminUser.email}`
       );
 
       return { company, adminUser };
     } catch (error: any) {
-      logger.error(`Company activation failed: ${error.message}`, error.stack);
-
-      // Cleanup partially created data
+      logger.error(
+        `Failed to activate companyId=${pendingCompanyId}: ${error.message}`,
+        error.stack
+      );
       await this.rollbackActivation(pending);
       throw new Error(`Activation failed: ${error.message}`);
     }
@@ -227,7 +195,7 @@ export class CompanyService {
   }
 
   async cancelScheduledSubscriptionBySubscription(
-    scubscription: ISubscription
+    scubscription: ISubscriptionDocument
   ) {
     if (!scubscription.scheduledUpdate) return;
 
@@ -242,7 +210,7 @@ export class CompanyService {
   }
 
   async cancelScheduledSubscriptionByCompanyId(companyId: string) {
-    const companySubscription = await Subscription.findOne({
+    const companySubscription = await this.subscriptionRepository.findOne({
       companyId: companyId,
     });
 
@@ -262,7 +230,7 @@ export class CompanyService {
   //cancels the current subscription at the end of the billing cycle. Scheduled downgrades are also cancelled.
   async cancelSubscriptions(companyId: string) {
     //get the active subscription
-    const companySubscription = await Subscription.findOne({
+    const companySubscription = await this.subscriptionRepository.findOne({
       companyId: companyId,
     });
 
@@ -297,7 +265,7 @@ export class CompanyService {
       throw new BadRequestError("Invalid company ID");
     }
 
-    const company = await Company.findById(companyId);
+    const company = await this.companyRepository.findById(companyId);
 
     if (!company) {
       throw new NotFoundError("Company not found");
@@ -317,7 +285,7 @@ export class CompanyService {
     }
 
     //check if the user exists
-    const user = await User.findById(userId);
+    const user = await this.userRepository.findById(userId);
     if (!user) {
       throw new NotFoundError("User not found");
     }
@@ -339,11 +307,11 @@ export class CompanyService {
       }
     }
 
-    const updatedCompany = await Company.findByIdAndUpdate(
+    const updatedCompany = await this.companyRepository.update(
       companyId,
-      filteredUpdates,
-      { new: true }
+      filteredUpdates
     );
+
     if (!updatedCompany) {
       throw new NotFoundError("Company not found");
     }
@@ -353,7 +321,7 @@ export class CompanyService {
 
   async updateSubscription(companyId: string, newPriceId: string) {
     // 1. Find the company
-    const company = await Company.findById(companyId);
+    const company = await this.companyRepository.findById(companyId);
     if (!company) throw new BadRequestError("Company not found");
 
     const s =
@@ -494,5 +462,78 @@ export class CompanyService {
       default:
         throw new Error("Unknown subscription action");
     }
+  }
+
+  //helpers
+  private async ensureCompanyEmailIsUnique(email: string) {
+    const existing = await this.companyRepository.findOne({ mainEmail: email });
+    if (existing)
+      throw new BadRequestError("Company with this email already exists");
+  }
+
+  private async ensureNoPendingRegistration(email: string) {
+    const pending = await this.pendingRepository.findOne({
+      companyMainEmail: email,
+    });
+    if (pending)
+      throw new BadRequestError("Company registration is already pending.");
+  }
+
+  private async ensureAdminIsUnique(email: string) {
+    const user = await this.userRepository.findByEmail(email);
+    if (user)
+      throw new BadRequestError("User with this email is already registered");
+  }
+
+  private async createStripeCustomer(email: string, name: string) {
+    const customer = await this.stripeService.createCustomer(email, name);
+    if (!customer?.id)
+      throw new BadRequestError("Failed to create Stripe customer");
+    return customer;
+  }
+
+  private async createStripeCheckoutSession(
+    customerId: string,
+    planId: string
+  ) {
+    const session = await this.stripeService.createCheckoutSession({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: planId, quantity: 1 }],
+      expires_at: Math.floor(Date.now() / 1000) + 1800,
+      success_url: process.env.STRIPE_SUCCESS_URL!,
+      cancel_url: process.env.STRIPE_CANCEL_URL!,
+    });
+
+    if (!session?.url)
+      throw new BadRequestError("Failed to create Stripe Checkout session");
+    return session;
+  }
+
+  private async createCompanyFromPending(
+    pending: IPendingCompanyDocument
+  ): Promise<ICompanyDocument> {
+    return this.companyRepository.create({
+      name: pending.companyName,
+      mainEmail: pending.companyMainEmail,
+      phone: pending.companyPhone,
+      address: pending.address,
+      stripeCustomerId: pending.stripeCustomerId,
+      isActive: true,
+    });
+  }
+
+  private async createAdminUserFromPending(
+    pending: IPendingCompanyDocument,
+    companyId: string
+  ): Promise<IUserData> {
+    return this.userRepository.create({
+      name: pending.adminName,
+      email: pending.adminEmail,
+      password: pending.password,
+      role: "company_admin",
+      companyId,
+      isActive: true,
+    });
   }
 }

@@ -15,14 +15,21 @@ export const authenticate = (
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!);
+
     if (
       typeof decoded === "object" &&
       "id" in decoded &&
       "name" in decoded &&
       "email" in decoded &&
       "role" in decoded &&
-      "companyId" in decoded
+      "companyId" in decoded &&
+      "userIsActive" in decoded &&
+      "companyIsActive" in decoded
     ) {
+      if (!decoded.userIsActive || !decoded.companyIsActive) {
+        res.status(403).json({ message: "User or company is deactivated" });
+        return;
+      }
       req.user = {
         id: decoded.id,
         name: decoded.name,

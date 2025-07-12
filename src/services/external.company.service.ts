@@ -1,9 +1,10 @@
 import { Service } from "typedi";
 import mongoose, { mongo, ObjectId } from "mongoose";
 import { CreateExternalCompanyDto } from "../dto/external.company/external.company.create.dto";
-import ExternalCompany, {
-  IExternalCompany,
-} from "../models/external.company.model";
+import {
+  IExternalCompanyDocument,
+  ExternalCompanyModel,
+} from "../models/entities/external.company.entity";
 import { ExternalCompanyRepository } from "../repositories/external.company.repository";
 import { BadRequestError, NotFoundError } from "../utils/errors";
 
@@ -24,7 +25,7 @@ export class ExternalCompanyService {
     createdAfter?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ companies: IExternalCompany[]; total: number }> {
+  ): Promise<{ companies: IExternalCompanyDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.externalCompanyRepository.findByFilters(
@@ -46,7 +47,7 @@ export class ExternalCompanyService {
   async getById(
     id: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IExternalCompany> {
+  ): Promise<IExternalCompanyDocument> {
     if (!id) throw new BadRequestError("No external company id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -81,7 +82,7 @@ export class ExternalCompanyService {
   async createExternalCompany(
     dto: CreateExternalCompanyDto,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IExternalCompany> {
+  ): Promise<IExternalCompanyDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     const existingEmail = await this.externalCompanyRepository.findOne({
@@ -99,7 +100,7 @@ export class ExternalCompanyService {
     });
     if (existingAddress) throw new BadRequestError("Address already in use");
 
-    const company = new ExternalCompany({
+    const company = new ExternalCompanyModel({
       name: dto.name,
       email: dto.email,
       phone: dto.phone,
@@ -136,8 +137,8 @@ export class ExternalCompanyService {
   async updateExternalCompany(
     companyId: mongoose.Types.ObjectId,
     externalCompanyId: mongoose.Types.ObjectId,
-    updates: Partial<IExternalCompany>
-  ): Promise<IExternalCompany | null> {
+    updates: Partial<IExternalCompanyDocument>
+  ): Promise<IExternalCompanyDocument | null> {
     if (!companyId) throw new BadRequestError("No company id specified");
     if (!externalCompanyId)
       throw new BadRequestError("No external company id specified");
@@ -205,7 +206,7 @@ export class ExternalCompanyService {
   async toggleIsActive(
     externalCompanyId: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IExternalCompany | null> {
+  ): Promise<IExternalCompanyDocument | null> {
     if (!companyId) throw new BadRequestError("No company id specified");
     if (!externalCompanyId)
       throw new BadRequestError("No external company id specified");
@@ -245,7 +246,7 @@ export class ExternalCompanyService {
   async deleteExternalCompany(
     externalCompanyId: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IExternalCompany | null> {
+  ): Promise<IExternalCompanyDocument | null> {
     if (!companyId) throw new BadRequestError("No company id specified");
     if (!externalCompanyId)
       throw new BadRequestError("No external company id specified");

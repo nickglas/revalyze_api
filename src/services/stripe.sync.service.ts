@@ -8,10 +8,10 @@ import { logger } from "../utils/logger";
 import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
-import Subscription, { ISubscription } from "../models/subscription.model";
 import { CompanyRepository } from "../repositories/company.repository";
-import { ICompany } from "../models/company.model";
 import { createWriteStream } from "fs";
+import { ICompanyDocument } from "../models/entities/company.entity";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
 @Service()
 export class StripeSyncService {
@@ -151,7 +151,7 @@ export class StripeSyncService {
       return;
     }
 
-    const newCompany: Partial<ICompany> = {
+    const newCompany: Partial<ICompanyDocument> = {
       name: stripeCompany.name,
       mainEmail: stripeCompany.email,
       stripeCustomerId: stripeCompany.id,
@@ -174,7 +174,7 @@ export class StripeSyncService {
   }
 
   private async updateCompany(
-    localCompany: ICompany,
+    localCompany: ICompanyDocument,
     stripeCompany: Stripe.Customer
   ) {
     if (!stripeCompany.name || !stripeCompany.email) {
@@ -282,7 +282,7 @@ export class StripeSyncService {
 
   private async syncSubscriptionSchedule(
     localSchedule: Stripe.SubscriptionSchedule,
-    subscription: ISubscription,
+    subscription: ISubscriptionDocument,
     stripeSubscription: Stripe.Subscription,
     testClockTimes: Record<string, number>
   ): Promise<void> {
@@ -414,7 +414,7 @@ export class StripeSyncService {
     }
 
     const newSubscription = {
-      companyId: company.id,
+      companyId: company._id,
       stripeSubscriptionId: stripeSubscription.id,
       stripeCustomerId: stripeSubscription.customer as string,
       productId: product.id,
@@ -455,7 +455,7 @@ export class StripeSyncService {
   };
 
   private updateSubscription = async (
-    activeSubscription: ISubscription,
+    activeSubscription: ISubscriptionDocument,
     stripeSubscription: Stripe.Subscription
   ) => {
     const item = stripeSubscription.items.data[0];
@@ -473,7 +473,7 @@ export class StripeSyncService {
       return;
     }
 
-    activeSubscription.companyId = company.id;
+    activeSubscription.companyId = company._id;
     activeSubscription.stripeSubscriptionId = stripeSubscription.id;
     activeSubscription.stripeCustomerId = stripeSubscription.customer as string;
     activeSubscription.productId = product.id;

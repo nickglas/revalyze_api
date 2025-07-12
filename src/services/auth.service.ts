@@ -1,8 +1,6 @@
 // src/services/auth.service.ts
-import refreshTokenModel from "../models/refreshToken.model";
 import { UserRepository } from "../repositories/user.repository";
 import { RefreshTokenRepository } from "../repositories/refreshToken.repository";
-import User from "../models/user.model";
 import { generateTokens } from "../utils/token";
 import jwt from "jsonwebtoken";
 import {
@@ -26,7 +24,7 @@ export class AuthService {
       throw new UnauthorizedError("Invalid credentials");
     }
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user);
 
     await this.refreshTokenRepository.create({
       userId: user.id,
@@ -66,7 +64,7 @@ export class AuthService {
 
     await this.refreshTokenRepository.deleteById(storedToken.id.toString());
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user);
 
     await this.refreshTokenRepository.create({
       userId: user.id,

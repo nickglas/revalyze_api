@@ -1,6 +1,6 @@
 // services/plan.service.ts
 import { PlanRepository } from "../repositories/plan.repository";
-import { IPlan } from "../models/plan.model";
+import { IPlanDocument, PlanModel } from "../models/entities/plan.entity";
 import { Service } from "typedi";
 import { BadRequestError } from "../utils/errors";
 
@@ -21,7 +21,7 @@ export class PlanService {
       stripePriceId: string;
       amount: number;
     }[];
-  }): Promise<IPlan> {
+  }): Promise<IPlanDocument> {
     const existingPlan = await this.planRepository.findByStripeProductId(
       planInput.stripeProductId
     );
@@ -49,7 +49,7 @@ export class PlanService {
     });
   }
 
-  async getAllPlans(): Promise<IPlan[]> {
+  async getAllPlans(): Promise<IPlanDocument[]> {
     return this.planRepository.findAll();
   }
 

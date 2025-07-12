@@ -1,10 +1,12 @@
 import { Service } from "typedi";
 import { CreateCriterionDto } from "../dto/criterion/criterion.create.dto";
 import mongoose from "mongoose";
-import Criterion, { ICriterion } from "../models/criterion.model";
+import {
+  CriterionModel,
+  ICriterionDocument,
+} from "../models/entities/criterion.entity";
 import { CriteriaRepository } from "../repositories/criteria.repository";
 import { BadRequestError, NotFoundError } from "../utils/errors";
-import { Logger } from "winston";
 
 @Service()
 export class CriteriaService {
@@ -20,7 +22,7 @@ export class CriteriaService {
     search?: string,
     page = 1,
     limit = 20
-  ): Promise<{ criteria: ICriterion[]; total: number }> {
+  ): Promise<{ criteria: ICriterionDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.criteriaRepository.findByCompanyId(
@@ -41,7 +43,7 @@ export class CriteriaService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<ICriterion> {
+  ): Promise<ICriterionDocument> {
     if (!id) throw new BadRequestError("No criterion id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -63,7 +65,7 @@ export class CriteriaService {
    */
   async assignDefaultCriteriaToCompany(
     companyId: mongoose.Types.ObjectId
-  ): Promise<ICriterion[]> {
+  ): Promise<ICriterionDocument[]> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     const defaultCriteria = [
@@ -91,7 +93,7 @@ export class CriteriaService {
 
     const documents = defaultCriteria.filter(Boolean).map(
       (item) =>
-        new Criterion({
+        new CriterionModel({
           companyId,
           title: item.title,
           description: item.description,
@@ -111,10 +113,10 @@ export class CriteriaService {
   async createCriterion(
     companyId: mongoose.Types.ObjectId,
     dto: CreateCriterionDto
-  ): Promise<ICriterion> {
+  ): Promise<ICriterionDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
-    const criterion = new Criterion({
+    const criterion = new CriterionModel({
       companyId,
       title: dto.title,
       description: dto.description,
@@ -135,7 +137,7 @@ export class CriteriaService {
     id: string,
     companyId: mongoose.Types.ObjectId,
     isActive: boolean
-  ): Promise<ICriterion | null> {
+  ): Promise<ICriterionDocument | null> {
     if (!id) throw new BadRequestError("No criterion id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 

@@ -2,7 +2,10 @@ import { Service } from "typedi";
 import mongoose from "mongoose";
 import { BadRequestError, NotFoundError } from "../utils/errors";
 import { ContactRepository } from "../repositories/contact.repository";
-import Contact, { IContact } from "../models/contact.model";
+import {
+  ContactModel,
+  IContactDocument,
+} from "../models/entities/contact.entity";
 import { CreateContactDto } from "../dto/contact/contact.create.dto";
 import { ExternalCompanyRepository } from "../repositories/external.company.repository";
 
@@ -28,7 +31,7 @@ export class ContactService {
   async createContact(
     companyId: mongoose.Types.ObjectId,
     dto: CreateContactDto
-  ): Promise<IContact> {
+  ): Promise<IContactDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
     if (!dto.externalCompanyId)
       throw new BadRequestError("No external company id specified");
@@ -43,7 +46,7 @@ export class ContactService {
     if (!externalCompany)
       throw new NotFoundError("Associated company not found");
 
-    const contact = new Contact({
+    const contact = new ContactModel({
       ...dto,
       companyId,
     });
@@ -66,8 +69,8 @@ export class ContactService {
   async updateContact(
     companyId: mongoose.Types.ObjectId,
     contactId: mongoose.Types.ObjectId,
-    updates: Partial<IContact>
-  ): Promise<IContact | null> {
+    updates: Partial<IContactDocument>
+  ): Promise<IContactDocument | null> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     if (!contactId) throw new BadRequestError("Contact ID is missing");
@@ -97,7 +100,7 @@ export class ContactService {
   async getById(
     contactId: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IContact> {
+  ): Promise<IContactDocument> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     if (!contactId) throw new BadRequestError("Contact ID is missing");
@@ -135,7 +138,7 @@ export class ContactService {
     createdAfter?: Date,
     page = 1,
     limit = 20
-  ): Promise<{ contacts: IContact[]; total: number }> {
+  ): Promise<{ contacts: IContactDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.contactRepository.findByFilters(
@@ -163,7 +166,7 @@ export class ContactService {
   async toggleIsActive(
     contactId: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IContact | null> {
+  ): Promise<IContactDocument | null> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     if (!contactId) throw new BadRequestError("Contact ID is missing");
@@ -194,7 +197,7 @@ export class ContactService {
   async deleteContact(
     contactId: mongoose.Types.ObjectId,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IContact | null> {
+  ): Promise<IContactDocument | null> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
     if (!contactId) throw new BadRequestError("Contact ID is missing");

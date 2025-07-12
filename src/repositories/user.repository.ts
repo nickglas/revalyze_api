@@ -1,7 +1,7 @@
 // src/repositories/user.repository.ts
 import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
-import User, { IUser } from "../models/user.model";
+import { IUserDocument, UserModel } from "../models/entities/user.entity";
 
 @Service()
 export class UserRepository {
@@ -12,8 +12,8 @@ export class UserRepository {
    * @param email - Email address of the user.
    * @returns The found user document or null.
    */
-  async findByEmail(email: string): Promise<IUser | null> {
-    return await User.findOne({ email }).exec();
+  async findByEmail(email: string): Promise<IUserDocument | null> {
+    return await UserModel.findOne({ email }).exec();
   }
 
   /**
@@ -22,8 +22,10 @@ export class UserRepository {
    * @param id - The ObjectId or string ID of the user to retrieve.
    * @returns The found user document or null.
    */
-  async findById(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return await User.findById(id).exec();
+  async findById(
+    id: string | mongoose.Types.ObjectId
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findById(id).exec();
   }
 
   /**
@@ -42,8 +44,8 @@ export class UserRepository {
     role?: "employee" | "company_admin",
     page = 1,
     limit = 20
-  ): Promise<{ users: IUser[]; total: number }> {
-    const filter: FilterQuery<IUser> = { companyId };
+  ): Promise<{ users: IUserDocument[]; total: number }> {
+    const filter: FilterQuery<IUserDocument> = { companyId };
 
     if (typeof isActive === "boolean") {
       filter.isActive = isActive;
@@ -56,8 +58,8 @@ export class UserRepository {
     const skip = (page - 1) * limit;
 
     const [users, total] = await Promise.all([
-      User.find(filter).skip(skip).limit(limit).select("-password").exec(),
-      User.countDocuments(filter).exec(),
+      UserModel.find(filter).skip(skip).limit(limit).select("-password").exec(),
+      UserModel.countDocuments(filter).exec(),
     ]);
 
     return { users, total };
@@ -69,8 +71,8 @@ export class UserRepository {
    * @param userData - Partial user data to insert.
    * @returns The created user document.
    */
-  async create(userData: Partial<IUser>): Promise<IUser> {
-    return await User.create(userData);
+  async create(userData: Partial<IUserDocument>): Promise<IUserDocument> {
+    return await UserModel.create(userData);
   }
 
   /**
@@ -82,9 +84,9 @@ export class UserRepository {
    */
   async update(
     id: string | mongoose.Types.ObjectId,
-    updates: Partial<IUser>
-  ): Promise<IUser | null> {
-    return await User.findByIdAndUpdate(id, updates, { new: true }).exec();
+    updates: Partial<IUserDocument>
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findByIdAndUpdate(id, updates, { new: true }).exec();
   }
 
   /**
@@ -95,8 +97,8 @@ export class UserRepository {
    */
   async deactivate(
     id: string | mongoose.Types.ObjectId
-  ): Promise<IUser | null> {
-    return await User.findByIdAndUpdate(
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findByIdAndUpdate(
       id,
       { isActive: false },
       { new: true }
@@ -109,8 +111,10 @@ export class UserRepository {
    * @param id - The ObjectId or string ID of the user.
    * @returns The updated (reactivated) user or null.
    */
-  async activate(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return await User.findByIdAndUpdate(
+  async activate(
+    id: string | mongoose.Types.ObjectId
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findByIdAndUpdate(
       id,
       { isActive: true },
       { new: true }
@@ -124,8 +128,10 @@ export class UserRepository {
    * @param id - The ObjectId or string ID of the user to delete.
    * @returns The deleted user or null.
    */
-  async delete(id: string | mongoose.Types.ObjectId): Promise<IUser | null> {
-    return await User.findByIdAndDelete(id).exec();
+  async delete(
+    id: string | mongoose.Types.ObjectId
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findByIdAndDelete(id).exec();
   }
   /**
    * Counts the total number of users in a company.
@@ -136,7 +142,7 @@ export class UserRepository {
   async countByCompany(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<number> {
-    return await User.countDocuments({ companyId }).exec();
+    return await UserModel.countDocuments({ companyId }).exec();
   }
 
   /**
@@ -148,7 +154,7 @@ export class UserRepository {
   async countActiveUsersByCompany(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<number> {
-    return await User.countDocuments({ companyId, isActive: true }).exec();
+    return await UserModel.countDocuments({ companyId, isActive: true }).exec();
   }
 
   /**
@@ -162,7 +168,7 @@ export class UserRepository {
   async findByIdWithinCompany(
     id: string | mongoose.Types.ObjectId,
     companyId: string | mongoose.Types.ObjectId
-  ): Promise<IUser | null> {
-    return await User.findOne({ _id: id, companyId }).exec();
+  ): Promise<IUserDocument | null> {
+    return await UserModel.findOne({ _id: id, companyId }).exec();
   }
 }

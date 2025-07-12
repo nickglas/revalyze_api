@@ -1,6 +1,9 @@
 import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
-import ReviewConfig, { IReviewConfig } from "../models/review.config.model";
+import {
+  IReviewConfigDocument,
+  ReviewConfigModel,
+} from "../models/entities/review.config.entity";
 
 @Service()
 export class ReviewConfigRepository {
@@ -8,26 +11,26 @@ export class ReviewConfigRepository {
     companyId: mongoose.Types.ObjectId,
     {
       name,
-      active,
+      isActive,
       createdAfter,
       page = 1,
       limit = 20,
     }: {
       name?: string;
-      active?: boolean;
+      isActive?: boolean;
       createdAfter?: string;
       page?: number;
       limit?: number;
     }
-  ): Promise<{ configs: IReviewConfig[]; total: number }> {
-    const filter: FilterQuery<IReviewConfig> = { companyId };
+  ): Promise<{ configs: IReviewConfigDocument[]; total: number }> {
+    const filter: FilterQuery<IReviewConfigDocument> = { companyId };
 
     if (name) {
       filter.name = { $regex: name, $options: "i" };
     }
 
-    if (typeof active === "boolean") {
-      filter.active = active;
+    if (typeof isActive === "boolean") {
+      filter.isActive = isActive;
     }
 
     if (createdAfter) {
@@ -40,40 +43,41 @@ export class ReviewConfigRepository {
     const skip = (page - 1) * limit;
 
     const [configs, total] = await Promise.all([
-      ReviewConfig.find(filter).skip(skip).limit(limit).exec(),
-      ReviewConfig.countDocuments(filter).exec(),
+      ReviewConfigModel.find(filter).skip(skip).limit(limit).exec(),
+      ReviewConfigModel.countDocuments(filter).exec(),
     ]);
 
     return { configs, total };
   }
 
-  async create(data: Partial<IReviewConfig>) {
-    const config = new ReviewConfig(data);
+  async create(data: Partial<IReviewConfigDocument>) {
+    const config = new ReviewConfigModel(data);
     return await config.save();
   }
 
   async findById(id: string) {
-    return await ReviewConfig.findById(id).exec();
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    return await ReviewConfigModel.findById(id).exec();
   }
 
-  async findOne(filter: FilterQuery<IReviewConfig>) {
-    return await ReviewConfig.findOne(filter).exec();
+  async findOne(filter: FilterQuery<IReviewConfigDocument>) {
+    return await ReviewConfigModel.findOne(filter).exec();
   }
 
   async update(
     id: string | mongoose.Types.ObjectId,
-    update: Partial<IReviewConfig>
+    update: Partial<IReviewConfigDocument>
   ) {
-    return await ReviewConfig.findByIdAndUpdate(id, update, {
+    return await ReviewConfigModel.findByIdAndUpdate(id, update, {
       new: true,
     }).exec();
   }
 
   async delete(id: string) {
-    return await ReviewConfig.findByIdAndDelete(id).exec();
+    return await ReviewConfigModel.findByIdAndDelete(id).exec();
   }
 
-  async insertMany(docs: Partial<IReviewConfig>[]) {
-    return await ReviewConfig.insertMany(docs);
+  async insertMany(docs: Partial<IReviewConfigDocument>[]) {
+    return await ReviewConfigModel.insertMany(docs);
   }
 }

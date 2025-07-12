@@ -1,23 +1,14 @@
-// src/models/contact.model.ts
-import mongoose, { Document, Schema } from "mongoose";
+// src/entities/contact.entity.ts
 
-export interface IContact extends Document {
-  externalCompanyId: mongoose.Types.ObjectId;
-  companyId: mongoose.Types.ObjectId;
+import mongoose, { Schema, Document, model } from "mongoose";
+import { IContactData } from "../types/contact.type";
 
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  position?: string;
-
-  isActive: boolean;
-
+export interface IContactDocument extends IContactData, Document {
   createdAt: Date;
   updatedAt: Date;
 }
 
-const contactSchema = new Schema<IContact>(
+const contactSchema = new Schema<IContactDocument>(
   {
     externalCompanyId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -66,5 +57,4 @@ const contactSchema = new Schema<IContact>(
   }
 );
 
-const Contact = mongoose.model<IContact>("Contact", contactSchema);
-export default Contact;
+export const ContactModel = model<IContactDocument>("Contact", contactSchema);

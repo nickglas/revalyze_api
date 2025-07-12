@@ -1,6 +1,9 @@
 import { Service } from "typedi";
-import Transcript, { ITranscript } from "../models/transcript.model";
 import mongoose, { FilterQuery } from "mongoose";
+import {
+  TranscriptModel,
+  ITranscriptDocument,
+} from "../models/entities/transcript.entity";
 
 type DateRange = { from?: Date; to?: Date };
 
@@ -20,7 +23,7 @@ export class TranscriptRepository {
   async findByCompanyId(
     companyId: mongoose.Types.ObjectId,
     options: TranscriptFilterOptions = {}
-  ): Promise<{ transcripts: ITranscript[]; total: number }> {
+  ): Promise<{ transcripts: ITranscriptDocument[]; total: number }> {
     const {
       search,
       employeeId,
@@ -32,7 +35,7 @@ export class TranscriptRepository {
       limit = 20,
     } = options;
 
-    const filter: FilterQuery<ITranscript> = { companyId };
+    const filter: FilterQuery<ITranscriptDocument> = { companyId };
 
     if (search) {
       filter.content = { $regex: search, $options: "i" };
@@ -55,69 +58,70 @@ export class TranscriptRepository {
 
     if (timestampRange?.from || timestampRange?.to) {
       filter.timestamp = {};
-      if (timestampRange.from) {
-        filter.timestamp.$gte = timestampRange.from;
-      }
-      if (timestampRange.to) {
-        filter.timestamp.$lte = timestampRange.to;
-      }
+      if (timestampRange.from) filter.timestamp.$gte = timestampRange.from;
+      if (timestampRange.to) filter.timestamp.$lte = timestampRange.to;
     }
 
     if (createdAtRange?.from || createdAtRange?.to) {
       filter.createdAt = {};
-      if (createdAtRange.from) {
-        filter.createdAt.$gte = createdAtRange.from;
-      }
-      if (createdAtRange.to) {
-        filter.createdAt.$lte = createdAtRange.to;
-      }
+      if (createdAtRange.from) filter.createdAt.$gte = createdAtRange.from;
+      if (createdAtRange.to) filter.createdAt.$lte = createdAtRange.to;
     }
 
     const skip = (page - 1) * limit;
 
     const [transcripts, total] = await Promise.all([
-      Transcript.find(filter)
+      TranscriptModel.find(filter)
         .sort({ timestamp: -1 })
         .skip(skip)
         .limit(limit)
         .exec(),
-      Transcript.countDocuments(filter).exec(),
+      TranscriptModel.countDocuments(filter).exec(),
     ]);
 
     return { transcripts, total };
   }
 
-  async findById(id: string): Promise<ITranscript | null> {
+  async findById(id: string): Promise<ITranscriptDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Transcript.findById(id).exec();
+    return await TranscriptModel.findById(id).exec();
   }
 
-  async findOne(filter: FilterQuery<ITranscript>): Promise<ITranscript | null> {
-    return await Transcript.findOne(filter).exec();
+  async findOne(
+    filter: FilterQuery<ITranscriptDocument>
+  ): Promise<ITranscriptDocument | null> {
+    return await TranscriptModel.findOne(filter).exec();
   }
 
-  async findManyByIds(ids: mongoose.Types.ObjectId[]): Promise<ITranscript[]> {
-    return await Transcript.find({ _id: { $in: ids } }).exec();
+  async findManyByIds(
+    ids: mongoose.Types.ObjectId[]
+  ): Promise<ITranscriptDocument[]> {
+    return await TranscriptModel.find({ _id: { $in: ids } }).exec();
   }
 
-  async count(filter: FilterQuery<ITranscript>): Promise<number> {
-    return await Transcript.countDocuments(filter).exec();
+  async count(filter: FilterQuery<ITranscriptDocument>): Promise<number> {
+    return await TranscriptModel.countDocuments(filter).exec();
   }
 
-  async create(data: Partial<ITranscript>): Promise<ITranscript> {
-    return await Transcript.create(data);
+  async create(
+    data: Partial<ITranscriptDocument>
+  ): Promise<ITranscriptDocument> {
+    return await TranscriptModel.create(data);
   }
 
-  async insertMany(documents: ITranscript[]): Promise<ITranscript[]> {
-    return await Transcript.insertMany(documents);
+  async insertMany(
+    documents: Partial<ITranscriptDocument>[]
+  ): Promise<ITranscriptDocument[]> {
+    const result = await TranscriptModel.insertMany(documents);
+    return result as ITranscriptDocument[];
   }
 
-  async deleteById(id: string): Promise<ITranscript | null> {
+  async deleteById(id: string): Promise<ITranscriptDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await Transcript.findByIdAndDelete(id).exec();
+    return await TranscriptModel.findByIdAndDelete(id).exec();
   }
 
   async countByCompany(companyId: mongoose.Types.ObjectId): Promise<number> {
-    return await Transcript.countDocuments({ companyId }).exec();
+    return await TranscriptModel.countDocuments({ companyId }).exec();
   }
 }
