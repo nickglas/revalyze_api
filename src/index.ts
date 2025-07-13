@@ -10,7 +10,8 @@ import { logger } from "./utils/logger";
 import { validateEnv } from "./utils/validate.env";
 
 dotenv.config();
-validateEnv();
+
+// validateEnv();
 
 const PORT = process.env.PORT || 4500;
 const MONGODB_URI = process.env.MONGODB_URI;

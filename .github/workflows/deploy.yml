@@ -50,6 +50,7 @@ jobs:
             "VPS_USER"
           )
 
+
           missing=0
           for i in "${!secrets[@]}"; do
             if [ -z "${secrets[$i]}" ]; then
