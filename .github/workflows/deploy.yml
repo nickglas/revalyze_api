@@ -136,7 +136,6 @@ jobs:
               --from-literal=openai_api_key=${{ secrets.OPENAI_API_KEY }} \
               -n revalyze
 
-
             microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
 
             microk8s.kubectl apply -f k8s/
