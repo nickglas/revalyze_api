@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import app from "./app";
 import dotenv from "dotenv";
 import { seedUsers } from "./db/db.seed.users";
-import { CompanySeederService } from "./db/db.seed.companies";
+// import { CompanySeederService } from "./db/db.seed.companies";
 import { seedProducts } from "./db/db.seed.plans";
 import { Container } from "typedi";
 import { StripeSyncCron } from "./sync/sync-cron";
@@ -33,7 +33,7 @@ mongoose
       //seeding stripe data
       const plans = await seedProducts();
 
-      const companySeeder = Container.get(CompanySeederService);
+      // const companySeeder = Container.get(CompanySeederService);
       // const companies = await companySeeder.seedCompanies(plans);
       // await seedUsers(companies);
 

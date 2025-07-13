@@ -23,7 +23,6 @@ import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { CriteriaRepository } from "../repositories/criteria.repository";
 import { OpenAIService } from "./openAI.service";
-import ReviewProcessInfo from "../dto/review/review.process.dto";
 import {
   CriterionModel,
   ICriterionDocument,
