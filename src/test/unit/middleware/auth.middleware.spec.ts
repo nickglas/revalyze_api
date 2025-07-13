@@ -77,6 +77,8 @@ describe("authenticate middleware", () => {
   });
 
   it("should set req.user and call next when token is valid", () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60).toISOString(); // 1 hour in the future
+
     const decodedPayload = {
       id: "123",
       name: "Test User",
@@ -85,6 +87,10 @@ describe("authenticate middleware", () => {
       companyId: "comp123",
       userIsActive: true,
       companyIsActive: true,
+      companySubscription: {
+        status: "active",
+        currentPeriodEnd: futureDate,
+      },
     };
 
     req.headers.authorization = "Bearer valid.token";
@@ -117,5 +123,85 @@ describe("authenticate middleware", () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({ message: "Invalid token" });
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it("should return 403 if companySubscription is missing", () => {
+    req.headers.authorization = "Bearer valid.token";
+    (jwt.verify as jest.Mock).mockReturnValue({
+      id: "123",
+      name: "Test User",
+      email: "test@example.com",
+      role: "employee",
+      companyId: "comp123",
+      userIsActive: true,
+      companyIsActive: true,
+    });
+
+    authenticate(req as Request, res as Response, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "No active subscription found",
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("should return 403 if companySubscription is expired", () => {
+    const expiredDate = new Date(Date.now() - 1000 * 60 * 60).toISOString();
+
+    req.headers.authorization = "Bearer valid.token";
+    (jwt.verify as jest.Mock).mockReturnValue({
+      id: "123",
+      name: "Test User",
+      email: "test@example.com",
+      role: "employee",
+      companyId: "comp123",
+      userIsActive: true,
+      companyIsActive: true,
+      companySubscription: {
+        status: "active",
+        currentPeriodEnd: expiredDate,
+      },
+    });
+
+    authenticate(req as Request, res as Response, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Subscription is inactive or expired",
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("should allow access when companySubscription is valid and active", () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60).toISOString();
+
+    req.headers.authorization = "Bearer valid.token";
+    (jwt.verify as jest.Mock).mockReturnValue({
+      id: "123",
+      name: "Test User",
+      email: "test@example.com",
+      role: "employee",
+      companyId: "comp123",
+      userIsActive: true,
+      companyIsActive: true,
+      companySubscription: {
+        status: "active",
+        currentPeriodEnd: futureDate,
+      },
+    });
+
+    authenticate(req as Request, res as Response, next);
+
+    expect(req.user).toEqual({
+      id: "123",
+      name: "Test User",
+      email: "test@example.com",
+      role: "employee",
+      companyId: "comp123",
+    });
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
   });
 });

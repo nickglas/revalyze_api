@@ -5,6 +5,8 @@ import { UnauthorizedError, NotFoundError } from "../../../utils/errors";
 import { generateTokens } from "../../../utils/token";
 import { BadRequestError } from "../../../utils/errors";
 import jwt from "jsonwebtoken";
+import { CompanyRepository } from "../../../repositories/company.repository";
+import { SubscriptionRepository } from "../../../repositories/subscription.repository";
 
 jest.mock("jsonwebtoken");
 jest.mock("../../../utils/token", () => ({
@@ -15,11 +17,14 @@ describe("AuthService", () => {
   let authService: AuthService;
   let userRepository: jest.Mocked<UserRepository>;
   let refreshTokenRepository: jest.Mocked<RefreshTokenRepository>;
+  let companyRepository: jest.Mocked<CompanyRepository>;
+  let subscriptionRepository: jest.Mocked<SubscriptionRepository>;
 
   const mockUser = {
     id: "user123",
     email: "test@example.com",
     password: "hashed-password",
+    companyId: "company123",
     comparePassword: jest.fn(),
   };
 
@@ -38,18 +43,48 @@ describe("AuthService", () => {
       deleteAllByUserId: jest.fn(),
     } as any;
 
-    authService = new AuthService(userRepository, refreshTokenRepository);
+    companyRepository = {
+      findOne: jest.fn(),
+    } as any;
+
+    subscriptionRepository = {
+      findOne: jest.fn(),
+    } as any;
+
+    authService = new AuthService(
+      userRepository,
+      refreshTokenRepository,
+      companyRepository,
+      subscriptionRepository
+    );
     jest.clearAllMocks();
   });
 
   describe("authenticateUser", () => {
     it("should authenticate user and return tokens", async () => {
+      const mockCompany = {
+        id: "company123",
+        name: "Test Company",
+      };
+
+      const mockSubscription = {
+        id: "sub123",
+        companyId: "company123",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + 1000 * 60 * 60), // 1 hour in future
+      };
+
       userRepository.findByEmail.mockResolvedValue(mockUser as any);
       mockUser.comparePassword.mockResolvedValue(true);
+
+      companyRepository.findOne.mockResolvedValue(mockCompany as any);
+      subscriptionRepository.findOne.mockResolvedValue(mockSubscription as any);
+
       (generateTokens as jest.Mock).mockResolvedValue({
         accessToken: "access-token",
         refreshToken: "refresh-token",
       });
+
       refreshTokenRepository.findOldTokens.mockResolvedValue([]);
 
       const tokens = await authService.authenticateUser(
@@ -61,6 +96,12 @@ describe("AuthService", () => {
         "test@example.com"
       );
       expect(mockUser.comparePassword).toHaveBeenCalledWith("password123");
+      expect(companyRepository.findOne).toHaveBeenCalledWith({
+        _id: mockUser.companyId,
+      });
+      expect(subscriptionRepository.findOne).toHaveBeenCalledWith({
+        companyId: mockCompany.id,
+      });
       expect(refreshTokenRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: "user123",
@@ -91,8 +132,30 @@ describe("AuthService", () => {
     });
 
     it("should delete old refresh tokens if found", async () => {
+      const mockCompany = {
+        id: "company123",
+        name: "Test Company",
+      };
+
+      const mockSubscription = {
+        id: "sub123",
+        companyId: "company123",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + 1000 * 60 * 60),
+      };
+
+      const mockUser = {
+        id: "user123",
+        email: "test@example.com",
+        password: "hashed-password",
+        companyId: "company123",
+        comparePassword: jest.fn().mockResolvedValue(true),
+      };
+
       userRepository.findByEmail.mockResolvedValue(mockUser as any);
-      mockUser.comparePassword.mockResolvedValue(true);
+      companyRepository.findOne.mockResolvedValue(mockCompany as any);
+      subscriptionRepository.findOne.mockResolvedValue(mockSubscription as any);
+
       (generateTokens as jest.Mock).mockResolvedValue({
         accessToken: "access-token",
         refreshToken: "refresh-token",
@@ -113,6 +176,8 @@ describe("AuthService", () => {
   describe("handleRefreshToken", () => {
     let authService: AuthService;
     let userRepository: jest.Mocked<UserRepository>;
+    let companyRepository: jest.Mocked<CompanyRepository>;
+    let subscriptionRepository: jest.Mocked<SubscriptionRepository>;
     let refreshTokenRepository: jest.Mocked<RefreshTokenRepository>;
 
     const mockUser = {
@@ -132,7 +197,20 @@ describe("AuthService", () => {
         create: jest.fn(),
       } as any;
 
-      authService = new AuthService(userRepository, refreshTokenRepository);
+      companyRepository = {
+        findOne: jest.fn(),
+      } as any;
+
+      subscriptionRepository = {
+        findOne: jest.fn(),
+      } as any;
+
+      authService = new AuthService(
+        userRepository,
+        refreshTokenRepository,
+        companyRepository,
+        subscriptionRepository
+      );
       jest.clearAllMocks();
     });
 
@@ -140,12 +218,35 @@ describe("AuthService", () => {
       const mockToken = "valid-token";
       process.env.JWT_REFRESH_SECRET = "secret";
 
+      const mockUser = {
+        id: "user123",
+        email: "test@example.com",
+        companyId: "company123",
+        comparePassword: jest.fn(),
+      };
+
+      const mockCompany = {
+        id: "company123",
+        name: "Test Company",
+      };
+
+      const mockSubscription = {
+        id: "sub123",
+        companyId: "company123",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + 60 * 60 * 1000),
+      };
+
       (jwt.verify as jest.Mock).mockReturnValue({ id: "user123" });
       refreshTokenRepository.findByToken.mockResolvedValue({
         id: "stored-token-id",
         token: mockToken,
       } as any);
+
       userRepository.findById.mockResolvedValue(mockUser as any);
+      companyRepository.findOne.mockResolvedValue(mockCompany as any);
+      subscriptionRepository.findOne.mockResolvedValue(mockSubscription as any);
+
       (generateTokens as jest.Mock).mockResolvedValue({
         accessToken: "new-access-token",
         refreshToken: "new-refresh-token",
@@ -158,6 +259,12 @@ describe("AuthService", () => {
         mockToken
       );
       expect(userRepository.findById).toHaveBeenCalledWith("user123");
+      expect(companyRepository.findOne).toHaveBeenCalledWith({
+        _id: "company123",
+      });
+      expect(subscriptionRepository.findOne).toHaveBeenCalledWith({
+        companyId: "company123",
+      });
       expect(refreshTokenRepository.deleteById).toHaveBeenCalledWith(
         "stored-token-id"
       );
@@ -221,12 +328,37 @@ describe("AuthService", () => {
       const mockToken = "valid-token";
       process.env.JWT_REFRESH_SECRET = "secret";
 
+      const mockUser = {
+        id: "user123",
+        email: "test@example.com",
+        companyId: "company123",
+      };
+
+      const mockCompany = {
+        id: "company123",
+        name: "Test Company",
+      };
+
+      const mockSubscription = {
+        id: "sub123",
+        companyId: "company123",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + 60 * 60 * 1000), // 1 hour in future
+      };
+
+      // Mock token decode
       (jwt.verify as jest.Mock).mockReturnValue({ id: "user123" });
+
+      // Mock repository methods
       refreshTokenRepository.findByToken.mockResolvedValue({
         id: "delete-id",
         token: mockToken,
       } as any);
+
       userRepository.findById.mockResolvedValue(mockUser as any);
+      companyRepository.findOne.mockResolvedValue(mockCompany as any);
+      subscriptionRepository.findOne.mockResolvedValue(mockSubscription as any);
+
       (generateTokens as jest.Mock).mockResolvedValue({
         accessToken: "access",
         refreshToken: "refresh",
@@ -243,12 +375,35 @@ describe("AuthService", () => {
       const mockToken = "valid-token";
       process.env.JWT_REFRESH_SECRET = "secret";
 
+      const mockUser = {
+        id: "user123",
+        email: "test@example.com",
+        companyId: "company123",
+      };
+
+      const mockCompany = {
+        id: "company123",
+        name: "Test Company",
+      };
+
+      const mockSubscription = {
+        id: "sub123",
+        companyId: "company123",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + 3600000), // 1 hour ahead
+      };
+
       (jwt.verify as jest.Mock).mockReturnValue({ id: "user123" });
+
       refreshTokenRepository.findByToken.mockResolvedValue({
         id: "stored-id",
         token: mockToken,
       } as any);
+
       userRepository.findById.mockResolvedValue(mockUser as any);
+      companyRepository.findOne.mockResolvedValue(mockCompany as any);
+      subscriptionRepository.findOne.mockResolvedValue(mockSubscription as any);
+
       (generateTokens as jest.Mock).mockResolvedValue({
         accessToken: "access",
         refreshToken: "refresh",

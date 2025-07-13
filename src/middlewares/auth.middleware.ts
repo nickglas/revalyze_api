@@ -30,6 +30,24 @@ export const authenticate = (
         res.status(403).json({ message: "User or company is deactivated" });
         return;
       }
+
+      // Subscription validation
+      const subscription = decoded.companySubscription;
+      if (!subscription) {
+        res.status(403).json({ message: "No active subscription found" });
+        return;
+      }
+
+      const now = new Date();
+      const subscriptionEnd = new Date(subscription.currentPeriodEnd);
+
+      if (subscription.status !== "active" || subscriptionEnd < now) {
+        res
+          .status(403)
+          .json({ message: "Subscription is inactive or expired" });
+        return;
+      }
+
       req.user = {
         id: decoded.id,
         name: decoded.name,

@@ -16,7 +16,7 @@ const companySchema = new Schema<ICompanyDocument>(
     name: { type: String, required: true },
     mainEmail: { type: String, required: true, unique: true },
     phone: { type: String },
-    address: { type: Schema.Types.Mixed, required: true },
+    address: { type: Schema.Types.Mixed, required: false },
     stripeCustomerId: { type: String, required: true },
     isActive: { type: Boolean, default: true },
     hashedApiKey: { type: String, required: false },

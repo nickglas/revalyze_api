@@ -87,7 +87,7 @@ export class AuthService {
     return tokens;
   }
 
-  async getCompanyOrThrow(
+  private async getCompanyOrThrow(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<ICompanyDocument> {
     const company = await this.companyRepository.findOne({
@@ -99,7 +99,7 @@ export class AuthService {
     return company;
   }
 
-  async getSubscriptionOrThrow(
+  private async getSubscriptionOrThrow(
     companyId: string | mongoose.Types.ObjectId
   ): Promise<ISubscriptionDocument> {
     const subscription = await this.subscriptionRepository.findOne({
