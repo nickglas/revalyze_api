@@ -1,13 +1,17 @@
 import jwt from "jsonwebtoken";
 
 import { IUserDocument } from "../models/entities/user.entity";
-import { CompanyModel } from "../models/entities/company.entity";
+import {
+  CompanyModel,
+  ICompanyDocument,
+} from "../models/entities/company.entity";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
-export const generateTokens = async (user: IUserDocument) => {
-  const company = await CompanyModel.findById(user.companyId).select(
-    "isActive"
-  );
-
+export const generateTokens = async (
+  user: IUserDocument,
+  company: ICompanyDocument,
+  subscription: ISubscriptionDocument
+) => {
   const accessToken = jwt.sign(
     {
       id: user._id,
@@ -16,7 +20,8 @@ export const generateTokens = async (user: IUserDocument) => {
       name: user.name,
       companyId: user.companyId.toString(),
       userIsActive: user.isActive,
-      companyIsActive: company?.isActive ?? true,
+      companyIsActive: company.isActive,
+      companySubscription: subscription,
     },
     process.env.JWT_SECRET!,
     { expiresIn: "5m" }

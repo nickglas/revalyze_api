@@ -9,12 +9,19 @@ import {
   BadRequestError,
 } from "../utils/errors";
 import { Service } from "typedi";
+import { CompanyRepository } from "../repositories/company.repository";
+import { SubscriptionRepository } from "../repositories/subscription.repository";
+import mongoose from "mongoose";
+import { ICompanyDocument } from "../models/entities/company.entity";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
 @Service()
 export class AuthService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly refreshTokenRepository: RefreshTokenRepository
+    private readonly refreshTokenRepository: RefreshTokenRepository,
+    private readonly companyRepository: CompanyRepository,
+    private readonly subscriptionRepository: SubscriptionRepository
   ) {}
 
   async authenticateUser(email: string, password: string) {
@@ -23,8 +30,10 @@ export class AuthService {
     if (!user || !(await user.comparePassword(password))) {
       throw new UnauthorizedError("Invalid credentials");
     }
+    const company = await this.getCompanyOrThrow(user.companyId);
+    const subscription = await this.getSubscriptionOrThrow(company.id);
 
-    const tokens = await generateTokens(user);
+    const tokens = await generateTokens(user, company, subscription);
 
     await this.refreshTokenRepository.create({
       userId: user.id,
@@ -64,7 +73,10 @@ export class AuthService {
 
     await this.refreshTokenRepository.deleteById(storedToken.id.toString());
 
-    const tokens = await generateTokens(user);
+    const company = await this.getCompanyOrThrow(user.companyId);
+    const subscription = await this.getSubscriptionOrThrow(company.id);
+
+    const tokens = await generateTokens(user, company, subscription);
 
     await this.refreshTokenRepository.create({
       userId: user.id,
@@ -73,6 +85,31 @@ export class AuthService {
     });
 
     return tokens;
+  }
+
+  async getCompanyOrThrow(
+    companyId: string | mongoose.Types.ObjectId
+  ): Promise<ICompanyDocument> {
+    const company = await this.companyRepository.findOne({
+      _id: companyId,
+    });
+
+    if (!company) throw new UnauthorizedError("Company for user not found");
+
+    return company;
+  }
+
+  async getSubscriptionOrThrow(
+    companyId: string | mongoose.Types.ObjectId
+  ): Promise<ISubscriptionDocument> {
+    const subscription = await this.subscriptionRepository.findOne({
+      companyId: companyId,
+    });
+
+    if (!subscription || subscription.status === "canceled")
+      throw new UnauthorizedError("Company has no active subscription");
+
+    return subscription;
   }
 
   async logoutAllDevices(userId: string) {

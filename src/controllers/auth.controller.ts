@@ -14,7 +14,7 @@ export const login = async (
     const tokens = await authService.authenticateUser(email, password);
     res.json(tokens);
   } catch (err) {
-    res.status(401).json({ message: "Invalid credentials" });
+    next(err);
   }
 };
 
