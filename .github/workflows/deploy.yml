@@ -25,18 +25,45 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate environment variables
-        run: npm run validate-env
-        env:
-          PORT: 4500
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          STRIPE_SUCCESS_URL: ${{ secrets.STRIPE_SUCCESS_URL }}
-          STRIPE_CANCEL_URL: ${{ secrets.STRIPE_CANCEL_URL }}
+      - name: Check required GitHub secrets presence
+        run: |
+          secrets=(
+            "${{ secrets.DOCKERHUB_TOKEN }}"
+            "${{ secrets.DOCKERHUB_USERNAME }}"
+            "${{ secrets.JWT_REFRESH_SECRET }}"
+            "${{ secrets.JWT_SECRET }}"
+            "${{ secrets.OPENAI_API_KEY }}"
+            "${{ secrets.STRIPE_SECRET_KEY }}"
+            "${{ secrets.VPS_HOST }}"
+            "${{ secrets.VPS_SSH_KEY }}"
+            "${{ secrets.VPS_USER }}"
+          )
+          secret_names=(
+            "DOCKERHUB_TOKEN"
+            "DOCKERHUB_USERNAME"
+            "JWT_REFRESH_SECRET"
+            "JWT_SECRET"
+            "OPENAI_API_KEY"
+            "STRIPE_SECRET_KEY"
+            "VPS_HOST"
+            "VPS_SSH_KEY"
+            "VPS_USER"
+          )
+
+          missing=0
+          for i in "${!secrets[@]}"; do
+            if [ -z "${secrets[$i]}" ]; then
+              echo "::error::Secret ${secret_names[$i]} is NOT set!"
+              missing=$((missing+1))
+            fi
+          done
+
+          if [ $missing -ne 0 ]; then
+            echo "Missing $missing required secret(s). Failing workflow."
+            exit 1
+          else
+            echo "All required secrets are set."
+          fi
 
       - name: Run tests
         run: npm test

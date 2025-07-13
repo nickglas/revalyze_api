@@ -513,7 +513,10 @@ export class CompanyService {
       customer: customerId,
       line_items: [{ price: planId, quantity: 1 }],
       expires_at: Math.floor(Date.now() / 1000) + 1800,
-      success_url: process.env.STRIPE_SUCCESS_URL!,
+      success_url:
+        process.env.NODE_ENV === "development"
+          ? "https://www.google.com"
+          : "https://www.google.com",
       cancel_url: process.env.STRIPE_CANCEL_URL!,
     });
 

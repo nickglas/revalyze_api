@@ -927,11 +927,6 @@ describe("CompanyService", () => {
   });
 
   describe("createStripeCheckoutSession", () => {
-    beforeAll(() => {
-      process.env.STRIPE_SUCCESS_URL = "https://success.url";
-      process.env.STRIPE_CANCEL_URL = "https://cancel.url";
-    });
-
     it("should return session if created", async () => {
       const fakeSession = { url: "https://checkout.url" };
       stripeService.createCheckoutSession.mockResolvedValue(fakeSession as any);
@@ -945,8 +940,6 @@ describe("CompanyService", () => {
           mode: "subscription",
           customer: "cus_123",
           line_items: [{ price: "plan_123", quantity: 1 }],
-          success_url: "https://success.url",
-          cancel_url: "https://cancel.url",
         })
       );
     });
