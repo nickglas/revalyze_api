@@ -278,25 +278,6 @@ export class CompanyService {
     companyId: string,
     updates: Partial<any>
   ) {
-    //validations of id's
-    if (!Types.ObjectId.isValid(companyId) || !Types.ObjectId.isValid(userId)) {
-      throw new BadRequestError("Invalid company or user ID");
-    }
-
-    //check if the user exists
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new NotFoundError("User not found");
-    }
-
-    //check if the user is an admin & the user is actually admin of the specfied company
-    if (
-      user.role !== "company_admin" ||
-      user.companyId.toString() !== companyId
-    ) {
-      throw new UnauthorizedError("Unauthorized to update this company");
-    }
-
     //check if the fields are valid
     const allowedFields = ["mainEmail", "phone", "address"];
     const filteredUpdates: Partial<any> = {};
@@ -312,7 +293,7 @@ export class CompanyService {
     );
 
     if (!updatedCompany) {
-      throw new NotFoundError("Company not found");
+      throw new BadRequestError("Error updating company");
     }
 
     return updatedCompany;
