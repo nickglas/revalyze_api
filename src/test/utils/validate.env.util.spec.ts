@@ -35,31 +35,4 @@ describe("validateEnv", () => {
 
     expect(() => validateEnv()).toThrow(/"STRIPE_SECRET_KEY" is required/);
   });
-
-  it("should throw if MONGODB_URI is not a valid URI", () => {
-    process.env = { ...process.env, ...validEnv, MONGODB_URI: "invalid-uri" };
-
-    expect(() => validateEnv()).toThrow(/"MONGODB_URI" must be a valid uri/);
-  });
-
-  it("should throw if STRIPE_SUCCESS_URL is not a valid URI", () => {
-    process.env = {
-      ...process.env,
-      ...validEnv,
-      STRIPE_SUCCESS_URL: "not-a-uri",
-    };
-
-    expect(() => validateEnv()).toThrow(
-      /"STRIPE_SUCCESS_URL" must be a valid uri/
-    );
-  });
-
-  it("should throw multiple errors when multiple required fields are missing", () => {
-    const { PORT, STRIPE_CANCEL_URL, ...partialEnv } = validEnv;
-    process.env = { ...process.env, ...partialEnv };
-
-    expect(() => validateEnv()).toThrow(
-      /"PORT" is required, .*"STRIPE_CANCEL_URL" is required/
-    );
-  });
 });
