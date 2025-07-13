@@ -128,12 +128,14 @@ jobs:
             microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
 
             # Create K8s secret from GitHub secrets
-            microk8s.kubectl delete secret jwt-secrets -n revalyze --ignore-not-found
             microk8s.kubectl create secret generic jwt-secrets \
               --from-literal=jwt_secret=${{ secrets.JWT_SECRET }} \
-              --from-literal=stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY }} \
               --from-literal=jwt_refresh_secret=${{ secrets.JWT_REFRESH_SECRET }} \
+              --from-literal=stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY }} \
+              --from-literal=stripe_webhook_secret=${{ secrets.STRIPE_WEBHOOK_SECRET }} \
+              --from-literal=openai_api_key=${{ secrets.OPENAI_API_KEY }} \
               -n revalyze
+
 
             microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
 
