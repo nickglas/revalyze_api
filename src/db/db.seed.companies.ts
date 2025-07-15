@@ -1,34 +1,82 @@
-import Company, { ICompany } from '../models/company.model';
+// import { Service } from "typedi";
+// import { logger } from "../utils/logger";
+// import { SeededPlan } from "./db.seed.plans";
+// import { StripeService } from "../services/stripe.service";
 
-export async function seedCompanies(): Promise<Record<string, string>> {
-  const companiesToSeed: Partial<ICompany>[] = [
-    {
-      name: 'Revalyze',
-      mainEmail: 'info@revalyze.io',
-      subscriptionPlanId: 'plan_pro',
-    },
-    {
-      name: 'CoolBlue',
-      mainEmail: 'contact@coolblue.nl',
-      subscriptionPlanId: 'plan_basic',
-    },
-  ];
+// @Service()
+// export class CompanySeederService {
+//   constructor(private readonly stripeService: StripeService) {}
 
-  const companyIds: Record<string, string> = {};
+//   async seedCompanies(plans: SeededPlan[]): Promise<
+//     Record<
+//       string,
+//       {
+//         customerId: string;
+//         subscriptionId: string;
+//         priceId: string;
+//         planName: string;
+//       }
+//     >
+//   > {
+//     const companiesToSeed = [
+//       {
+//         name: "Revalyze",
+//         email: "info@revalyze.io",
+//         tier: 3,
+//       },
+//       {
+//         name: "CoolBlue",
+//         email: "contact@coolblue.nl",
+//         tier: 2,
+//       },
+//     ];
 
-  for (const companyData of companiesToSeed) {
-    let company = await Company.findOne({ name: companyData.name });
+//     const result: Record<string, any> = {};
 
-    if (!company) {
-      company = new Company(companyData);
-      await company.save();
-      console.log(`Seeded company: ${company.name}`);
-    } else {
-      console.log(`Company already exists: ${company.name}`);
-    }
+//     for (const company of companiesToSeed) {
+//       const existingCustomer = await this.stripeService.findCustomerByName(
+//         company.name
+//       );
 
-    companyIds[company.name] = company.id.toString();
-  }
+//       if (existingCustomer) {
+//         logger.info(
+//           `Skipping ${company.name} — customer already exists in Stripe`
+//         );
+//         continue;
+//       }
 
-  return companyIds;
-}
+//       const plan = plans.find((p) => p.tier === company.tier);
+//       const monthlyPrice = plan?.prices.find((p) => p.interval === "month");
+
+//       if (!plan || !monthlyPrice) {
+//         logger.warn(
+//           `No plan found for tier ${company.tier}, skipping ${company.name}`
+//         );
+//         continue;
+//       }
+
+//       const customer = await this.stripeService.createCustomer(
+//         company.email,
+//         company.name
+//       );
+//       const subscription = await this.stripeService.createSubscription(
+//         customer.id,
+//         monthlyPrice.priceId,
+//         "allow_incomplete"
+//       );
+
+//       logger.info(
+//         `Created Stripe customer & subscription for "${company.name}" (${plan.name})`
+//       );
+
+//       result[company.name] = {
+//         customerId: customer.id,
+//         subscriptionId: subscription.id,
+//         priceId: monthlyPrice.priceId,
+//         planName: plan.name,
+//       };
+//     }
+
+//     return result;
+//   }
+// }

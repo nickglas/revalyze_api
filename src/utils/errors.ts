@@ -15,9 +15,21 @@ export class BadRequestError extends HttpError {
   }
 }
 
+export class InternalServerError extends HttpError {
+  constructor(message = "Internal server error") {
+    super(message, 500);
+  }
+}
+
 export class UnauthorizedError extends HttpError {
   constructor(message = "Unauthorized") {
     super(message, 401);
+  }
+}
+
+export class ForbiddenError extends HttpError {
+  constructor(message = "Forbidden") {
+    super(message, 403);
   }
 }
 

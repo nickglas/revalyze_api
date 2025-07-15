@@ -3,3 +3,8 @@ build
 npm-debug.log
 .env
 .DS_Store
+logs
+logs/combined.log
+logs/combined.log
+application_log
+dist
