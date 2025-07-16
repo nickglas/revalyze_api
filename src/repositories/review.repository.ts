@@ -101,6 +101,20 @@ export class ReviewRepository {
     return { reviews, total };
   }
 
+  async countReviewsWithinPeriodByCompany(
+    companyId: string | mongoose.Types.ObjectId,
+    from: Date,
+    to: Date
+  ): Promise<number> {
+    const filter: FilterQuery<IReviewDocument> = {
+      companyId: new mongoose.Types.ObjectId(companyId),
+      reviewStatus: { $in: ["STARTED", "REVIEWED"] },
+      createdAt: { $gte: from, $lte: to },
+    };
+
+    return await ReviewModel.countDocuments(filter).exec();
+  }
+
   async findById(
     id: string | mongoose.Types.ObjectId
   ): Promise<IReviewDocument | null> {

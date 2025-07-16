@@ -54,6 +54,7 @@ export const authenticate = (
         email: decoded.email,
         role: decoded.role,
         companyId: decoded.companyId,
+        companySubscription: decoded.companySubscription,
       };
       next();
     } else {

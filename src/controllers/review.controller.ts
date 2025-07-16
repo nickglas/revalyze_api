@@ -89,10 +89,15 @@ export const createReview = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const subscription = req.user?.companySubscription;
     const dto = req.body;
 
     const reviewService = Container.get(ReviewService);
-    const review = await reviewService.createReview(dto, companyId);
+    const review = await reviewService.createReview(
+      dto,
+      companyId,
+      subscription
+    );
 
     res.status(201).json(review);
   } catch (error) {

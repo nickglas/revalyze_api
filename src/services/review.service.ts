@@ -1,5 +1,5 @@
 import { Service } from "typedi";
-import mongoose from "mongoose";
+import mongoose, { mongo } from "mongoose";
 import {
   ReviewRepository,
   ReviewFilterOptions,
@@ -28,6 +28,7 @@ import {
   ICriterionDocument,
 } from "../models/entities/criterion.entity";
 import { ReviewStatus } from "../models/types/transcript.type";
+import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
 @Service()
 export class ReviewService {
@@ -105,6 +106,24 @@ export class ReviewService {
     });
   }
 
+  async isReviewQuotaAvailable(
+    companyId: string | mongoose.Types.ObjectId,
+    subscription: any
+  ): Promise<boolean> {
+    console.warn(subscription);
+    const start = new Date(subscription.currentPeriodStart);
+    const end = new Date(subscription.currentPeriodEnd);
+
+    const reviewCount =
+      await this.reviewRepository.countReviewsWithinPeriodByCompany(
+        companyId,
+        start,
+        end
+      );
+
+    return reviewCount < subscription.allowedReviews;
+  }
+
   /**
    * Retrieves a single review by ID and company ID to ensure ownership.
    * @param id - The review document ID.
@@ -137,53 +156,31 @@ export class ReviewService {
    */
   async createReview(
     dto: CreateReviewDto,
-    companyId: mongoose.Types.ObjectId
+    companyId: mongoose.Types.ObjectId | string,
+    subsription: ISubscriptionDocument
   ): Promise<IReviewDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
 
     //get the current review count and enforce limits
+    if (!(await this.isReviewQuotaAvailable(companyId, subsription)))
+      throw new ForbiddenError("Review quota has been reached");
 
-    // 1. Validate transcript
-    const transcript = await this.transcriptRepository.findOne({
-      _id: new mongoose.Types.ObjectId(dto.transcriptId),
-      companyId,
-    });
-    if (!transcript) {
-      throw new NotFoundError(
-        `Transcript with ID ${dto.transcriptId} not found or doesn't belong to company ${companyId}`
-      );
-    }
-
-    // 2. Validate review config
-    const config = await this.reviewConfigRepository.findOne({
-      _id: new mongoose.Types.ObjectId(dto.reviewConfigId),
-      companyId,
-    });
-    if (!config) {
-      throw new NotFoundError(
-        `Review configuration with ID ${dto.reviewConfigId} not found or doesn't belong to company ${companyId}`
-      );
-    }
-    if (!config.isActive) {
-      throw new ForbiddenError("Review configuration is not active");
-    }
-
-    // 3. Validate criteria
-    const criterionIds = config.criteriaIds.map(
-      (id) => new mongoose.Types.ObjectId(id)
+    //validate transcript
+    const transcript = await this.findTranscriptOrThrow(
+      dto.transcriptId,
+      companyId
     );
-    const criteria = await this.criteriaRepository.findManyByIds(criterionIds);
-    if (criteria.length !== criterionIds.length) {
-      const foundIds = criteria.map((c) => c._id.toString());
-      const missing = criterionIds.filter(
-        (id) => !foundIds.includes(id.toString())
-      );
-      throw new NotFoundError(
-        `Missing criteria with IDs: ${missing.join(", ")}`
-      );
-    }
 
-    // 2. Create review with status NOT_STARTED
+    //validate review config
+    const config = await this.findValidConfigOrThrow(
+      dto.reviewConfigId,
+      companyId
+    );
+
+    //validate criteria
+    const criteria = await this.findCriterionOrThrow(config.criteriaIds);
+
+    //create review with status NOT_STARTED
     const reviewData: Partial<IReviewDocument> = {
       transcriptId: transcript.id,
       reviewConfig: {
@@ -200,14 +197,13 @@ export class ReviewService {
     };
     const review = await this.reviewRepository.create(reviewData);
 
-    // 3. Fire and forget OpenAI processing — do NOT await it
+    //fire and forget OpenAI processing — do NOT await it
     this.processOpenAIReview(review, config, transcript, criteria).catch(
       (err) => {
         console.error("Async OpenAI processing failed:", err);
       }
     );
 
-    // 4. Immediately return created review (status NOT_STARTED)
     return review;
   }
 
@@ -253,5 +249,58 @@ export class ReviewService {
       review.reviewStatus = ReviewStatus.ERROR;
       await review.save();
     }
+  }
+
+  //helpers
+  private async findTranscriptOrThrow(
+    transcriptId: string | mongoose.Types.ObjectId,
+    companyId: string | mongoose.Types.ObjectId
+  ) {
+    const transcript = await this.transcriptRepository.findOne({
+      _id: new mongoose.Types.ObjectId(transcriptId),
+      companyId: companyId,
+    });
+    if (!transcript) {
+      throw new NotFoundError(
+        `Transcript with ID ${transcriptId} not found or doesn't belong to company ${companyId}`
+      );
+    }
+    return transcript;
+  }
+
+  private async findValidConfigOrThrow(
+    reviewConfigId: string | mongoose.Types.ObjectId,
+    companyId: string | mongoose.Types.ObjectId
+  ) {
+    const config = await this.reviewConfigRepository.findOne({
+      _id: new mongoose.Types.ObjectId(reviewConfigId),
+      companyId,
+    });
+    if (!config) {
+      throw new NotFoundError(
+        `Review configuration with ID ${reviewConfigId} not found or doesn't belong to company ${companyId}`
+      );
+    }
+    if (!config.isActive) {
+      throw new ForbiddenError("Review configuration is not active");
+    }
+    return config;
+  }
+
+  private async findCriterionOrThrow(
+    ids: string[] | mongoose.Types.ObjectId[]
+  ) {
+    const criterionIds = ids.map((id) => new mongoose.Types.ObjectId(id));
+    const criteria = await this.criteriaRepository.findManyByIds(criterionIds);
+    if (criteria.length !== criterionIds.length) {
+      const foundIds = criteria.map((c) => c._id.toString());
+      const missing = criterionIds.filter(
+        (id) => !foundIds.includes(id.toString())
+      );
+      throw new NotFoundError(
+        `Missing criteria with IDs: ${missing.join(", ")}`
+      );
+    }
+    return criteria;
   }
 }

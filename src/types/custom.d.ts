@@ -1,4 +1,6 @@
-import { IUser } from "../models/.old/x.user.model";
+// src/types/custom.ts
+import { IUser } from "../../models/entities/user.entity";
+import { ISubscriptionDocument } from "../../models/entities/subscription.entity";
 
 declare global {
   namespace Express {
@@ -9,6 +11,9 @@ declare global {
         email: string;
         name: string;
         companyId: string;
+        userIsActive?: boolean;
+        companyIsActive?: boolean;
+        companySubscription?: ISubscriptionDocument;
       };
     }
   }
