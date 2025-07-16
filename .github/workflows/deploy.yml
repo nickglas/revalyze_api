@@ -98,11 +98,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push multi-platform image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           build-args: |
             RUN_ID=${{ steps.build-info.outputs.RUN_ID }}
@@ -121,9 +122,6 @@ jobs:
             else
               cd /home/ubuntu/revalyze && git pull origin main
             fi
-
-            # Permissions for security
-            chmod 600 /home/ubuntu/revalyze/.env
 
             # Kubernetes setup
             microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
