@@ -1,5 +1,7 @@
 // src/types/review.type.ts
 import mongoose from "mongoose";
+import { IReviewConfigDocument } from "../entities/review.config.entity";
+import { IExpandedReviewConfig } from "./review.config.type";
 
 export enum ReviewStatus {
   NOT_STARTED = "NOT_STARTED",
@@ -19,7 +21,7 @@ export interface ICriteriaScore {
 
 export interface IReviewData {
   transcriptId: mongoose.Types.ObjectId;
-  reviewConfig: object;
+  reviewConfig: IReviewConfigDocument | IExpandedReviewConfig;
   type: "performance" | "sentiment" | "both";
   reviewStatus: ReviewStatus;
   overallScore: number;

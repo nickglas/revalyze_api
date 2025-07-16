@@ -29,6 +29,7 @@ import {
 } from "../models/entities/criterion.entity";
 import { ReviewStatus } from "../models/types/transcript.type";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
+import { IExpandedReviewConfig } from "../models/types/review.config.type";
 
 @Service()
 export class ReviewService {
@@ -147,6 +148,59 @@ export class ReviewService {
     return review;
   }
 
+  async retryReview(
+    reviewId: string,
+    companyId: mongoose.Types.ObjectId,
+    subscription: ISubscriptionDocument
+  ): Promise<IReviewDocument> {
+    //get failed review and validate
+    const failedReview = await this.reviewRepository.findOne({
+      _id: reviewId,
+      companyId,
+      reviewStatus: ReviewStatus.ERROR,
+    });
+
+    if (!failedReview) {
+      throw new NotFoundError("Failed review not found or not in ERROR state");
+    }
+
+    //check quota and validate
+    const quotaAvailable = await this.isReviewQuotaAvailable(
+      companyId,
+      subscription
+    );
+    if (!quotaAvailable) {
+      throw new ForbiddenError("Review quota exceeded for current period");
+    }
+
+    //get transcript or throw
+    const transcript = await this.findTranscriptOrThrow(
+      failedReview.transcriptId,
+      companyId
+    );
+
+    //reviewConfig in the review document is embedded, so fetch the original one again
+    const config = await this.findValidConfigOrThrow(
+      failedReview.reviewConfig._id.toString(),
+      companyId
+    );
+
+    //get criteria
+    const criteria = await this.findCriterionOrThrow(config.criteriaIds);
+
+    failedReview.reviewStatus = ReviewStatus.NOT_STARTED;
+    await this.reviewRepository.update(failedReview.id, failedReview);
+
+    //start review
+    this.processOpenAIReview(failedReview, config, transcript, criteria).catch(
+      (err) => {
+        console.error("Async OpenAI retry failed:", err);
+      }
+    );
+
+    return failedReview;
+  }
+
   /**
    * Creates a new AI-generated review from a transcript and a review config.
    *
@@ -186,7 +240,7 @@ export class ReviewService {
       reviewConfig: {
         ...config.toJSON?.(),
         criteria: criteria.map((c) => c.toJSON?.() ?? c),
-      },
+      } as any,
       type: dto.type,
       criteriaScores: [],
       externalCompanyId: transcript.externalCompanyId,

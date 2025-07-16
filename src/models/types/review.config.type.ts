@@ -1,5 +1,7 @@
 // src/types/review.config.type.ts
 import mongoose from "mongoose";
+import { ICriterionDocument } from "../entities/criterion.entity";
+import { IReviewConfigDocument } from "../entities/review.config.entity";
 
 export interface IModelSettings {
   temperature?: number;
@@ -13,4 +15,8 @@ export interface IReviewConfigData {
   modelSettings: IModelSettings;
   companyId: string | mongoose.Types.ObjectId;
   isActive: boolean;
+}
+
+export interface IExpandedReviewConfig extends IReviewConfigDocument {
+  criteria: ICriterionDocument[];
 }

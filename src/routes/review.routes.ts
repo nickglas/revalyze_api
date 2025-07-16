@@ -9,6 +9,7 @@ import {
   createReview,
   getReviewById,
   getReviews,
+  retryReview,
 } from "../controllers/review.controller";
 import { CreateReviewDto } from "../dto/review/review.create.dto";
 
@@ -28,6 +29,13 @@ router.post(
   authorizeRole([UserRole.COMPANY_ADMIN, UserRole.EMPLOYEE]),
   validateDto(CreateReviewDto),
   createReview
+);
+
+router.post(
+  "/:id/retry",
+  authenticate,
+  authorizeRole([UserRole.COMPANY_ADMIN, UserRole.EMPLOYEE]),
+  retryReview
 );
 
 export default router;

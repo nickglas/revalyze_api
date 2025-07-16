@@ -115,6 +115,17 @@ export class ReviewRepository {
     return await ReviewModel.countDocuments(filter).exec();
   }
 
+  async update(
+    id: string | mongoose.Types.ObjectId,
+    updateData: Partial<IReviewDocument>
+  ): Promise<IReviewDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+
+    return await ReviewModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+    }).exec();
+  }
+
   async findById(
     id: string | mongoose.Types.ObjectId
   ): Promise<IReviewDocument | null> {

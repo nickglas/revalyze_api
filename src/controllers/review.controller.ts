@@ -104,3 +104,30 @@ export const createReview = async (
     next(error);
   }
 };
+
+/**
+ * POST /reviews/:id/retry
+ * Retry a failed review
+ */
+export const retryReview = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const reviewId = req.params.id;
+    const subscription = req.user?.companySubscription;
+
+    const reviewService = Container.get(ReviewService);
+    const retriedReview = await reviewService.retryReview(
+      reviewId,
+      companyId,
+      subscription
+    );
+
+    res.status(200).json(retriedReview);
+  } catch (error) {
+    next(error);
+  }
+};
