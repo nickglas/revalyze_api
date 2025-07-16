@@ -14,6 +14,9 @@ import { SubscriptionRepository } from "../repositories/subscription.repository"
 import mongoose from "mongoose";
 import { ICompanyDocument } from "../models/entities/company.entity";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { ResetTokenRepository } from "../repositories/reset.token.repository";
 
 @Service()
 export class AuthService {
@@ -21,8 +24,37 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly companyRepository: CompanyRepository,
-    private readonly subscriptionRepository: SubscriptionRepository
+    private readonly subscriptionRepository: SubscriptionRepository,
+    private readonly resetTokenRepository: ResetTokenRepository
   ) {}
+
+  async requestResetTokenForUser(email: string) {
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) return { success: false, message: "user not found" };
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = await bcrypt.hash(rawToken, 10);
+
+    await this.resetTokenRepository.create({
+      userId: user.id,
+      tokenHash,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 15),
+    });
+
+    return { success: true, message: rawToken };
+  }
+
+  async resetPassword(rawToken: string, newPassword: string) {
+    const tokenDoc = await this.resetTokenRepository.findValidByToken(rawToken);
+    if (!tokenDoc) throw new UnauthorizedError("Invalid or expired token");
+
+    const user = await this.userRepository.findById(tokenDoc.userId);
+    if (!user) throw new NotFoundError("User not found");
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.update(user.id, user);
+    await this.resetTokenRepository.markUsed(tokenDoc.id.toString());
+  }
 
   async authenticateUser(email: string, password: string) {
     const user = await this.userRepository.findByEmail(email);

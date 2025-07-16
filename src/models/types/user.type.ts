@@ -10,7 +10,4 @@ export interface IUserData {
   companyId: string | mongoose.Types.ObjectId;
   isActive: boolean;
   role: UserRole;
-
-  resetToken?: string;
-  resetTokenExpires?: Date;
 }

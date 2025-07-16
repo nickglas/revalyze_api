@@ -28,6 +28,17 @@ export class UserRepository {
     return await UserModel.findById(id).exec();
   }
 
+  async findByResetToken(token: string): Promise<IUserDocument | null> {
+    return await UserModel.findOne({ resetToken: token });
+  }
+
+  async findAllWithValidResetTokens(now: Date) {
+    return UserModel.find({
+      resetToken: { $ne: null },
+      resetTokenExpires: { $gt: now },
+    });
+  }
+
   /**
    * Retrieves paginated users for a specific company, with optional filters.
    *

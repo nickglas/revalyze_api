@@ -2,6 +2,9 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import Container from "typedi";
+import { UserService } from "../services/user.service";
+import { MailService } from "../services/mail.service";
+import * as crypto from "crypto";
 
 export const login = async (
   req: Request,
@@ -74,7 +77,22 @@ export const requestReset = async (
   res: Response,
   next: NextFunction
 ) => {
-  // send email with reset token (use nodemailer/sendgrid)
+  try {
+    const { email } = req.body;
+    const authService = Container.get(AuthService);
+    const result = await authService.requestResetTokenForUser(email);
+
+    if (result.success) {
+      const mailService = Container.get(MailService);
+      await mailService.sendResetPasswordEmail(email, result.message!);
+    }
+
+    res
+      .status(200)
+      .json({ message: "If the email exists, a reset link has been sent." });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const resetPassword = async (
@@ -82,5 +100,13 @@ export const resetPassword = async (
   res: Response,
   next: NextFunction
 ) => {
-  // validate reset token, update password
+  try {
+    const { token, password } = req.body;
+    const authService = Container.get(AuthService);
+    await authService.resetPassword(token, password);
+
+    res.status(200).json({ message: "Password has been reset successfully." });
+  } catch (error) {
+    next(error);
+  }
 };
