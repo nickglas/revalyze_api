@@ -26,8 +26,6 @@ const userSchema = new Schema<IUserDocument>(
       enum: ["employee", "company_admin", "super_admin"],
       required: true,
     },
-    resetToken: { type: String, default: null },
-    resetTokenExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );

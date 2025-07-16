@@ -7,6 +7,7 @@ import { BadRequestError } from "../../../utils/errors";
 import jwt from "jsonwebtoken";
 import { CompanyRepository } from "../../../repositories/company.repository";
 import { SubscriptionRepository } from "../../../repositories/subscription.repository";
+import { ResetTokenRepository } from "../../../repositories/reset.token.repository";
 
 jest.mock("jsonwebtoken");
 jest.mock("../../../utils/token", () => ({
@@ -19,6 +20,7 @@ describe("AuthService", () => {
   let refreshTokenRepository: jest.Mocked<RefreshTokenRepository>;
   let companyRepository: jest.Mocked<CompanyRepository>;
   let subscriptionRepository: jest.Mocked<SubscriptionRepository>;
+  let resetTokenRepository: jest.Mocked<ResetTokenRepository>;
 
   const mockUser = {
     id: "user123",
@@ -51,11 +53,16 @@ describe("AuthService", () => {
       findOne: jest.fn(),
     } as any;
 
+    resetTokenRepository = {
+      findByUserId: jest.fn(),
+    } as any;
+
     authService = new AuthService(
       userRepository,
       refreshTokenRepository,
       companyRepository,
-      subscriptionRepository
+      subscriptionRepository,
+      resetTokenRepository
     );
     jest.clearAllMocks();
   });
@@ -205,11 +212,16 @@ describe("AuthService", () => {
         findOne: jest.fn(),
       } as any;
 
+      resetTokenRepository = {
+        findByUserId: jest.fn(),
+      } as any;
+
       authService = new AuthService(
         userRepository,
         refreshTokenRepository,
         companyRepository,
-        subscriptionRepository
+        subscriptionRepository,
+        resetTokenRepository
       );
       jest.clearAllMocks();
     });
