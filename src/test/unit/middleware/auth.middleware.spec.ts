@@ -104,7 +104,12 @@ describe("authenticate middleware", () => {
       email: "test@example.com",
       role: "employee",
       companyId: "comp123",
+      companySubscription: {
+        status: "active",
+        currentPeriodEnd: futureDate,
+      },
     });
+
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
@@ -199,7 +204,12 @@ describe("authenticate middleware", () => {
       email: "test@example.com",
       role: "employee",
       companyId: "comp123",
+      companySubscription: {
+        status: "active",
+        currentPeriodEnd: futureDate,
+      },
     });
+
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
