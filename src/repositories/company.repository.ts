@@ -1,6 +1,6 @@
 // src/repositories/company.repository.ts
 import { Service } from "typedi";
-import mongoose, { Types, FilterQuery } from "mongoose";
+import mongoose, { Types, FilterQuery, ClientSession } from "mongoose";
 import {
   ICompanyDocument,
   CompanyModel,
@@ -16,15 +16,27 @@ export class CompanyRepository {
   }
 
   async create(
-    companyData: Partial<ICompanyDocument>
+    companyData: Partial<ICompanyDocument>,
+    session?: ClientSession
   ): Promise<ICompanyDocument> {
+    if (session) {
+      const docs = await CompanyModel.create([companyData], { session });
+      return docs[0];
+    }
     return await CompanyModel.create(companyData);
   }
 
   async update(
     id: string,
-    updateData: Partial<ICompanyDocument>
+    updateData: Partial<ICompanyDocument>,
+    session?: ClientSession
   ): Promise<ICompanyDocument | null> {
+    if (session) {
+      return await CompanyModel.findByIdAndUpdate(id, updateData, {
+        new: true,
+        session,
+      }).exec();
+    }
     return await CompanyModel.findByIdAndUpdate(id, updateData, {
       new: true,
     }).exec();
@@ -36,8 +48,12 @@ export class CompanyRepository {
     return await CompanyModel.findOne({ stripeCustomerId: customerId }).exec();
   }
 
-  async delete(id: string): Promise<void> {
-    await CompanyModel.findByIdAndDelete(id).exec();
+  async delete(id: string, session?: ClientSession): Promise<void> {
+    if (session) {
+      await CompanyModel.findByIdAndDelete(id, { session }).exec();
+    } else {
+      await CompanyModel.findByIdAndDelete(id).exec();
+    }
   }
 
   async findAll(): Promise<ICompanyDocument[]> {

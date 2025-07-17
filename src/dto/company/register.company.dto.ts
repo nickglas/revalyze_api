@@ -6,6 +6,8 @@ import {
   Matches,
   MinLength,
   MaxLength,
+  IsOptional,
+  IsBoolean,
 } from "class-validator";
 import { Match } from "../../utils/match.decorator";
 
@@ -42,9 +44,13 @@ export class RegisterCompanyDto {
   @MaxLength(30, { message: "Address must be at most 30 characters long" })
   address!: string;
 
-  @IsNotEmpty({ message: "Subscription plan ID is required" })
-  @IsString({ message: "Subscription plan ID must be a string" })
-  subscriptionPlanId!: string;
+  @IsNotEmpty({ message: "price Id is required" })
+  @IsString({ message: "price Id must be a string" })
+  priceId!: string;
+
+  @IsOptional()
+  @IsBoolean({ message: "Trial flag must be a boolean" })
+  isTrial?: boolean;
 
   @IsNotEmpty({ message: "Admin name is required" })
   @IsString({ message: "Admin name must be a string" })

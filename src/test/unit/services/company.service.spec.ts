@@ -30,7 +30,7 @@ const validDto: RegisterCompanyDto = {
   companyMainEmail: "test@company.com",
   companyPhone: "+3112345678",
   address: "123 Main St",
-  subscriptionPlanId: "plan_123",
+  priceId: "plan_123",
   adminName: "Admin",
   adminEmail: "admin@company.com",
   password: "StrongP@ssw0rd!",

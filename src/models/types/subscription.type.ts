@@ -40,6 +40,13 @@ export interface ISubscriptionData {
   allowedTranscripts: number;
   allowedReviews: number;
 
+  // New fields for trial subscriptions
+  isTrial?: boolean;
+  trialStart?: Date;
+  trialEndsAt?: Date;
+  trialConvertedAt?: Date;
+  trialExpired?: boolean;
+
   scheduledUpdate?: IScheduledUpdate;
 
   createdAt: Date;

@@ -1,6 +1,6 @@
 // src/repositories/user.repository.ts
 import { Service } from "typedi";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { ClientSession, FilterQuery } from "mongoose";
 import { IUserDocument, UserModel } from "../models/entities/user.entity";
 
 @Service()
@@ -82,10 +82,16 @@ export class UserRepository {
    * @param userData - Partial user data to insert.
    * @returns The created user document.
    */
-  async create(userData: Partial<IUserDocument>): Promise<IUserDocument> {
+  async create(
+    userData: Partial<IUserDocument>,
+    session?: ClientSession
+  ): Promise<IUserDocument> {
+    if (session) {
+      const docs = await UserModel.create([userData], { session });
+      return docs[0];
+    }
     return await UserModel.create(userData);
   }
-
   /**
    * Updates a user by ID with provided fields.
    *
@@ -95,11 +101,17 @@ export class UserRepository {
    */
   async update(
     id: string | mongoose.Types.ObjectId,
-    updates: Partial<IUserDocument>
+    updates: Partial<IUserDocument>,
+    session?: ClientSession
   ): Promise<IUserDocument | null> {
+    if (session) {
+      return await UserModel.findByIdAndUpdate(id, updates, {
+        new: true,
+        session,
+      }).exec();
+    }
     return await UserModel.findByIdAndUpdate(id, updates, { new: true }).exec();
   }
-
   /**
    * Soft deletes a user by setting `isActive = false`.
    *
@@ -107,8 +119,16 @@ export class UserRepository {
    * @returns The updated (deactivated) user or null.
    */
   async deactivate(
-    id: string | mongoose.Types.ObjectId
+    id: string | mongoose.Types.ObjectId,
+    session?: ClientSession
   ): Promise<IUserDocument | null> {
+    if (session) {
+      return await UserModel.findByIdAndUpdate(
+        id,
+        { isActive: false },
+        { new: true, session }
+      ).exec();
+    }
     return await UserModel.findByIdAndUpdate(
       id,
       { isActive: false },
@@ -123,8 +143,16 @@ export class UserRepository {
    * @returns The updated (reactivated) user or null.
    */
   async activate(
-    id: string | mongoose.Types.ObjectId
+    id: string | mongoose.Types.ObjectId,
+    session?: ClientSession
   ): Promise<IUserDocument | null> {
+    if (session) {
+      return await UserModel.findByIdAndUpdate(
+        id,
+        { isActive: true },
+        { new: true, session }
+      ).exec();
+    }
     return await UserModel.findByIdAndUpdate(
       id,
       { isActive: true },
@@ -140,10 +168,15 @@ export class UserRepository {
    * @returns The deleted user or null.
    */
   async delete(
-    id: string | mongoose.Types.ObjectId
+    id: string | mongoose.Types.ObjectId,
+    session?: ClientSession
   ): Promise<IUserDocument | null> {
+    if (session) {
+      return await UserModel.findByIdAndDelete(id, { session }).exec();
+    }
     return await UserModel.findByIdAndDelete(id).exec();
   }
+
   /**
    * Counts the total number of users in a company.
    *

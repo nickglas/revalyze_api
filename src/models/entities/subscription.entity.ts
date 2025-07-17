@@ -9,9 +9,16 @@ const subscriptionSchema = new Schema<ISubscriptionDocument>(
   {
     companyId: { type: Schema.Types.ObjectId, ref: "Company", required: true },
 
-    stripeSubscriptionId: { type: String, required: true },
-    stripeCustomerId: { type: String, required: true },
+    // Stripe identifiers – may be empty for trials
+    stripeSubscriptionId: { type: String, required: false },
+    stripeCustomerId: { type: String, required: false },
 
+    // Trial support
+    isTrial: { type: Boolean, default: false },
+    trialConvertedAt: { type: Date },
+    trialExpired: { type: Boolean, default: false },
+
+    // Subscription info
     status: { type: String, required: true },
     currentPeriodStart: { type: Date, required: true },
     currentPeriodEnd: { type: Date, required: true },
@@ -19,6 +26,7 @@ const subscriptionSchema = new Schema<ISubscriptionDocument>(
     canceledAt: { type: Date },
     cancelAtPeriodEnd: { type: Boolean, default: false },
 
+    // Plan
     priceId: { type: String, required: true },
     productId: { type: String, required: true },
     productName: { type: String, required: true },
@@ -26,10 +34,12 @@ const subscriptionSchema = new Schema<ISubscriptionDocument>(
     currency: { type: String, default: "eur" },
     interval: { type: String, enum: ["month", "year"], required: true },
 
+    // Limits
     allowedUsers: { type: Number, required: true },
     allowedTranscripts: { type: Number, required: true },
     allowedReviews: { type: Number, required: true },
 
+    // Updates for the future
     scheduledUpdate: {
       type: scheduledUpdateSchema,
       required: false,

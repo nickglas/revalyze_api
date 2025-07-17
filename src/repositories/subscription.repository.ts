@@ -1,5 +1,5 @@
 import { Service } from "typedi";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { FilterQuery, ClientSession } from "mongoose";
 import {
   SubscriptionModel,
   ISubscriptionDocument,
@@ -39,19 +39,31 @@ export class SubscriptionRepository {
   }
 
   async create(
-    data: Partial<ISubscriptionDocument>
+    data: Partial<ISubscriptionDocument>,
+    session?: ClientSession
   ): Promise<ISubscriptionDocument> {
+    if (session) {
+      const docs = await SubscriptionModel.create([data], { session });
+      return docs[0];
+    }
     return await SubscriptionModel.create(data);
   }
 
-  async deleteById(id: string): Promise<ISubscriptionDocument | null> {
+  async deleteById(
+    id: string,
+    session?: ClientSession
+  ): Promise<ISubscriptionDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
+    if (session) {
+      return await SubscriptionModel.findByIdAndDelete(id, { session }).exec();
+    }
     return await SubscriptionModel.findByIdAndDelete(id).exec();
   }
 
   async update(
     id: string,
-    data: Partial<ISubscriptionDocument>
+    data: Partial<ISubscriptionDocument>,
+    session?: ClientSession
   ): Promise<ISubscriptionDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
@@ -71,6 +83,14 @@ export class SubscriptionRepository {
       update.$unset = unset;
     }
 
+    if (session) {
+      return await SubscriptionModel.findByIdAndUpdate(id, update, {
+        new: true,
+        runValidators: true,
+        session,
+      }).exec();
+    }
+
     return await SubscriptionModel.findByIdAndUpdate(id, update, {
       new: true,
       runValidators: true,
@@ -79,8 +99,17 @@ export class SubscriptionRepository {
 
   async upsertByCompanyId(
     companyId: mongoose.Types.ObjectId,
-    updateData: Partial<ISubscriptionDocument>
+    updateData: Partial<ISubscriptionDocument>,
+    session?: ClientSession
   ): Promise<ISubscriptionDocument> {
+    if (session) {
+      return await SubscriptionModel.findOneAndUpdate(
+        { companyId },
+        { ...updateData, companyId, updatedAt: new Date() },
+        { upsert: true, new: true, session }
+      ).exec();
+    }
+
     return await SubscriptionModel.findOneAndUpdate(
       { companyId },
       { ...updateData, companyId, updatedAt: new Date() },

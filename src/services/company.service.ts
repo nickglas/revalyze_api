@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import {
   BadRequestError,
@@ -46,6 +46,14 @@ export class CompanyService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    //if trial, create user, company and assign default config
+    if (dto.isTrial) {
+      return await this.activateTrialAccount({
+        type: "trial",
+        dto: { ...dto, password: hashedPassword },
+      });
+    }
+
     //Stripe Setup
     const customer = await this.createStripeCustomer(
       dto.companyMainEmail,
@@ -53,7 +61,7 @@ export class CompanyService {
     );
     const session = await this.createStripeCheckoutSession(
       customer.id,
-      dto.subscriptionPlanId
+      dto.priceId
     );
 
     //Prepare Pending Company
@@ -550,5 +558,91 @@ export class CompanyService {
       companyId,
       isActive: true,
     });
+  }
+
+  async activateTrialAccount(input: {
+    type: "trial";
+    dto: RegisterCompanyDto & { password: string };
+  }): Promise<{ company: ICompanyDocument; adminUser: IUserData }> {
+    if (input.type !== "trial") {
+      throw new Error("This method only supports trial activation");
+    }
+    const dto = input.dto;
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const company: ICompanyDocument = await this.companyRepository.create(
+        {
+          name: dto.companyName,
+          mainEmail: dto.companyMainEmail,
+          phone: dto.companyPhone,
+          address: dto.address,
+          isActive: true,
+        },
+        session
+      );
+
+      const adminUser: IUserData = await this.userRepository.create(
+        {
+          name: dto.adminName,
+          email: dto.adminEmail,
+          password: dto.password,
+          role: "company_admin",
+          companyId: company._id,
+          isActive: true,
+        },
+        session
+      );
+
+      const now = new Date();
+      const trialDurationDays = 14;
+
+      await this.subscriptionRepository.create(
+        {
+          companyId: company._id,
+          stripeSubscriptionId: "",
+          stripeCustomerId: "",
+          status: "active",
+          currentPeriodStart: now,
+          currentPeriodEnd: new Date(
+            now.getTime() + trialDurationDays * 24 * 60 * 60 * 1000
+          ),
+          cancelAtPeriodEnd: false,
+
+          priceId: "trial",
+          productId: "trial",
+          productName: "Trial Plan",
+          amount: 0,
+          currency: "eur",
+          interval: "month",
+
+          allowedUsers: 3,
+          allowedTranscripts: 500,
+          allowedReviews: 250,
+
+          isTrial: true,
+          trialStart: now,
+          trialEndsAt: new Date(
+            now.getTime() + trialDurationDays * 24 * 60 * 60 * 1000
+          ),
+        },
+        session
+      );
+
+      await this.reviewConfigService.assignDefaultReviewConfigToCompany(
+        company._id
+      );
+
+      await session.commitTransaction();
+      session.endSession();
+
+      return { company, adminUser };
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
+    }
   }
 }

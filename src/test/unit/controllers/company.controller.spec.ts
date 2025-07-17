@@ -20,7 +20,7 @@ describe("CompanyController", () => {
           companyName: "Test Company",
           adminEmail: "admin@example.com",
           password: "password123",
-          subscriptionPlanId: "plan_123",
+          priceId: "plan_123",
         } as RegisterCompanyDto,
       };
 
