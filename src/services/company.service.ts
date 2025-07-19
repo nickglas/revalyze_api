@@ -25,6 +25,10 @@ import {
   ICompanyDocument,
 } from "../models/entities/company.entity";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
+import { PlanRepository } from "../repositories/plan.repository";
+import { IPlanDocument } from "../models/entities/plan.entity";
+import { BillingOption } from "../models/types/plan.type";
+import { ISubscriptionData } from "../models/types/subscription.type";
 
 @Service()
 export class CompanyService {
@@ -35,7 +39,8 @@ export class CompanyService {
     private readonly pendingRepository: PendingCompanyRepository,
     private readonly reviewConfigService: ReviewConfigService,
     private readonly apiKeyService: ApiKeyService,
-    private readonly subscriptionRepository: SubscriptionRepository
+    private readonly subscriptionRepository: SubscriptionRepository,
+    private readonly planRepository: PlanRepository
   ) {}
 
   async registerCompany(dto: RegisterCompanyDto) {
@@ -48,17 +53,21 @@ export class CompanyService {
 
     //if trial, create user, company and assign default config
     if (dto.isTrial) {
+      console.warn("first");
       return await this.activateTrialAccount({
         type: "trial",
         dto: { ...dto, password: hashedPassword },
       });
     }
 
+    await this.ensurePlanExists(dto.priceId);
+
     //Stripe Setup
     const customer = await this.createStripeCustomer(
       dto.companyMainEmail,
       dto.companyName
     );
+
     const session = await this.createStripeCheckoutSession(
       customer.id,
       dto.priceId
@@ -111,6 +120,67 @@ export class CompanyService {
 
     return await this.stripeService.releaseSubscriptionSchedule(
       companySubscription.scheduledUpdate.scheduleId
+    );
+  }
+
+  async convertTrialToPaid(
+    trialSubscription: ISubscriptionDocument,
+    stripeSubscriptionId: string
+  ): Promise<void> {
+    const stripeSubscription = await this.stripeService.getSubscription(
+      stripeSubscriptionId
+    );
+    const item = stripeSubscription.items.data[0];
+    const price = item.price;
+    const product = await this.stripeService.getProductById(
+      price.product as string
+    );
+
+    trialSubscription.stripeSubscriptionId = stripeSubscriptionId;
+    trialSubscription.stripeCustomerId = stripeSubscription.customer as string;
+
+    trialSubscription.isTrial = false;
+    trialSubscription.trialConvertedAt = new Date();
+
+    trialSubscription.status = stripeSubscription.status;
+    trialSubscription.currentPeriodStart = new Date(
+      stripeSubscription.items.data[0].current_period_start * 1000
+    );
+    trialSubscription.currentPeriodEnd = new Date(
+      stripeSubscription.items.data[0].current_period_end * 1000
+    );
+    trialSubscription.cancelAt = stripeSubscription.cancel_at
+      ? new Date(stripeSubscription.cancel_at * 1000)
+      : undefined;
+    trialSubscription.canceledAt = stripeSubscription.canceled_at
+      ? new Date(stripeSubscription.canceled_at * 1000)
+      : undefined;
+    trialSubscription.cancelAtPeriodEnd =
+      stripeSubscription.cancel_at_period_end;
+
+    // Update plan-related info
+    trialSubscription.priceId = price.id;
+    trialSubscription.productId = product.id;
+    trialSubscription.productName = product.name;
+    trialSubscription.amount = price.unit_amount ?? 0;
+    trialSubscription.currency = price.currency;
+    trialSubscription.interval = price.recurring?.interval as "month" | "year";
+
+    trialSubscription.allowedUsers = parseInt(
+      product.metadata.allowedUsers ?? "0"
+    );
+    trialSubscription.allowedTranscripts = parseInt(
+      product.metadata.allowedTranscripts ?? "0"
+    );
+    trialSubscription.allowedReviews = parseInt(
+      product.metadata.allowedReviews ?? "0"
+    );
+    trialSubscription.tier = parseInt(price.metadata.tier ?? "0");
+
+    await trialSubscription.save();
+
+    logger.info(
+      `Converted trial to paid for companyId=${trialSubscription.companyId}`
     );
   }
 
@@ -310,35 +380,32 @@ export class CompanyService {
   async updateSubscription(companyId: string, newPriceId: string) {
     const company = await this.getCompanyOrThrow(companyId);
     const activeSubscription = await this.getActiveSubscriptionOrThrow(company);
-    const stripeSubscription = await this.getStripeSubscriptionOrThrow(
-      activeSubscription
-    );
 
-    const currentPriceId =
-      this.extractCurrentPriceIdOrThrow(stripeSubscription);
+    this.extractCurrentPriceIdOrThrow(activeSubscription);
     this.ensureNewPriceIdIsValid(newPriceId);
 
-    const [currentPrice, newPrice] = await this.getPricesOrThrow(
-      currentPriceId,
-      newPriceId
-    );
-    const [currentProduct, newProduct] = await this.getProductsOrThrow(
-      currentPrice,
-      newPrice
+    const currentPrice = await this.findBillingOptionByPriceIdOrThrow(
+      activeSubscription.priceId
     );
 
+    const newPrice = await this.findBillingOptionByPriceIdOrThrow(newPriceId);
+
     const action = this.getSubscriptionActionOrThrow(currentPrice, newPrice);
+
+    console.warn(currentPrice);
+    console.warn(newPrice);
+    console.warn(action);
 
     if (action === "same") {
       throw new BadRequestError("Already in the same tier");
     }
 
     if (action === "downgrade") {
-      return await this.handleDowngrade(stripeSubscription, newPriceId);
+      return await this.handleDowngrade(activeSubscription, newPriceId);
     }
 
     if (action === "upgrade") {
-      return await this.handleUpgrade(stripeSubscription, newPriceId);
+      return await this.handleUpgrade(activeSubscription, newPriceId);
     }
 
     throw new Error("Unknown subscription action");
@@ -351,11 +418,19 @@ export class CompanyService {
     return company;
   }
 
+  private async findBillingOptionByPriceIdOrThrow(id: string) {
+    const price = await this.planRepository.findBillingOptionByPriceId(id);
+
+    if (!price) throw new NotFoundError(`Price with id ${id} not found`);
+
+    return price;
+  }
+
   private async getActiveSubscriptionOrThrow(company: ICompanyDocument) {
-    const subscription =
-      await this.subscriptionRepository.findActiveSubscriptionByStripeCustomerId(
-        company.stripeCustomerId
-      );
+    const subscription = await this.subscriptionRepository.findOne({
+      companyId: company,
+      status: "active",
+    });
     if (!subscription)
       throw new BadRequestError("Company has no active subscription");
     return subscription;
@@ -371,8 +446,10 @@ export class CompanyService {
     return stripeSub;
   }
 
-  private extractCurrentPriceIdOrThrow(subscription: any): string {
-    const priceId = subscription?.items?.data?.[0]?.price?.id;
+  private extractCurrentPriceIdOrThrow(
+    subscription: ISubscriptionDocument
+  ): string {
+    const priceId = subscription?.priceId;
     if (!priceId) throw new BadRequestError("Current price ID missing");
     return priceId;
   }
@@ -381,17 +458,17 @@ export class CompanyService {
     if (!newPriceId) throw new BadRequestError("New price ID missing");
   }
 
-  private async getPricesOrThrow(currentPriceId: string, newPriceId: string) {
-    const [currentPrice, newPrice] = await Promise.all([
-      this.stripeService.getPriceById(currentPriceId),
-      this.stripeService.getPriceById(newPriceId),
-    ]);
+  // private async getPricesOrThrow(currentPriceId: string, newPriceId: string) {
+  //   const [currentPrice, newPrice] = await Promise.all([
+  //     this.stripeService.getPriceById(currentPriceId),
+  //     this.stripeService.getPriceById(newPriceId),
+  //   ]);
 
-    if (!currentPrice) throw new BadRequestError("Current price not found");
-    if (!newPrice) throw new BadRequestError("New price not found");
+  //   if (!currentPrice) throw new BadRequestError("Current price not found");
+  //   if (!newPrice) throw new BadRequestError("New price not found");
 
-    return [currentPrice, newPrice];
-  }
+  //   return [currentPrice, newPrice];
+  // }
 
   private async getProductsOrThrow(currentPrice: any, newPrice: any) {
     const currentProductId = currentPrice.product as string;
@@ -412,29 +489,32 @@ export class CompanyService {
     return [currentProduct, newProduct];
   }
 
-  private getSubscriptionActionOrThrow(currentPrice: any, newPrice: any) {
-    const currentTier = Number(currentPrice.metadata?.tier);
-    const newTier = Number(newPrice.metadata?.tier);
-
-    if (isNaN(currentTier) || isNaN(newTier)) {
+  private getSubscriptionActionOrThrow(
+    activePrice: BillingOption,
+    newPrice: BillingOption
+  ) {
+    if (isNaN(activePrice.tier) || isNaN(newPrice.tier)) {
       throw new BadRequestError("Invalid tier metadata on subscription prices");
     }
 
-    return compareTiers(currentTier, newTier);
+    return compareTiers(activePrice.tier, newPrice.tier);
   }
 
-  private async handleDowngrade(subscription: any, newPriceId: string) {
-    const item = subscription.items.data[0];
-    if (!item) throw new BadRequestError("Subscription item data missing");
+  private async handleDowngrade(
+    subscription: ISubscriptionDocument,
+    newPriceId: string
+  ) {
+    if (!subscription) throw new BadRequestError("Subscription data missing");
 
-    const { current_period_start, current_period_end } = item;
-    if (!current_period_start || !current_period_end) {
+    const { currentPeriodStart, currentPeriodEnd } = subscription;
+    if (!currentPeriodStart || !currentPeriodEnd) {
       throw new BadRequestError("Subscription period dates missing");
     }
 
     const schedule = await this.stripeService.createSubscriptionSchedule({
-      from_subscription: subscription.id,
+      from_subscription: subscription.stripeSubscriptionId,
     });
+
     if (!schedule || !schedule.id)
       throw new Error("Failed to create subscription schedule");
 
@@ -442,8 +522,8 @@ export class CompanyService {
       schedule.id,
       subscription,
       newPriceId,
-      current_period_start,
-      current_period_end
+      currentPeriodStart,
+      currentPeriodEnd
     );
 
     if (!result || !result.id)
@@ -455,18 +535,21 @@ export class CompanyService {
     };
   }
 
-  private async handleUpgrade(subscription: any, newPriceId: string) {
-    if (subscription.schedule) {
+  private async handleUpgrade(
+    subscription: ISubscriptionDocument,
+    newPriceId: string
+  ) {
+    if (subscription.scheduledUpdate) {
       try {
         await this.stripeService.releaseSubscriptionSchedule(
-          subscription.schedule as string
+          subscription.scheduledUpdate.scheduleId
         );
         logger.info(
           `Released existing schedule before upgrading subscription ${subscription.id}`
         );
       } catch (error) {
         logger.error(
-          `Failed to release existing schedule ${subscription.schedule}:`,
+          `Failed to release existing schedule ${subscription.scheduledUpdate.scheduleId}:`,
           error
         );
         throw new BadRequestError(
@@ -475,9 +558,23 @@ export class CompanyService {
       }
     }
 
-    await this.stripeService.updateSubscription(subscription.id, newPriceId, {
-      proration_behavior: "create_prorations",
-    });
+    //check if current is trial
+    if (subscription.isTrial) {
+      const session = await this.createStripeCheckoutSession(
+        subscription.stripeCustomerId,
+        newPriceId
+      );
+
+      return { checkoutUrl: session.url };
+    } else {
+      await this.stripeService.updateSubscription(
+        subscription.stripeSubscriptionId,
+        newPriceId,
+        {
+          proration_behavior: "create_prorations",
+        }
+      );
+    }
 
     return {
       id: subscription.id,
@@ -497,6 +594,12 @@ export class CompanyService {
     });
     if (pending)
       throw new BadRequestError("Company registration is already pending.");
+  }
+
+  private async ensurePlanExists(priceId: string) {
+    const plan = await this.planRepository.findPlanByPriceId(priceId);
+    if (!plan)
+      throw new NotFoundError(`Price with id ${priceId} was not found`);
   }
 
   private async ensureAdminIsUnique(email: string) {
@@ -563,7 +666,11 @@ export class CompanyService {
   async activateTrialAccount(input: {
     type: "trial";
     dto: RegisterCompanyDto & { password: string };
-  }): Promise<{ company: ICompanyDocument; adminUser: IUserData }> {
+  }): Promise<{
+    company: ICompanyDocument;
+    adminUser: IUserData;
+    subscription: ISubscriptionData;
+  }> {
     if (input.type !== "trial") {
       throw new Error("This method only supports trial activation");
     }
@@ -573,6 +680,11 @@ export class CompanyService {
     session.startTransaction();
 
     try {
+      const stripeCustomer = await this.stripeService.createCustomer(
+        dto.companyMainEmail,
+        dto.companyName
+      );
+
       const company: ICompanyDocument = await this.companyRepository.create(
         {
           name: dto.companyName,
@@ -580,6 +692,7 @@ export class CompanyService {
           phone: dto.companyPhone,
           address: dto.address,
           isActive: true,
+          stripeCustomerId: stripeCustomer.id,
         },
         session
       );
@@ -599,11 +712,11 @@ export class CompanyService {
       const now = new Date();
       const trialDurationDays = 14;
 
-      await this.subscriptionRepository.create(
+      const trialSubscription = await this.subscriptionRepository.create(
         {
           companyId: company._id,
-          stripeSubscriptionId: "",
-          stripeCustomerId: "",
+          stripeSubscriptionId: ``,
+          stripeCustomerId: stripeCustomer.id,
           status: "active",
           currentPeriodStart: now,
           currentPeriodEnd: new Date(
@@ -621,6 +734,7 @@ export class CompanyService {
           allowedUsers: 3,
           allowedTranscripts: 500,
           allowedReviews: 250,
+          tier: 0,
 
           isTrial: true,
           trialStart: now,
@@ -638,7 +752,11 @@ export class CompanyService {
       await session.commitTransaction();
       session.endSession();
 
-      return { company, adminUser };
+      return {
+        adminUser: adminUser,
+        company: company,
+        subscription: trialSubscription,
+      };
     } catch (error) {
       await session.abortTransaction();
       session.endSession();

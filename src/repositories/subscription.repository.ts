@@ -17,6 +17,14 @@ export class SubscriptionRepository {
     return await SubscriptionModel.findOne(filter).exec();
   }
 
+  async findLatestTrial(
+    filter: FilterQuery<ISubscriptionDocument>
+  ): Promise<ISubscriptionDocument | null> {
+    return await SubscriptionModel.findOne(filter)
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
   async findActive(): Promise<ISubscriptionDocument[]> {
     return await SubscriptionModel.find({ status: "active" }).exec();
   }

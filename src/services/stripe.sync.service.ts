@@ -29,6 +29,8 @@ export class StripeSyncService {
 
     const pendingCompanies = await this.pendingCompanyRepo.find();
 
+    if (!pendingCompanies) return;
+
     for (const pending of pendingCompanies) {
       try {
         // Get the session
@@ -90,6 +92,7 @@ export class StripeSyncService {
           interval: price.recurring.interval,
           stripePriceId: price.id,
           amount: price.unit_amount,
+          tier: parseInt(price.metadata["tier"]),
         }));
 
       const metadata = product.metadata || {};
@@ -101,6 +104,7 @@ export class StripeSyncService {
         billingOptions,
         allowedUsers: parseInt(metadata.allowedUsers || "0"),
         allowedTranscripts: parseInt(metadata.allowedTranscripts || "0"),
+        allowedReviews: parseInt(metadata.allowedReviews || "0"),
         isActive: product.active && !product.deleted,
       };
 
@@ -369,7 +373,7 @@ export class StripeSyncService {
           10
         ),
         allowedReviews: parseInt(product.metadata.allowedReviews || "0", 10),
-        tier: parseInt(product.metadata.tier || "0", 10),
+        tier: parseInt(price.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };
 
@@ -440,7 +444,7 @@ export class StripeSyncService {
       ),
       allowedReviews: parseInt(product.metadata["allowedReviews"] ?? "0"),
       allowedUsers: parseInt(product.metadata["allowedUsers"] ?? "0"),
-      tier: parseInt(product.metadata["tier"] ?? "0"),
+      tier: parseInt(price.metadata["tier"] ?? "0"),
     };
 
     const newSub = await this.subscriptionRepo.create(newSubscription);
@@ -505,6 +509,8 @@ export class StripeSyncService {
     activeSubscription.allowedReviews = parseInt(
       product.metadata["allowedReviews"] ?? "0"
     );
+
+    activeSubscription.tier = parseInt(price.metadata["tier"] ?? "0");
 
     const updated = await this.subscriptionRepo.update(
       activeSubscription.id,

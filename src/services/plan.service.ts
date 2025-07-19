@@ -14,12 +14,15 @@ export class PlanService {
     currency: string;
     allowedUsers: number;
     allowedTranscripts: number;
+    allowedReviews: number;
+    isVisible: boolean;
     features?: string[];
     metadata?: Record<string, string>;
     billingOptions: {
       interval: "day" | "week" | "month" | "year" | "one_time";
       stripePriceId: string;
       amount: number;
+      tier: number;
     }[];
   }): Promise<IPlanDocument> {
     const existingPlan = await this.planRepository.findByStripeProductId(
@@ -31,6 +34,8 @@ export class PlanService {
       existingPlan.currency = planInput.currency;
       existingPlan.allowedUsers = planInput.allowedUsers;
       existingPlan.allowedTranscripts = planInput.allowedTranscripts;
+      existingPlan.allowedReviews = planInput.allowedReviews;
+      existingPlan.isVisible = planInput.isVisible;
       existingPlan.features = planInput.features;
       existingPlan.metadata = planInput.metadata;
       existingPlan.billingOptions = planInput.billingOptions;
@@ -43,6 +48,8 @@ export class PlanService {
       currency: planInput.currency,
       allowedUsers: planInput.allowedUsers,
       allowedTranscripts: planInput.allowedTranscripts,
+      allowedReviews: planInput.allowedReviews,
+      isVisible: planInput.isVisible,
       features: planInput.features,
       metadata: planInput.metadata,
       billingOptions: planInput.billingOptions,

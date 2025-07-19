@@ -39,6 +39,7 @@ export interface ISubscriptionData {
   allowedUsers: number;
   allowedTranscripts: number;
   allowedReviews: number;
+  tier: number;
 
   // New fields for trial subscriptions
   isTrial?: boolean;

@@ -17,6 +17,7 @@ import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { ICompanyDocument } from "../models/entities/company.entity";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
+import { SubscriptionService } from "./subscription.service";
 
 @Service()
 export class StripeWebhookService {
@@ -29,7 +30,8 @@ export class StripeWebhookService {
     private readonly criteriaService: CriteriaService,
     private readonly keyService: ApiKeyService,
     private readonly reviewConfigService: ReviewConfigService,
-    private readonly subscriptionRepository: SubscriptionRepository
+    private readonly subscriptionRepository: SubscriptionRepository,
+    private readonly subscriptionService: SubscriptionService
   ) {}
 
   public async processStripeEvent(event: Stripe.Event): Promise<void> {
@@ -174,7 +176,8 @@ export class StripeWebhookService {
       product.metadata.allowedTranscripts || "0",
       10
     );
-    const tier = parseInt(product.metadata.tier || "0", 10);
+    const allowedReviews = parseInt(product.metadata.allowedReviews || "0", 10);
+    const tier = parseInt(price.metadata.tier || "0", 10);
 
     await this.subscriptionRepository.upsertByCompanyId(company._id, {
       stripeSubscriptionId: stripeSubscription.id,
@@ -203,6 +206,8 @@ export class StripeWebhookService {
 
       allowedUsers,
       allowedTranscripts,
+      allowedReviews,
+      tier,
     });
   }
 
@@ -227,14 +232,41 @@ export class StripeWebhookService {
       throw new BadRequestError("Missing Stripe customer or subscription ID");
     }
 
+    logger.info(`Checkout completed for customer ${customerId}}`);
+    logger.info(`Checkout completed for sub ${subscriptionId}}`);
+
+    //try pending first
     const pending = await this.pendingCompanyRepo.findByStripeId(customerId);
 
-    if (!pending) {
-      logger.warn(`No pending company for customer: ${customerId}`);
+    if (pending) {
+      logger.info("Activating pending account");
+      await this.companyService.activateCompany(pending.id, subscriptionId);
       return;
     }
 
-    await this.companyService.activateCompany(pending.id, subscriptionId);
+    //try trial afterwards
+    const trialSubscription =
+      await this.subscriptionService.findLatestTrialByStripeCustomerId(
+        customerId
+      );
+
+    console.warn(pending);
+    console.warn(trialSubscription);
+
+    if (trialSubscription) {
+      logger.info("Activating trial account");
+
+      await this.companyService.convertTrialToPaid(
+        trialSubscription,
+        subscriptionId
+      );
+      return;
+    }
+
+    //no subscription path found
+    logger.warn(
+      `No pending or trial company found for customer: ${customerId}`
+    );
   }
 
   private async handleProductDeleted(event: Stripe.Event) {
@@ -381,7 +413,7 @@ export class StripeWebhookService {
           10
         ),
         allowedReviews: parseInt(product.metadata.allowedReviews || "0", 10),
-        tier: parseInt(product.metadata.tier || "0", 10),
+        tier: parseInt(price.metadata.tier || "0", 10),
         scheduleId: schedule.id,
       };
 
@@ -453,6 +485,7 @@ export class StripeWebhookService {
           interval,
           stripePriceId: p.id,
           amount: p.unit_amount,
+          tier: parseInt(p.metadata["tier"]),
         };
       });
 
@@ -467,6 +500,10 @@ export class StripeWebhookService {
 
       const allowedTranscripts = product.metadata?.allowedTranscripts
         ? parseInt(product.metadata.allowedTranscripts, 10)
+        : 1;
+
+      const allowedReviews = product.metadata?.allowedReviews
+        ? parseInt(product.metadata.allowedReviews, 10)
         : 1;
 
       const features = product.metadata?.features
@@ -488,6 +525,7 @@ export class StripeWebhookService {
         allowedUsers,
         isActive: product.active && !product.deleted,
         allowedTranscripts,
+        allowedReviews,
         features,
         metadata,
         billingOptions,

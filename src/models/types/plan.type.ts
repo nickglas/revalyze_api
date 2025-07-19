@@ -5,6 +5,7 @@ export interface BillingOption {
   interval: BillingInterval;
   stripePriceId: string;
   amount: number;
+  tier: number;
 }
 
 export interface IPlanData {
@@ -16,7 +17,9 @@ export interface IPlanData {
   billingOptions: BillingOption[];
   allowedUsers: number;
   allowedTranscripts: number;
+  allowedReviews: number;
   isActive: boolean;
+  isVisible: boolean;
   features?: string[];
   metadata?: Record<string, string>;
 }

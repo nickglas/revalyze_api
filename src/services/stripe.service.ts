@@ -2,6 +2,7 @@
 import Stripe from "stripe";
 import { Service } from "typedi";
 import { logger } from "../utils/logger";
+import { ISubscriptionData } from "../models/types/subscription.type";
 
 @Service()
 export class StripeService {
@@ -409,21 +410,33 @@ export class StripeService {
 
   async addDowngradePhasesToSchedule(
     scheduleId: string,
-    subscription: Stripe.Subscription,
+    subscription: ISubscriptionData,
     newPriceId: string,
-    currentPeriodStart: number,
-    currentPeriodEnd: number
+    currentPeriodStart: Date | number,
+    currentPeriodEnd: Date | number
   ): Promise<Stripe.SubscriptionSchedule> {
+    const startTimestamp =
+      currentPeriodStart instanceof Date
+        ? Math.floor(currentPeriodStart.getTime() / 1000)
+        : currentPeriodStart;
+
+    const endTimestamp =
+      currentPeriodEnd instanceof Date
+        ? Math.floor(currentPeriodEnd.getTime() / 1000)
+        : currentPeriodEnd;
+
     return this.stripe.subscriptionSchedules.update(scheduleId, {
       end_behavior: "release",
       phases: [
         {
-          items: subscription.items.data.map((item) => ({
-            price: item.price.id,
-            quantity: item.quantity,
-          })),
-          start_date: currentPeriodStart,
-          end_date: currentPeriodEnd,
+          items: [
+            {
+              price: subscription.priceId,
+              quantity: 1,
+            },
+          ],
+          start_date: startTimestamp,
+          end_date: endTimestamp,
           proration_behavior: "none",
         },
         {
@@ -433,7 +446,7 @@ export class StripeService {
               quantity: 1,
             },
           ],
-          start_date: currentPeriodEnd,
+          start_date: endTimestamp,
         },
       ],
     });

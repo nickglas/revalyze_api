@@ -2,10 +2,12 @@ import dotenv from "dotenv";
 import Container from "typedi";
 import { StripeService } from "../services/stripe.service";
 import { logger } from "../utils/logger";
+import { PlanService } from "../services/plan.service";
 
 dotenv.config();
 
 const stripeService = Container.get(StripeService);
+const planService = Container.get(PlanService);
 
 export type SeededPlan = {
   name: string;
@@ -86,6 +88,25 @@ export const seedProducts = async (): Promise<SeededPlan[]> => {
       logger.error(`Failed to seed "${plan.name}":`, error);
     }
   }
+
+  //create the trial subscription
+  await planService.upsertPlan({
+    name: "Trial plan",
+    allowedUsers: 3,
+    allowedTranscripts: 500,
+    allowedReviews: 250,
+    currency: "eur",
+    stripeProductId: "trial",
+    isVisible: false,
+    billingOptions: [
+      {
+        interval: "week",
+        amount: 0,
+        stripePriceId: "trial",
+        tier: 0,
+      },
+    ],
+  });
 
   const allPrices = await stripeService.getAvailableSubscriptions();
 

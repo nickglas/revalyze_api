@@ -2,6 +2,7 @@
 import { Service } from "typedi";
 import { PlanInput } from "../dto/plans/plan.input.dto";
 import { IPlanDocument, PlanModel } from "../models/entities/plan.entity";
+import { BillingOption } from "../models/types/plan.type";
 
 @Service()
 export class PlanRepository {
@@ -9,6 +10,24 @@ export class PlanRepository {
     productId: string
   ): Promise<IPlanDocument | null> {
     return await PlanModel.findOne({ stripeProductId: productId }).exec();
+  }
+
+  async findPlanByPriceId(priceId: string): Promise<IPlanDocument | null> {
+    return await PlanModel.findOne({
+      "billingOptions.stripePriceId": priceId,
+    }).exec();
+  }
+
+  async findBillingOptionByPriceId(
+    priceId: string
+  ): Promise<BillingOption | null> {
+    const result = await PlanModel.aggregate([
+      { $unwind: "$billingOptions" },
+      { $match: { "billingOptions.stripePriceId": priceId } },
+      { $replaceWith: "$billingOptions" },
+    ]).exec();
+
+    return result[0] ?? null;
   }
 
   async create(planData: Partial<IPlanDocument>): Promise<IPlanDocument> {

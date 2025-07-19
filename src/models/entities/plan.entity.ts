@@ -16,6 +16,7 @@ const billingOptionSchema = new Schema<BillingOption>(
     },
     stripePriceId: { type: String, required: true },
     amount: { type: Number, required: true },
+    tier: { type: Number },
   },
   { _id: false }
 );
@@ -29,7 +30,9 @@ const planSchema = new Schema<IPlanDocument>(
     billingOptions: { type: [billingOptionSchema], required: true },
     allowedUsers: { type: Number, required: true },
     allowedTranscripts: { type: Number, required: true },
+    allowedReviews: { type: Number, required: true },
     isActive: { type: Boolean, default: true },
+    isVisible: { type: Boolean, default: true, required: true },
     features: [{ type: String }],
     metadata: {
       type: Map,

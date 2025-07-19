@@ -12,15 +12,17 @@ export class PendingCompanyRepository {
     return await pending.save();
   }
 
-  async find() {
+  async find(): Promise<IPendingCompanyDocument[] | null> {
     return await PendingCompanyModel.find().exec();
   }
 
-  async findOne(filter: FilterQuery<IPendingCompanyDocument>) {
+  async findOne(
+    filter: FilterQuery<IPendingCompanyDocument>
+  ): Promise<IPendingCompanyDocument | null> {
     return await PendingCompanyModel.findOne(filter).exec();
   }
 
-  async findById(id: string) {
+  async findById(id: string): Promise<IPendingCompanyDocument | null> {
     return await PendingCompanyModel.findById(id).exec();
   }
 
@@ -28,13 +30,13 @@ export class PendingCompanyRepository {
     return await PendingCompanyModel.findByIdAndDelete(id).exec();
   }
 
-  async findBySessionId(id: string) {
+  async findBySessionId(id: string): Promise<IPendingCompanyDocument | null> {
     return await PendingCompanyModel.findOne({
       stripeSessionId: id,
     }).exec();
   }
 
-  async findByStripeId(id: string) {
+  async findByStripeId(id: string): Promise<IPendingCompanyDocument | null> {
     return await PendingCompanyModel.findOne({
       stripeCustomerId: id,
     }).exec();

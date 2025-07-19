@@ -4,6 +4,7 @@ export type PlanInput = {
   currency: string;
   allowedUsers: number;
   allowedTranscripts: number;
+  allowedReviews: number;
   features?: string[];
   isActive: boolean;
   metadata?: Record<string, string>;
@@ -11,5 +12,6 @@ export type PlanInput = {
     interval: "day" | "week" | "month" | "year" | "one_time";
     stripePriceId: string;
     amount: number;
+    tier: number;
   }[];
 };
