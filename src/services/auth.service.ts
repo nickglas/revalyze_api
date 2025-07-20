@@ -62,6 +62,10 @@ export class AuthService {
     if (!user || !(await user.comparePassword(password))) {
       throw new UnauthorizedError("Invalid credentials");
     }
+
+    if (!user.isActive)
+      throw new UnauthorizedError("This account is deactivated");
+
     const company = await this.getCompanyOrThrow(user.companyId);
     const subscription = await this.getSubscriptionOrThrow(company.id);
 
