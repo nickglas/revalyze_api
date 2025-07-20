@@ -30,6 +30,7 @@ import {
 import { ReviewStatus } from "../models/types/transcript.type";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 import { IExpandedReviewConfig } from "../models/types/review.config.type";
+import { UserRepository } from "../repositories/user.repository";
 
 @Service()
 export class ReviewService {
@@ -38,7 +39,8 @@ export class ReviewService {
     private readonly transcriptRepository: TranscriptRepository,
     private readonly reviewConfigRepository: ReviewConfigRepository,
     private readonly criteriaRepository: CriteriaRepository,
-    private readonly openAIService: OpenAIService
+    private readonly openAIService: OpenAIService,
+    private readonly userRepository: UserRepository
   ) {}
 
   /**
@@ -298,6 +300,7 @@ export class ReviewService {
       transcript.isReviewed = true;
       transcript.reviewStatus = ReviewStatus.REVIEWED;
       await transcript.save();
+      await this.updateUserMetrics(transcript.employeeId.toString());
     } catch (error) {
       console.error("Error processing OpenAI review:", error);
       review.reviewStatus = ReviewStatus.ERROR;
@@ -356,5 +359,97 @@ export class ReviewService {
       );
     }
     return criteria;
+  }
+
+  private async updateUserMetrics(employeeId: string) {
+    try {
+      const employee = await this.userRepository.findById(employeeId);
+      if (!employee) return;
+
+      const reviews = await this.reviewRepository.findByEmployeeId(employeeId);
+
+      // Calculate metrics
+      const overallSum = reviews.reduce((sum, r) => sum + r.overallScore, 0);
+      const sentimentSum = reviews.reduce(
+        (sum, r) =>
+          sum + (typeof r.sentimentScore === "number" ? r.sentimentScore : 0),
+        0
+      );
+
+      // Initialize metrics if needed
+      employee.metrics = employee.metrics || {
+        reviewCount: 0,
+        overallScore: 0,
+        sentimentScore: 0,
+        lastPeriodScores: [],
+      };
+
+      // Update metrics
+      employee.metrics.reviewCount = reviews.length;
+      employee.metrics.overallScore = reviews.length
+        ? parseFloat((overallSum / reviews.length).toFixed(2))
+        : 0;
+      employee.metrics.sentimentScore = reviews.length
+        ? parseFloat((sentimentSum / reviews.length).toFixed(2))
+        : 0;
+      employee.metrics.lastCalculated = new Date();
+
+      // Update period scores
+      employee.metrics.lastPeriodScores = this.updatePeriodScores(
+        employee.metrics.lastPeriodScores,
+        reviews
+      );
+
+      await employee.save();
+    } catch (error) {
+      console.error("Error updating user metrics:", error);
+      // Fail silently for metrics updates
+    }
+  }
+
+  private updatePeriodScores(
+    existing: any[],
+    reviews: IReviewDocument[]
+  ): any[] {
+    const currentPeriod = this.getCurrentPeriod();
+    const periodReviews = reviews.filter(
+      (r) => this.getPeriodFromDate(r.createdAt) === currentPeriod
+    );
+
+    if (!periodReviews.length) return existing;
+
+    const periodOverall =
+      periodReviews.reduce((sum, r) => sum + r.overallScore, 0) /
+      periodReviews.length;
+    const periodSentiment =
+      periodReviews.reduce(
+        (sum, r) =>
+          sum + (typeof r.sentimentScore === "number" ? r.sentimentScore : 0),
+        0
+      ) / periodReviews.length;
+
+    // Update or add current period
+    const updated = existing.filter((p) => p.period !== currentPeriod);
+    updated.push({
+      period: currentPeriod,
+      overall: parseFloat(periodOverall.toFixed(2)),
+      sentiment: parseFloat(periodSentiment.toFixed(2)),
+    });
+
+    // Keep only last 6 periods (most recent first)
+    return updated.sort((a, b) => b.period.localeCompare(a.period)).slice(0, 6);
+  }
+
+  private getCurrentPeriod(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${(now.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}`;
+  }
+
+  private getPeriodFromDate(date: Date): string {
+    return `${date.getFullYear()}-${(date.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}`;
   }
 }

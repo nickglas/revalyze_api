@@ -1,6 +1,7 @@
 import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
 import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
+import { ReviewStatus } from "../models/types/review.type";
 
 type DateRange = { from?: Date; to?: Date };
 
@@ -99,6 +100,25 @@ export class ReviewRepository {
     ]);
 
     return { reviews, total };
+  }
+
+  async findRecentByEmployeeId(
+    employeeId: string,
+    limit: number
+  ): Promise<IReviewDocument[]> {
+    return await ReviewModel.find({ employeeId })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("externalCompanyId", "name")
+      .lean()
+      .exec();
+  }
+
+  async findByEmployeeId(employeeId: string): Promise<IReviewDocument[]> {
+    return ReviewModel.find({
+      employeeId: new mongoose.Types.ObjectId(employeeId),
+      reviewStatus: ReviewStatus.REVIEWED,
+    }).exec();
   }
 
   async countReviewsWithinPeriodByCompany(

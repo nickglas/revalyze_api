@@ -19,6 +19,7 @@ import contactRoutes from "./routes/contact.routes";
 import userRoutes from "./routes/user.routes";
 import transcriptRoutes from "./routes/transcript.routes";
 import reviewRoutes from "./routes/review.routes";
+import insightRoutes from "./routes/insight.route";
 
 import webhookRoutes from "./routes/webhook.routes";
 
@@ -62,6 +63,7 @@ app.use("/api/v1/contacts", contactRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/transcripts", transcriptRoutes);
 app.use("/api/v1/reviews", reviewRoutes);
+app.use("/api/v1/insights", insightRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);

@@ -1,7 +1,7 @@
 // src/entities/user.entity.ts
 import { Schema, model, Document, Types } from "mongoose";
 import bcrypt from "bcryptjs";
-import { IUserData, UserRole } from "../types/user.type";
+import { IUserData, IUserMetrics, UserRole } from "../types/user.type";
 
 export interface IUserDocument extends IUserData, Document {
   companyId: string | Types.ObjectId;
@@ -9,6 +9,23 @@ export interface IUserDocument extends IUserData, Document {
   updatedAt: Date;
   comparePassword(candidate: string): Promise<boolean>;
 }
+
+const UserMetricsSchema = new Schema<IUserMetrics>(
+  {
+    lastCalculated: Date,
+    reviewCount: { type: Number, default: 0 },
+    overallScore: { type: Number, default: 0 },
+    sentimentScore: { type: Number, default: 0 },
+    lastPeriodScores: [
+      {
+        period: String,
+        overall: Number,
+        sentiment: Number,
+      },
+    ],
+  },
+  { _id: false }
+);
 
 const userSchema = new Schema<IUserDocument>(
   {
@@ -26,6 +43,7 @@ const userSchema = new Schema<IUserDocument>(
       enum: ["employee", "company_admin", "super_admin"],
       required: true,
     },
+    metrics: UserMetricsSchema,
   },
   { timestamps: true }
 );
