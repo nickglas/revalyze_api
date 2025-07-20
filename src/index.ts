@@ -40,7 +40,7 @@ mongoose
 
       //cron sync service
       const stripeSyncCron = Container.get(StripeSyncCron);
-      // stripeSyncCron.start();
+      stripeSyncCron.start();
     });
   })
   .catch((err) => {

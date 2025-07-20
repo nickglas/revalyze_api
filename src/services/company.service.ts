@@ -390,17 +390,17 @@ export class CompanyService {
 
     const newPrice = await this.findBillingOptionByPriceIdOrThrow(newPriceId);
 
-    const action = this.getSubscriptionActionOrThrow(currentPrice, newPrice);
-
-    console.warn(currentPrice);
-    console.warn(newPrice);
-    console.warn(action);
+    const action = this.getSubscriptionActionOrThrow(
+      currentPrice.billingOption,
+      newPrice.billingOption
+    );
 
     if (action === "same") {
       throw new BadRequestError("Already in the same tier");
     }
 
     if (action === "downgrade") {
+      await this.validateDowngrade(company._id, newPriceId);
       return await this.handleDowngrade(activeSubscription, newPriceId);
     }
 
@@ -419,11 +419,13 @@ export class CompanyService {
   }
 
   private async findBillingOptionByPriceIdOrThrow(id: string) {
-    const price = await this.planRepository.findBillingOptionByPriceId(id);
+    const result = await this.planRepository.findBillingOptionByPriceId(id);
 
-    if (!price) throw new NotFoundError(`Price with id ${id} not found`);
+    if (!result || !result.billingOption) {
+      throw new NotFoundError(`Price with id ${id} not found`);
+    }
 
-    return price;
+    return result;
   }
 
   private async getActiveSubscriptionOrThrow(company: ICompanyDocument) {
@@ -580,6 +582,35 @@ export class CompanyService {
       id: subscription.id,
       message: "Subscription upgraded successfully",
     };
+  }
+
+  private async validateDowngrade(
+    companyId: string | Types.ObjectId,
+    newPriceId: string
+  ): Promise<void> {
+    // Get new price details with associated plan
+    const newPriceResult = await this.findBillingOptionByPriceIdOrThrow(
+      newPriceId
+    );
+
+    // Debugging log
+    console.log("Validation Data:", {
+      priceId: newPriceId,
+      billingOption: newPriceResult.billingOption,
+      plan: newPriceResult.plan,
+    });
+
+    // Count active users
+    const activeUsers = await this.userRepository.countActiveUsersByCompany(
+      companyId
+    );
+
+    // Check if downgrade violates user limit
+    if (activeUsers > newPriceResult.plan.allowedUsers) {
+      throw new BadRequestError(
+        `Cannot downgrade: ${activeUsers} active users exceed new plan limit of ${newPriceResult.plan.allowedUsers}`
+      );
+    }
   }
 
   private async ensureCompanyEmailIsUnique(email: string) {

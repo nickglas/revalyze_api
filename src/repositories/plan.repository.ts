@@ -4,6 +4,19 @@ import { PlanInput } from "../dto/plans/plan.input.dto";
 import { IPlanDocument, PlanModel } from "../models/entities/plan.entity";
 import { BillingOption } from "../models/types/plan.type";
 
+export interface BillingOptionWithPlan {
+  billingOption: BillingOption;
+  plan: Pick<
+    IPlanDocument,
+    | "name"
+    | "stripeProductId"
+    | "allowedUsers"
+    | "allowedTranscripts"
+    | "allowedReviews"
+    | "isActive"
+  >;
+}
+
 @Service()
 export class PlanRepository {
   async findByStripeProductId(
@@ -20,11 +33,29 @@ export class PlanRepository {
 
   async findBillingOptionByPriceId(
     priceId: string
-  ): Promise<BillingOption | null> {
+  ): Promise<BillingOptionWithPlan | null> {
     const result = await PlanModel.aggregate([
       { $unwind: "$billingOptions" },
       { $match: { "billingOptions.stripePriceId": priceId } },
-      { $replaceWith: "$billingOptions" },
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: [
+              { billingOption: "$billingOptions" },
+              {
+                plan: {
+                  name: "$name",
+                  stripeProductId: "$stripeProductId",
+                  allowedUsers: "$allowedUsers",
+                  allowedTranscripts: "$allowedTranscripts",
+                  allowedReviews: "$allowedReviews",
+                  isActive: "$isActive",
+                },
+              },
+            ],
+          },
+        },
+      },
     ]).exec();
 
     return result[0] ?? null;
