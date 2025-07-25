@@ -2,6 +2,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import morgan from "morgan";
+import cors from "cors";
 import "reflect-metadata";
 
 //load env
@@ -26,6 +27,9 @@ import webhookRoutes from "./routes/webhook.routes";
 //middlware
 import { errorHandler } from "./middlewares/error.middleware";
 
+const allowedOrigins =
+  process.env.NODE_ENV === "production" ? ["https://yourdomain.com"] : ["*"];
+
 const app = express();
 
 // Use raw body parser for webhook route ONLY
@@ -33,6 +37,23 @@ app.use(
   "/webhooks/stripe",
   express.raw({ type: "application/json" }),
   webhookRoutes
+);
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (
+        !origin ||
+        allowedOrigins.includes("*") ||
+        allowedOrigins.includes(origin)
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
 );
 
 // Middleware

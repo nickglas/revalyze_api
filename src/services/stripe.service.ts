@@ -23,6 +23,7 @@ export class StripeService {
   async getAvailableSubscriptions() {
     const prices = await this.stripe.prices.list({
       active: true,
+
       expand: ["data.product"],
     });
 

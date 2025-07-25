@@ -60,6 +60,10 @@ export class PlanService {
     return this.planRepository.findAll();
   }
 
+  async getAvailablePlans(): Promise<IPlanDocument[]> {
+    return this.planRepository.findAvailable();
+  }
+
   async deletePlan(
     stripeProductId: string
   ): Promise<{ deletedCount?: number }> {
