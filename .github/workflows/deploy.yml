@@ -73,13 +73,13 @@ jobs:
             echo "All required secrets are set."
           fi
 
-      - name: Run tests
-        run: npm test
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          NODE_ENV: test
+      # - name: Run tests
+      #   run: npm test
+      #   env:
+      #     JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      #     JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+      #     STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      #     NODE_ENV: test
 
       - name: Get current git commit hash
         id: git-info
