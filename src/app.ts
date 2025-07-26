@@ -28,7 +28,9 @@ import webhookRoutes from "./routes/webhook.routes";
 import { errorHandler } from "./middlewares/error.middleware";
 
 const allowedOrigins =
-  process.env.NODE_ENV === "production" ? ["https://yourdomain.com"] : ["*"];
+  process.env.NODE_ENV === "production"
+    ? ["http://188.245.185.40:30080/"]
+    : ["*"];
 
 const app = express();
 

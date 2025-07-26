@@ -16,6 +16,7 @@ import { Types } from "mongoose";
 import { compareTiers } from "../../../utils/plan";
 import { ISubscriptionDocument } from "../../../models/entities/subscription.entity";
 import { ICompanyDocument } from "../../../models/entities/company.entity";
+import { PlanRepository } from "../../../repositories/plan.repository";
 
 jest.mock("bcrypt");
 jest.mock("../../../mappers/company.mapper", () => ({
@@ -46,6 +47,7 @@ describe("CompanyService", () => {
   let reviewConfigService: jest.Mocked<ReviewConfigService>;
   let apiKeyService: jest.Mocked<ApiKeyService>;
   let subscriptionRepository: jest.Mocked<SubscriptionRepository>;
+  let planRepository: jest.Mocked<PlanRepository>;
 
   beforeEach(() => {
     stripeService = {
@@ -97,6 +99,11 @@ describe("CompanyService", () => {
       findActiveSubscriptionByStripeCustomerId: jest.fn(),
     } as any;
 
+    planRepository = {
+      findOne: jest.fn(),
+      findActiveSubscriptionByStripeCustomerId: jest.fn(),
+    } as any;
+
     companyService = new CompanyService(
       stripeService,
       companyRepository,
@@ -104,7 +111,8 @@ describe("CompanyService", () => {
       pendingRepository,
       reviewConfigService,
       apiKeyService,
-      subscriptionRepository
+      subscriptionRepository,
+      planRepository
     );
 
     (bcrypt.hash as jest.Mock).mockResolvedValue("hashed_password");
@@ -217,6 +225,7 @@ describe("CompanyService", () => {
     let reviewConfigService: jest.Mocked<ReviewConfigService>;
     let apiKeyService: jest.Mocked<ApiKeyService>;
     let subscriptionRepository: jest.Mocked<SubscriptionRepository>;
+    let planRepository: jest.Mocked<PlanRepository>;
 
     // Shared mocks and test data
     const pendingMock = {
@@ -299,6 +308,7 @@ describe("CompanyService", () => {
       } as any;
 
       subscriptionRepository = {} as any;
+      planRepository = {} as any;
 
       companyService = new CompanyService(
         stripeService,
@@ -307,7 +317,8 @@ describe("CompanyService", () => {
         pendingRepository,
         reviewConfigService,
         apiKeyService,
-        subscriptionRepository
+        subscriptionRepository,
+        planRepository
       );
     });
 

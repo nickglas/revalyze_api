@@ -58,7 +58,6 @@ jobs:
             "SMTP_PASS"
           )
 
-
           missing=0
           for i in "${!secrets[@]}"; do
             if [ -z "${secrets[$i]}" ]; then
@@ -125,30 +124,48 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            # Clone/update repo
             if [ ! -d "/home/ubuntu/revalyze/.git" ]; then
               git clone https://github.com/nickglas/revalyze_api.git /home/ubuntu/revalyze
             else
               cd /home/ubuntu/revalyze && git pull origin main
             fi
 
-            # Kubernetes setup
-            microk8s.kubectl get namespace revalyze || microk8s.kubectl create namespace revalyze
+            # Setup namespaces
+            microk8s.kubectl create namespace revalyze --dry-run=client -o yaml | microk8s.kubectl apply -f -
+            microk8s.kubectl create namespace kubernetes-dashboard --dry-run=client -o yaml | microk8s.kubectl apply -f -
 
-            # Create K8s secret from GitHub secrets
-            microk8s.kubectl create secret generic jwt-secrets \
-              --from-literal=jwt_secret=${{ secrets.JWT_SECRET }} \
-              --from-literal=jwt_refresh_secret=${{ secrets.JWT_REFRESH_SECRET }} \
-              --from-literal=stripe_secret_key=${{ secrets.STRIPE_SECRET_KEY }} \
-              --from-literal=stripe_webhook_secret=${{ secrets.STRIPE_WEBHOOK_SECRET }} \
-              --from-literal=openai_api_key=${{ secrets.OPENAI_API_KEY }} \
-              --from-literal=smtp_host=${{ secrets.SMTP_HOST }} \
-              --from-literal=smtp_port=${{ secrets.SMTP_PORT }} \
-              --from-literal=smtp_user=${{ secrets.SMTP_USER }} \
-              --from-literal=smtp_pass=${{ secrets.SMTP_PASS }} \
-              -n revalyze
+            # Apply secrets
+            cat <<EOF | microk8s.kubectl apply -f -
+            apiVersion: v1
+            kind: Secret
+            metadata:
+              name: jwt-secrets
+              namespace: revalyze
+            type: Opaque
+            stringData:
+              jwt_secret: "${{ secrets.JWT_SECRET }}"
+              jwt_refresh_secret: "${{ secrets.JWT_REFRESH_SECRET }}"
+              stripe_secret_key: "${{ secrets.STRIPE_SECRET_KEY }}"
+              stripe_webhook_secret: "${{ secrets.STRIPE_WEBHOOK_SECRET }}"
+              openai_api_key: "${{ secrets.OPENAI_API_KEY }}"
+              smtp_host: "${{ secrets.SMTP_HOST }}"
+              smtp_port: "${{ secrets.SMTP_PORT }}"
+              smtp_user: "${{ secrets.SMTP_USER }}"
+              smtp_pass: "${{ secrets.SMTP_PASS }}"
+            EOF
 
-            microk8s.kubectl get namespace kubernetes-dashboard || microk8s.kubectl create namespace kubernetes-dashboard
+            # Apply MongoDB resources
+            microk8s.kubectl apply -f k8s/mongo-statefulset.yaml
+            microk8s.kubectl apply -f k8s/mongo-service.yaml
 
-            microk8s.kubectl apply -f k8s/
+            # Wait for MongoDB to be ready
+            microk8s.kubectl rollout status statefulset/mongo -n revalyze --timeout=180s
 
+            # Apply other resources
+            microk8s.kubectl apply -f k8s/api-deployment.yaml
+            microk8s.kubectl apply -f k8s/api-service.yaml
+            microk8s.kubectl apply -f k8s/dashboard-access.yaml
+
+            # Restart API deployment
             microk8s.kubectl rollout restart deployment/revalyze-api -n revalyze

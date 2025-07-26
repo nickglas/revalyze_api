@@ -41,5 +41,9 @@ spec:
                   key: stripe_secret_key
             - name: NODE_ENV
               value: "production"
-
-
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4500
+            initialDelaySeconds: 10
+            periodSeconds: 5
