@@ -657,9 +657,12 @@ export class CompanyService {
       expires_at: Math.floor(Date.now() / 1000) + 1800,
       success_url:
         process.env.NODE_ENV === "development"
-          ? "https://www.google.com"
-          : "https://www.google.com",
-      cancel_url: process.env.STRIPE_CANCEL_URL!,
+          ? "http://localhost:5173/payment-success"
+          : "http://188.245.185.40/payment-success",
+      cancel_url:
+        process.env.NODE_ENV === "development"
+          ? "http://localhost:5173/payment-failed"
+          : "http://188.245.185.40/payment-failed",
     });
 
     if (!session?.url)
