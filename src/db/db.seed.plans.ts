@@ -32,8 +32,8 @@ export const seedProducts = async (): Promise<SeededPlan[]> => {
       },
       features: ["Priority Support", "Analytics Dashboard"],
       prices: [
-        { interval: "month" as const, amount: 150000, tier: 30 },
-        { interval: "year" as const, amount: 1500000, tier: 35 },
+        { interval: "month" as const, amount: 49900, tier: 30 },
+        { interval: "year" as const, amount: 499000, tier: 35 },
       ],
     },
     {
