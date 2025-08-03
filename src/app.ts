@@ -82,7 +82,7 @@ app.use("/api/v1/companies", companyRoutes);
 app.use("/api/v1/subscriptions", subscriptionRoutes);
 app.use("/api/v1/criteria", criteriaRoutes);
 app.use("/api/v1/review-configs", reviewConfigRoutes);
-app.use("/api/v1/exteral-companies", externalCompanyRoutes);
+app.use("/api/v1/external-companies", externalCompanyRoutes);
 app.use("/api/v1/contacts", contactRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/transcripts", transcriptRoutes);
