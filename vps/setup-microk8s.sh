@@ -69,6 +69,37 @@ microk8s kubectl -n observability wait --for=condition=Ready pods --all --timeou
 # Display status summary
 microk8s status --wait-ready
 
+# --- CERT-MANAGER INSTALLATION ---
+echo "Installing Cert-Manager..."
+
+microk8s kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.4/cert-manager.yaml
+
+echo "Waiting for Cert-Manager pods to be ready..."
+microk8s kubectl -n cert-manager wait --for=condition=Ready pod --all --timeout=300s
+
+# --- LET'S ENCRYPT CLUSTER ISSUER ---
+echo "Creating Let's Encrypt ClusterIssuer..."
+
+cat <<EOF | microk8s kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+spec:
+  acme:
+    email: nickglas@hotmail.nl
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-private-key
+    solvers:
+    - http01:
+        ingress:
+          class: public
+EOF
+
+echo "Cert-Manager with Let's Encrypt configured."
+
+
 echo "MicroK8s installation complete with persistent storage setup."
 echo "Default storage class set to 'mongo-retain' with Retain policy."
 echo "Use 'microk8s kubectl' or 'kubectl' to interact with the cluster."

@@ -35,6 +35,9 @@ export class AuthService {
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = await bcrypt.hash(rawToken, 10);
 
+    console.warn(rawToken);
+    console.warn(tokenHash);
+
     await this.resetTokenRepository.create({
       userId: user.id,
       tokenHash,

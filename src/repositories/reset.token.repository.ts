@@ -43,4 +43,8 @@ export class ResetTokenRepository {
   async findByUserId(userId: string): Promise<IResetTokenDocument[]> {
     return await ResetTokenModel.find({ userId }).exec();
   }
+
+  // async findByTokenHash(hash: string): Promise<IResetTokenDocument | null> {
+  //   return await ResetTokenModel.findOne({ tokenHash: hash }).exec();
+  // }
 }

@@ -21,6 +21,7 @@ import userRoutes from "./routes/user.routes";
 import transcriptRoutes from "./routes/transcript.routes";
 import reviewRoutes from "./routes/review.routes";
 import insightRoutes from "./routes/insight.route";
+import resetTokenRoutes from "./routes/reset.token.routes";
 
 import webhookRoutes from "./routes/webhook.routes";
 
@@ -87,6 +88,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/transcripts", transcriptRoutes);
 app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/insights", insightRoutes);
+app.use("/api/v1/reset-tokens", resetTokenRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);
