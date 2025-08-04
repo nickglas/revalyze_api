@@ -153,4 +153,25 @@ export class CriteriaService {
     criterion.isActive = isActive;
     return criterion.save();
   }
+
+  async updateCriterion(
+    id: string,
+    companyId: mongoose.Types.ObjectId,
+    updates: Partial<ICriterionDocument>
+  ): Promise<ICriterionDocument> {
+    if (!id) throw new BadRequestError("No criterion id specified");
+    if (!companyId) throw new BadRequestError("No company id specified");
+
+    const updated = await this.criteriaRepository.update(
+      id,
+      companyId,
+      updates
+    );
+
+    if (!updated) {
+      throw new NotFoundError(`Criterion with id ${id} not found`);
+    }
+
+    return updated;
+  }
 }

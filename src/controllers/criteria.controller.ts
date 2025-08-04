@@ -75,7 +75,7 @@ export const getCriterionById = async (
     const { id } = req.params;
 
     const criteriaService = Container.get(CriteriaService);
-    const criterion =  await criteriaService.getById(id, companyId);
+    const criterion = await criteriaService.getById(id, companyId);
 
     res.status(200).json(criterion);
   } catch (error) {
@@ -153,6 +153,39 @@ export const updateStatus = async (
       isActive
     );
     res.status(200).json(updatedCriterion);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Controller to handle PATCH /criteria/:id
+ * Updates title, description, or isActive of a criterion.
+ *
+ * Requires authenticated user with `companyId` in `req.user`.
+ *
+ * Response:
+ *  - 200 OK with updated criterion
+ *  - 404 Not Found if not owned by company
+ */
+export const updateCriterion = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { id } = req.params;
+    const updates = req.body;
+
+    const criteriaService = Container.get(CriteriaService);
+    const updated = await criteriaService.updateCriterion(
+      id,
+      companyId,
+      updates
+    );
+
+    res.status(200).json(updated);
   } catch (error) {
     next(error);
   }

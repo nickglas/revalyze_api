@@ -47,6 +47,18 @@ export class CriteriaRepository {
     return await CriterionModel.findOne(filter).exec();
   }
 
+  async update(
+    id: string,
+    companyId: mongoose.Types.ObjectId,
+    updateData: Partial<ICriterionDocument>
+  ): Promise<ICriterionDocument | null> {
+    return await CriterionModel.findOneAndUpdate(
+      { _id: id, companyId },
+      { $set: updateData },
+      { new: true }
+    ).exec();
+  }
+
   async insertMany(
     docs: Partial<ICriterionData>[]
   ): Promise<ICriterionDocument[]> {

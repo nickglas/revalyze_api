@@ -10,6 +10,7 @@ import {
   createCriterion,
   getCriteria,
   getCriterionById,
+  updateCriterion,
   updateStatus,
 } from "../controllers/criteria.controller";
 
@@ -35,6 +36,13 @@ router.patch(
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   updateStatus
+);
+
+router.patch(
+  "/:id",
+  authenticate,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  updateCriterion
 );
 
 export default router;
