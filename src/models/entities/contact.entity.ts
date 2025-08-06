@@ -2,10 +2,12 @@
 
 import mongoose, { Schema, Document, model } from "mongoose";
 import { IContactData } from "../types/contact.type";
+import { IExternalCompanyDocument } from "./external.company.entity";
 
 export interface IContactDocument extends IContactData, Document {
   createdAt: Date;
   updatedAt: Date;
+  externalCompany?: IExternalCompanyDocument;
 }
 
 const contactSchema = new Schema<IContactDocument>(
@@ -56,5 +58,15 @@ const contactSchema = new Schema<IContactDocument>(
     timestamps: true,
   }
 );
+
+contactSchema.virtual("externalCompany", {
+  ref: "ExternalCompany",
+  localField: "externalCompanyId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+contactSchema.set("toObject", { virtuals: true });
+contactSchema.set("toJSON", { virtuals: true });
 
 export const ContactModel = model<IContactDocument>("Contact", contactSchema);

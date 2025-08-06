@@ -57,7 +57,11 @@ export class ContactRepository {
     const skip = (page - 1) * limit;
 
     const [contacts, total] = await Promise.all([
-      ContactModel.find(filter).skip(skip).limit(limit).exec(),
+      ContactModel.find(filter)
+        .populate("externalCompany")
+        .skip(skip)
+        .limit(limit)
+        .exec(),
       ContactModel.countDocuments(filter).exec(),
     ]);
 
