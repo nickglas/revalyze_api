@@ -85,7 +85,7 @@ export class ContactRepository {
    * @returns Promise resolving to the found contact, or `null` if not found.
    */
   async findById(id: mongoose.Types.ObjectId | string) {
-    return ContactModel.findById(id).exec();
+    return ContactModel.findById(id).populate("externalCompany").exec();
   }
 
   /**
@@ -95,7 +95,7 @@ export class ContactRepository {
    * @returns Promise resolving to the first matching contact, or `null` if none found.
    */
   async findOne(filter: FilterQuery<IContactDocument>) {
-    return ContactModel.findOne(filter).exec();
+    return ContactModel.findOne(filter).populate("externalCompany").exec();
   }
 
   /**
@@ -110,7 +110,11 @@ export class ContactRepository {
     id: mongoose.Types.ObjectId | string,
     updates: Partial<IContactDocument>
   ) {
-    return ContactModel.findByIdAndUpdate(id, updates, { new: true }).exec();
+    return ContactModel.findByIdAndUpdate(id, updates, {
+      new: true,
+    })
+      .populate("externalCompany")
+      .exec();
   }
 
   /**

@@ -51,7 +51,9 @@ export class ContactService {
       companyId,
     });
 
-    return this.contactRepository.create(contact);
+    const result = await this.contactRepository.create(contact);
+    result.externalCompany = externalCompany;
+    return result;
   }
 
   /**

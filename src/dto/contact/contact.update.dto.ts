@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
   MaxLength,
+  minLength,
 } from "class-validator";
 
 export class UpdateContactDto {
@@ -31,6 +32,10 @@ export class UpdateContactDto {
   @IsOptional()
   @MaxLength(50, { message: "Position must be at most 50 characters long" })
   position?: string;
+
+  @IsString({ message: "externalCompanyId must be a string" })
+  @IsOptional()
+  externalCompanyId?: string;
 
   @IsBoolean({ message: "isActive must be a boolean." })
   @IsOptional()
