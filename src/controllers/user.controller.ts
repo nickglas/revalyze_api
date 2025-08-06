@@ -27,12 +27,14 @@ export const getUsers = async (
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const name = req.query.name?.toString();
 
     const userService = Container.get(UserService);
     const { users, total } = await userService.getUsersByCompany(
       companyId,
       isActive,
       role,
+      name,
       page,
       limit
     );

@@ -53,6 +53,7 @@ export class UserRepository {
     companyId: string | mongoose.Types.ObjectId,
     isActive?: boolean,
     role?: "employee" | "company_admin",
+    name?: string,
     page = 1,
     limit = 20
   ): Promise<{ users: IUserDocument[]; total: number }> {
@@ -64,6 +65,10 @@ export class UserRepository {
 
     if (role) {
       filter.role = role;
+    }
+
+    if (name) {
+      filter.name = { $regex: name, $options: "i" };
     }
 
     const skip = (page - 1) * limit;
@@ -199,6 +204,11 @@ export class UserRepository {
     companyId: string | mongoose.Types.ObjectId
   ): Promise<number> {
     return await UserModel.countDocuments({ companyId, isActive: true }).exec();
+  }
+
+  //count documents with filter
+  async countDocuments(filter: FilterQuery<IUserDocument>): Promise<number> {
+    return await UserModel.countDocuments(filter).exec();
   }
 
   /**

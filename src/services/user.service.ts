@@ -149,6 +149,7 @@ export class UserService {
     companyId: mongoose.Types.ObjectId,
     isActive?: boolean,
     role?: "employee" | "company_admin",
+    name?: string,
     page = 1,
     limit = 20
   ): Promise<{ users: IUserDocument[]; total: number }> {
@@ -158,6 +159,7 @@ export class UserService {
       companyId,
       isActive,
       role,
+      name,
       page,
       limit
     );

@@ -22,7 +22,7 @@ import transcriptRoutes from "./routes/transcript.routes";
 import reviewRoutes from "./routes/review.routes";
 import insightRoutes from "./routes/insight.route";
 import resetTokenRoutes from "./routes/reset.token.routes";
-
+import teamRoutes from "./routes/team.routes";
 import webhookRoutes from "./routes/webhook.routes";
 
 //middlware
@@ -89,6 +89,7 @@ app.use("/api/v1/transcripts", transcriptRoutes);
 app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/insights", insightRoutes);
 app.use("/api/v1/reset-tokens", resetTokenRoutes);
+app.use("/api/v1/teams", teamRoutes);
 
 // Admin routes
 app.use("/api/v1/admin/subscriptions", subscriptionAdminRoutes);
