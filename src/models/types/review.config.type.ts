@@ -1,7 +1,23 @@
-// src/types/review.config.type.ts
 import mongoose from "mongoose";
 import { ICriterionDocument } from "../entities/criterion.entity";
-import { IReviewConfigDocument } from "../entities/review.config.entity";
+
+export interface MergedCriterion extends ICriterionDocument {
+  weight: number;
+  configCriteriaId: mongoose.Types.ObjectId;
+}
+
+export interface ExpandedReviewConfigDTO {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  criteria: MergedCriterion[];
+  modelSettings: IModelSettings;
+  companyId: mongoose.Types.ObjectId;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  __v?: number;
+}
 
 export interface IModelSettings {
   temperature?: number;
@@ -15,8 +31,4 @@ export interface IReviewConfigData {
   modelSettings: IModelSettings;
   companyId: string | mongoose.Types.ObjectId;
   isActive: boolean;
-}
-
-export interface IExpandedReviewConfig extends IReviewConfigDocument {
-  criteria?: ICriterionDocument[];
 }

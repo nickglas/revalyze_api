@@ -61,10 +61,8 @@ export class ReviewConfigService {
    * @throws BadRequestError if ID or companyId is missing.
    * @throws NotFoundError if the configuration is not found.
    */
-  async getById(
-    id: string,
-    companyId: mongoose.Types.ObjectId
-  ): Promise<IReviewConfigDocument> {
+  async getById(id: string, companyId: mongoose.Types.ObjectId): Promise<any> {
+    // Use "any" or define a new type for the merged response
     if (!id) throw new BadRequestError("No review config id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -76,7 +74,30 @@ export class ReviewConfigService {
     if (!config)
       throw new NotFoundError(`Review config with id ${id} not found`);
 
-    return config;
+    // Convert Mongoose document to plain JavaScript object
+    const configObj = config.toObject({ virtuals: true });
+
+    // Merge criteria with populated data
+    if (configObj.populatedCriteria && configObj.criteria) {
+      const populatedMap = new Map(
+        configObj.populatedCriteria.map((c: any) => [c._id.toString(), c])
+      );
+
+      configObj.criteria = configObj.criteria.map((item: any) => {
+        const fullCriterion = populatedMap.get(item.criterionId.toString());
+        return fullCriterion
+          ? {
+              ...fullCriterion,
+              weight: item.weight,
+              configCriteriaId: item._id, // Add mapping ID
+            }
+          : item; // Fallback if population fails
+      });
+    }
+
+    // Remove temporary populated field
+    delete configObj.populatedCriteria;
+    return configObj;
   }
 
   /**

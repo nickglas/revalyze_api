@@ -7,7 +7,13 @@ export interface IReviewConfigDocument extends IReviewConfigData, Document {
   createdAt: Date;
   updatedAt: Date;
   description: string;
-  criteria?: ICriterionDocument[]; // Add this virtual field
+  criteria?: {
+    criterionId: mongoose.Types.ObjectId;
+    weight: number;
+    _id: mongoose.Types.ObjectId;
+  }[];
+
+  populatedCriteria?: mongoose.Types.Array<ICriterionDocument>;
 }
 
 const modelSettingsSchema = new Schema<IModelSettings>(
