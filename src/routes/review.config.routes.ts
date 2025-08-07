@@ -20,12 +20,15 @@ const router = Router();
 
 router.get("/", authenticate, getReviewConfigs);
 router.get("/:id", authenticate, getReviewConfigById);
+
 router.post(
   "/",
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
+  validateDto(CreateReviewConfigDto),
   createReviewConfig
 );
+
 router.put(
   "/:id",
   authenticate,

@@ -12,6 +12,7 @@ import {
   ICriterionDocument,
 } from "../models/entities/criterion.entity";
 import { UpdateReviewConfigDto } from "../dto/review.config/review.config.update.dto";
+import { CreateReviewConfigDto } from "../dto/review.config/review.config.create.dto";
 
 export interface FilterOptions {
   name?: string;
@@ -88,7 +89,7 @@ export class ReviewConfigService {
    */
   async createReviewConfig(
     companyId: mongoose.Types.ObjectId,
-    data: Partial<IReviewConfigDocument>
+    data: CreateReviewConfigDto
   ): Promise<IReviewConfigDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 

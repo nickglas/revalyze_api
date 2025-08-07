@@ -48,7 +48,7 @@ export class ReviewConfigRepository {
 
     const [configs, total] = await Promise.all([
       ReviewConfigModel.find(filter)
-        .populate("criteria") // Populate the virtual field
+        .populate("populatedCriteria")
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -66,11 +66,15 @@ export class ReviewConfigRepository {
 
   async findById(id: string) {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await ReviewConfigModel.findById(id).exec();
+    return await ReviewConfigModel.findById(id)
+      .populate("populatedCriteria")
+      .exec();
   }
 
   async findOne(filter: FilterQuery<IReviewConfigDocument>) {
-    return await ReviewConfigModel.findOne(filter).exec();
+    return await ReviewConfigModel.findOne(filter)
+      .populate("populatedCriteria")
+      .exec();
   }
 
   async update(

@@ -6,6 +6,7 @@ export interface IReviewConfigDocument extends IReviewConfigData, Document {
   _id: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  description: string;
   criteria?: ICriterionDocument[]; // Add this virtual field
 }
 
@@ -20,9 +21,28 @@ const modelSettingsSchema = new Schema<IModelSettings>(
 const reviewConfigSchema = new Schema<IReviewConfigDocument>(
   {
     name: { type: String, required: true, trim: true },
-    criteriaIds: [
-      { type: Schema.Types.ObjectId, ref: "Criteria", required: true },
+    description: {
+      type: String,
+      trim: true,
+      minlength: 5,
+      maxlength: 25,
+    },
+    criteria: [
+      {
+        criterionId: {
+          type: Schema.Types.ObjectId,
+          ref: "Criteria",
+          required: true,
+        },
+        weight: {
+          type: Number,
+          required: true,
+          min: 0,
+          max: 1,
+        },
+      },
     ],
+
     modelSettings: { type: modelSettingsSchema, required: true },
     companyId: {
       type: Schema.Types.ObjectId,
@@ -40,9 +60,9 @@ const reviewConfigSchema = new Schema<IReviewConfigDocument>(
 );
 
 // Add virtual population
-reviewConfigSchema.virtual("criteria", {
+reviewConfigSchema.virtual("populatedCriteria", {
   ref: "Criteria",
-  localField: "criteriaIds",
+  localField: "criteria.criterionId",
   foreignField: "_id",
   justOne: false,
 });

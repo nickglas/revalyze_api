@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { Container } from "typedi";
 import { ReviewConfigService } from "../services/review.config.service";
 import { BadRequestError } from "../utils/errors";
+import { CreateReviewConfigDto } from "../dto/review.config/review.config.create.dto";
 
 /**
  * Controller to handle GET /review-configs
@@ -137,7 +138,7 @@ export const createReviewConfig = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
-    const dto = req.body;
+    const dto: CreateReviewConfigDto = req.body;
 
     const reviewConfigService = Container.get(ReviewConfigService);
     const created = await reviewConfigService.createReviewConfig(
