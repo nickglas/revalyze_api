@@ -26,16 +26,54 @@ export const getReviewConfigs = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
-    const { name, active, createdAfter } = req.query;
+
+    // Parse query parameters
+    const name = req.query.name?.toString();
+    const isActive = req.query.isActive
+      ? req.query.isActive === "true"
+      : undefined;
+    const createdAfter = req.query.createdAfter
+      ? new Date(req.query.createdAfter as string)
+      : undefined;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const sortBy = req.query.sortBy?.toString() || "name";
+    const sortOrder = req.query.sortOrder?.toString() === "desc" ? -1 : 1;
 
     const reviewConfigService = Container.get(ReviewConfigService);
-    const configs = await reviewConfigService.getReviewConfigs(companyId, {
-      name: name?.toString(),
-      active: active !== undefined ? active === "true" : undefined,
-      createdAfter: createdAfter?.toString(),
-    });
+    const { configs, total } = await reviewConfigService.getReviewConfigs(
+      companyId,
+      {
+        name,
+        isActive,
+        createdAfter,
+        page,
+        limit,
+        sortBy,
+        sortOrder,
+      }
+    );
 
-    res.status(200).json(configs);
+    const response = configs.map((config) => ({
+      _id: config._id,
+      name: config.name,
+      criteria: config.criteria, // Now populated
+      modelSettings: config.modelSettings,
+      companyId: config.companyId,
+      isActive: config.isActive,
+      createdAt: config.createdAt,
+      updatedAt: config.updatedAt,
+    }));
+
+    res.status(200).json({
+      data: response,
+      meta: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     next(error);
   }

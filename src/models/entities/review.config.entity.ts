@@ -1,10 +1,12 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 import { IReviewConfigData, IModelSettings } from "../types/review.config.type";
+import { ICriterionDocument } from "./criterion.entity";
 
 export interface IReviewConfigDocument extends IReviewConfigData, Document {
   _id: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  criteria?: ICriterionDocument[]; // Add this virtual field
 }
 
 const modelSettingsSchema = new Schema<IModelSettings>(
@@ -30,8 +32,20 @@ const reviewConfigSchema = new Schema<IReviewConfigDocument>(
     },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toObject: { virtuals: true }, // Enable virtuals for toObject()
+    toJSON: { virtuals: true }, // Enable virtuals for toJSON()
+  }
 );
+
+// Add virtual population
+reviewConfigSchema.virtual("criteria", {
+  ref: "Criteria",
+  localField: "criteriaIds",
+  foreignField: "_id",
+  justOne: false,
+});
 
 export const ReviewConfigModel = mongoose.model<IReviewConfigDocument>(
   "ReviewConfig",

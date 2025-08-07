@@ -33,6 +33,6 @@ const criterionSchema = new Schema<ICriterionDocument>(
 );
 
 export const CriterionModel = model<ICriterionDocument>(
-  "Criterion",
+  "Criteria",
   criterionSchema
 );

@@ -1,9 +1,10 @@
 import { Service } from "typedi";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { FilterQuery, SortOrder } from "mongoose";
 import {
   IReviewConfigDocument,
   ReviewConfigModel,
 } from "../models/entities/review.config.entity";
+import { FilterOptions } from "../services/review.config.service";
 
 @Service()
 export class ReviewConfigRepository {
@@ -15,12 +16,16 @@ export class ReviewConfigRepository {
       createdAfter,
       page = 1,
       limit = 20,
+      sortBy = "name",
+      sortOrder = 1 as 1 | -1,
     }: {
       name?: string;
       isActive?: boolean;
-      createdAfter?: string;
+      createdAfter?: Date;
       page?: number;
       limit?: number;
+      sortBy?: string;
+      sortOrder?: 1 | -1;
     }
   ): Promise<{ configs: IReviewConfigDocument[]; total: number }> {
     const filter: FilterQuery<IReviewConfigDocument> = { companyId };
@@ -34,16 +39,20 @@ export class ReviewConfigRepository {
     }
 
     if (createdAfter) {
-      const date = new Date(createdAfter);
-      if (!isNaN(date.getTime())) {
-        filter.createdAt = { $gte: date };
-      }
+      filter.createdAt = { $gte: createdAfter };
     }
 
     const skip = (page - 1) * limit;
+    const sort: Record<string, SortOrder> = {};
+    sort[sortBy] = sortOrder;
 
     const [configs, total] = await Promise.all([
-      ReviewConfigModel.find(filter).skip(skip).limit(limit).exec(),
+      ReviewConfigModel.find(filter)
+        .populate("criteria") // Populate the virtual field
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
       ReviewConfigModel.countDocuments(filter).exec(),
     ]);
 

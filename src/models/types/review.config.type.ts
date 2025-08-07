@@ -18,5 +18,5 @@ export interface IReviewConfigData {
 }
 
 export interface IExpandedReviewConfig extends IReviewConfigDocument {
-  criteria: ICriterionDocument[];
+  criteria?: ICriterionDocument[];
 }

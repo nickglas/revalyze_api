@@ -13,12 +13,14 @@ import {
 } from "../models/entities/criterion.entity";
 import { UpdateReviewConfigDto } from "../dto/review.config/review.config.update.dto";
 
-interface FilterOptions {
+export interface FilterOptions {
   name?: string;
-  active?: boolean;
-  createdAfter?: string;
+  isActive?: boolean;
+  createdAfter?: Date;
   page?: number;
   limit?: number;
+  sortBy?: string;
+  sortOrder?: 1 | -1;
 }
 
 @Service()
