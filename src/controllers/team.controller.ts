@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { Container } from "typedi";
 import { TeamService } from "../services/team.service";
 import { CreateTeamDto } from "../dto/team/team.create.dto";
+import { UpdateTeamDTO } from "../dto/team/update.team.dto";
 
 /**
  * Controller to handle GET /teams
@@ -112,7 +113,7 @@ export const updateTeam = async (
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
     const teamId = new mongoose.Types.ObjectId(req.params.id);
-    const updates = req.body;
+    const updates: UpdateTeamDTO = req.body;
 
     const teamService = Container.get(TeamService);
     const updated = await teamService.updateTeam(companyId, teamId, updates);

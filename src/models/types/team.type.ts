@@ -1,7 +1,7 @@
-import mongoose from "mongoose";
+import mongoose, { ObjectId, Types } from "mongoose";
 
 export interface ITeamUser {
-  user: string | mongoose.Types.ObjectId;
+  user: Types.ObjectId;
   isManager: boolean;
 }
 
@@ -9,6 +9,6 @@ export interface ITeamData {
   name: string;
   description?: string;
   isActive: boolean;
-  companyId: string | mongoose.Types.ObjectId;
+  companyId: Types.ObjectId;
   users: ITeamUser[];
 }

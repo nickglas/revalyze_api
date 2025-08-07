@@ -3,7 +3,7 @@ import { ITeamData, ITeamUser } from "../types/team.type";
 import { IUserDocument } from "./user.entity";
 
 export interface ITeamDocument extends ITeamData, Document {
-  companyId: string | Types.ObjectId;
+  companyId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }

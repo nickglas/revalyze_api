@@ -6,6 +6,10 @@ import { TeamRepository } from "../repositories/team.repository";
 import { ITeamDocument, TeamModel } from "../models/entities/team.entity";
 import { CreateTeamDto } from "../dto/team/team.create.dto";
 import { UserRepository } from "../repositories/user.repository";
+import {
+  UpdateTeamDTO,
+  UpdateTeamServiceDTO,
+} from "../dto/team/update.team.dto";
 
 @Service()
 export class TeamService {
@@ -74,7 +78,8 @@ export class TeamService {
       })),
     });
 
-    return await this.teamRepository.create(team);
+    const newTeam = await this.teamRepository.create(team);
+    return await this.getById(newTeam.id, companyId);
   }
 
   /**
@@ -92,12 +97,11 @@ export class TeamService {
   async updateTeam(
     companyId: Types.ObjectId,
     teamId: Types.ObjectId,
-    updates: Partial<ITeamDocument>
+    updates: UpdateTeamDTO
   ): Promise<ITeamDocument | null> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
     if (!teamId) throw new BadRequestError("Team ID is missing");
 
-    // Verify team exists under company
     const existingTeam = await this.teamRepository.findOne({
       _id: teamId,
       companyId,
@@ -106,7 +110,6 @@ export class TeamService {
       throw new NotFoundError(`Team with id ${teamId} not found`);
     }
 
-    // Check for duplicate name if updating name
     if (updates.name && updates.name !== existingTeam.name) {
       const nameExists = await this.teamRepository.findOne({
         name: updates.name,
@@ -120,7 +123,24 @@ export class TeamService {
       }
     }
 
-    return this.teamRepository.update(teamId, updates);
+    const serviceUpdates: UpdateTeamServiceDTO = {
+      name: updates.name,
+      description: updates.description,
+      isActive: updates.isActive,
+    };
+
+    console.warn("First");
+    console.warn(updates.users);
+    if (updates.users) {
+      serviceUpdates.users = updates.users.map((u) => ({
+        user: new mongoose.Types.ObjectId(u.userId),
+        isManager: u.isManager,
+      }));
+    }
+
+    console.warn("Second");
+    console.warn(updates.users);
+    return this.teamRepository.update(teamId, serviceUpdates);
   }
 
   /**
