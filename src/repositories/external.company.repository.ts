@@ -10,15 +10,27 @@ export class ExternalCompanyRepository {
   async findByFilters(
     companyId: mongoose.Types.ObjectId,
     name?: string,
+    email?: string,
+    phone?: string,
     isActive?: boolean,
     createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "name",
+    sortOrder = 1
   ): Promise<{ companies: IExternalCompanyDocument[]; total: number }> {
     const filter: FilterQuery<IExternalCompanyDocument> = { companyId };
 
     if (name) {
       filter.name = { $regex: name, $options: "i" };
+    }
+
+    if (email) {
+      filter.email = { $regex: email, $options: "i" };
+    }
+
+    if (phone) {
+      filter.phone = { $regex: phone, $options: "i" };
     }
 
     if (typeof isActive === "boolean") {
@@ -30,9 +42,15 @@ export class ExternalCompanyRepository {
     }
 
     const skip = (page - 1) * limit;
+    const sort: Record<string, any> = {};
+    sort[sortBy] = sortOrder;
 
     const [companies, total] = await Promise.all([
-      ExternalCompanyModel.find(filter).skip(skip).limit(limit).exec(),
+      ExternalCompanyModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
       ExternalCompanyModel.countDocuments(filter).exec(),
     ]);
 

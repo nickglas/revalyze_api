@@ -15,6 +15,8 @@ export const getExternalCompanies = async (
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
     const name = req.query.name?.toString();
+    const email = req.query.email?.toString();
+    const phone = req.query.phone?.toString();
     const isActive =
       req.query.isActive === "true"
         ? true
@@ -26,16 +28,22 @@ export const getExternalCompanies = async (
       : undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const sortBy = req.query.sortBy?.toString() || "name";
+    const sortOrder = req.query.sortOrder?.toString() === "desc" ? -1 : 1;
 
     const externalCompanyService = Container.get(ExternalCompanyService);
     const { companies, total } =
       await externalCompanyService.getExternalCompanies(
         companyId,
         name,
+        email,
+        phone,
         isActive,
         createdAfter,
         page,
-        limit
+        limit,
+        sortBy,
+        sortOrder
       );
 
     res.status(200).json({

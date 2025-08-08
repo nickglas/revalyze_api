@@ -21,20 +21,28 @@ export class ExternalCompanyService {
   async getExternalCompanies(
     companyId: mongoose.Types.ObjectId,
     name?: string,
+    email?: string,
+    phone?: string,
     isActive?: boolean,
     createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "name",
+    sortOrder = 1
   ): Promise<{ companies: IExternalCompanyDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.externalCompanyRepository.findByFilters(
       companyId,
       name,
+      email,
+      phone,
       isActive,
       createdAfter,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
   }
 

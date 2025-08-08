@@ -45,7 +45,7 @@ router.patch(
 );
 
 router.patch(
-  "/:id/toggle-status",
+  "/:id/status",
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   toggleIsActive
