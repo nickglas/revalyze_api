@@ -8,26 +8,54 @@ import { ICriterionData } from "../models/types/criterion.type";
 
 @Service()
 export class CriteriaRepository {
-  async findByCompanyId(
+  async findByFilters(
     companyId: mongoose.Types.ObjectId,
-    search?: string,
+    name?: string,
+    description?: string,
+    isActive?: boolean,
+    createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt",
+    sortOrder: 1 | -1 = -1
   ): Promise<{ criteria: ICriterionDocument[]; total: number }> {
     const filter: FilterQuery<ICriterionDocument> = { companyId };
 
-    // search on title or description
-    if (search) {
-      filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-      ];
+    if (name) {
+      filter.title = { $regex: name, $options: "i" };
     }
 
+    if (description) {
+      filter.description = { $regex: description, $options: "i" };
+    }
+
+    if (typeof isActive === "boolean") {
+      filter.isActive = isActive;
+    }
+
+    if (createdAfter) {
+      filter.createdAt = { $gte: createdAfter };
+    }
+
+    const sortOptions: Record<string, 1 | -1> = {};
+    const allowedSortFields = ["title", "isActive", "createdAt"];
+    const sanitizedSortBy = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+
+    sortOptions[sanitizedSortBy] = sortOrder;
+
+    // Pagination
     const skip = (page - 1) * limit;
 
+    console.warn(filter);
+
     const [criteria, total] = await Promise.all([
-      CriterionModel.find(filter).skip(skip).limit(limit).exec(),
+      CriterionModel.find(filter)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit)
+        .exec(),
       CriterionModel.countDocuments(filter).exec(),
     ]);
 

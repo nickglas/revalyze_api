@@ -25,16 +25,33 @@ export const getCriteria = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
-    const search = req.query.search?.toString();
+    const name = req.query.name?.toString();
+    const description = req.query.description?.toString();
+    const isActive =
+      req.query.isActive === "true"
+        ? true
+        : req.query.isActive === "false"
+        ? false
+        : undefined;
+    const createdAfter = req.query.createdAfter
+      ? new Date(req.query.createdAfter as string)
+      : undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const criteriaService = Container.get(CriteriaService);
+    const sortBy = req.query.sortBy?.toString() || "createdAt";
+    const sortOrder = req.query.sortOrder?.toString() === "asc" ? 1 : -1;
 
+    const criteriaService = Container.get(CriteriaService);
     const { criteria, total } = await criteriaService.getCriteria(
       companyId,
-      search,
+      name,
+      description,
+      isActive,
+      createdAfter,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
 
     res.status(200).json({

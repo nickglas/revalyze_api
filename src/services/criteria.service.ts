@@ -19,17 +19,27 @@ export class CriteriaService {
    */
   async getCriteria(
     companyId: mongoose.Types.ObjectId,
-    search?: string,
+    name?: string,
+    description?: string,
+    isActive?: boolean,
+    createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt",
+    sortOrder: 1 | -1 = -1
   ): Promise<{ criteria: ICriterionDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
-    return this.criteriaRepository.findByCompanyId(
+    return this.criteriaRepository.findByFilters(
       companyId,
-      search,
+      name,
+      description,
+      isActive,
+      createdAfter,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
   }
 
