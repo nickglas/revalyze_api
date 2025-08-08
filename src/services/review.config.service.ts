@@ -43,13 +43,23 @@ export class ReviewConfigService {
   async getReviewConfigs(
     companyId: mongoose.Types.ObjectId,
     filters: FilterOptions = {}
-  ): Promise<{ configs: IReviewConfigDocument[]; total: number }> {
+  ): Promise<{ configs: any[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
-    return this.reviewConfigRepository.findByCompanyIdWithFilters(
-      companyId,
-      filters
+    const { configs, total } =
+      await this.reviewConfigRepository.findByCompanyIdWithFilters(
+        companyId,
+        filters
+      );
+
+    const convertedConfigs = configs.map((config) =>
+      this.convertPopulatedCritia(config)
     );
+
+    return {
+      configs: convertedConfigs,
+      total,
+    };
   }
 
   /**
@@ -74,29 +84,8 @@ export class ReviewConfigService {
     if (!config)
       throw new NotFoundError(`Review config with id ${id} not found`);
 
-    // Convert Mongoose document to plain JavaScript object
-    const configObj = config.toObject({ virtuals: true });
+    const configObj = this.convertPopulatedCritia(config);
 
-    // Merge criteria with populated data
-    if (configObj.populatedCriteria && configObj.criteria) {
-      const populatedMap = new Map(
-        configObj.populatedCriteria.map((c: any) => [c._id.toString(), c])
-      );
-
-      configObj.criteria = configObj.criteria.map((item: any) => {
-        const fullCriterion = populatedMap.get(item.criterionId.toString());
-        return fullCriterion
-          ? {
-              ...fullCriterion,
-              weight: item.weight,
-              configCriteriaId: item._id, // Add mapping ID
-            }
-          : item; // Fallback if population fails
-      });
-    }
-
-    // Remove temporary populated field
-    delete configObj.populatedCriteria;
     return configObj;
   }
 
@@ -114,10 +103,60 @@ export class ReviewConfigService {
   ): Promise<IReviewConfigDocument> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
-    return this.reviewConfigRepository.create({
-      ...data,
+    const criterionIds = data.criteria.map(
+      (c) => new mongoose.Types.ObjectId(c.criterionId)
+    );
+
+    const foundCriteria = await this.criteriaRepository.findManyByIds(
+      criterionIds
+    );
+
+    const foundIds = new Set(foundCriteria.map((c) => c._id.toString()));
+
+    const missing = data.criteria.filter(
+      (c) => !foundIds.has(c.criterionId.toString())
+    );
+
+    if (missing.length > 0) {
+      throw new BadRequestError(
+        `The following criterion IDs were not found: ${missing
+          .map((m) => m.criterionId)
+          .join(", ")}`
+      );
+    }
+
+    const partialConfig: Partial<IReviewConfigDocument> = {
+      name: data.name,
+      description: data.description,
+      isActive: data.isActive,
+      modelSettings: data.modelSettings,
+      companyId: companyId,
+      criteria: data.criteria.map((c) => ({
+        criterionId: new mongoose.Types.ObjectId(c.criterionId),
+        weight: c.weight,
+      })),
+    };
+
+    const newConfig = await this.reviewConfigRepository.create({
+      ...partialConfig,
       companyId,
     });
+
+    const criteriaWithDetails = data.criteria.map((c) => {
+      const details = foundCriteria.find(
+        (fc) => fc._id.toString() === c.criterionId.toString()
+      );
+
+      return {
+        criterionId: c.criterionId,
+        weight: c.weight,
+        ...(details ? details.toObject() : {}),
+      };
+    });
+
+    (newConfig as any).populatedCriteria = criteriaWithDetails;
+
+    return newConfig;
   }
 
   async assignDefaultReviewConfigToCompany(
@@ -255,8 +294,8 @@ export class ReviewConfigService {
 
     if (updates.modelSettings !== undefined) {
       config.modelSettings = {
-        ...config.modelSettings, // keep existing keys
-        ...updates.modelSettings, // overwrite with updates
+        ...config.modelSettings,
+        ...updates.modelSettings,
       };
     }
 
@@ -327,5 +366,29 @@ export class ReviewConfigService {
       throw new NotFoundError(`Review config with id ${id} not found`);
 
     return this.reviewConfigRepository.delete(id);
+  }
+
+  private convertPopulatedCritia(config: IReviewConfigDocument) {
+    const configObj = config.toObject({ virtuals: true });
+
+    if (configObj.populatedCriteria && configObj.criteria) {
+      const populatedMap = new Map(
+        configObj.populatedCriteria.map((c: any) => [c._id.toString(), c])
+      );
+
+      configObj.criteria = configObj.criteria.map((item: any) => {
+        const fullCriterion = populatedMap.get(item.criterionId.toString());
+        return fullCriterion
+          ? {
+              ...fullCriterion,
+              weight: item.weight,
+              configCriteriaId: item._id,
+            }
+          : item;
+      });
+    }
+
+    delete configObj.populatedCriteria;
+    return configObj;
   }
 }

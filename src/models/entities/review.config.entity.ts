@@ -10,7 +10,6 @@ export interface IReviewConfigDocument extends IReviewConfigData, Document {
   criteria?: {
     criterionId: mongoose.Types.ObjectId;
     weight: number;
-    _id: mongoose.Types.ObjectId;
   }[];
 
   populatedCriteria?: mongoose.Types.Array<ICriterionDocument>;
@@ -35,6 +34,7 @@ const reviewConfigSchema = new Schema<IReviewConfigDocument>(
     },
     criteria: [
       {
+        _id: false,
         criterionId: {
           type: Schema.Types.ObjectId,
           ref: "Criteria",

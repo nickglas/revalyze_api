@@ -37,9 +37,6 @@ export class CreateReviewConfigDto {
 
   @IsString({ message: "Description must be a string." })
   @IsOptional()
-  @Length(5, 25, {
-    message: "Description must be between 5 and 25 characters.",
-  })
   description?: string;
 
   @IsBoolean({ message: "isActive must be a boolean." })
