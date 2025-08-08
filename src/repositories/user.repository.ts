@@ -55,7 +55,9 @@ export class UserRepository {
     role?: "employee" | "company_admin",
     name?: string,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt",
+    sortOrder = -1
   ): Promise<{ users: IUserDocument[]; total: number }> {
     const filter: FilterQuery<IUserDocument> = { companyId };
 
@@ -68,13 +70,24 @@ export class UserRepository {
     }
 
     if (name) {
-      filter.name = { $regex: name, $options: "i" };
+      filter.$or = [
+        { firstName: { $regex: name, $options: "i" } },
+        { lastName: { $regex: name, $options: "i" } },
+        { email: { $regex: name, $options: "i" } },
+      ];
     }
 
     const skip = (page - 1) * limit;
+    const sort: Record<string, any> = {};
+    sort[sortBy] = sortOrder;
 
     const [users, total] = await Promise.all([
-      UserModel.find(filter).skip(skip).limit(limit).select("-password").exec(),
+      UserModel.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .select("-password")
+        .exec(),
       UserModel.countDocuments(filter).exec(),
     ]);
 

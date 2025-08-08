@@ -24,10 +24,13 @@ export const getUsers = async (
         : undefined;
 
     const role = req.query.role as "employee" | "company_admin" | undefined;
-
+    const name = req.query.name?.toString();
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
-    const name = req.query.name?.toString();
+
+    // Sorting parameters
+    const sortBy = req.query.sortBy?.toString() || "createdAt";
+    const sortOrder = req.query.sortOrder?.toString() === "asc" ? 1 : -1;
 
     const userService = Container.get(UserService);
     const { users, total } = await userService.getUsersByCompany(
@@ -36,7 +39,9 @@ export const getUsers = async (
       role,
       name,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
 
     res.status(200).json({

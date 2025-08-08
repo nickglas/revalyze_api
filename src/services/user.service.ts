@@ -151,7 +151,9 @@ export class UserService {
     role?: "employee" | "company_admin",
     name?: string,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt",
+    sortOrder = -1
   ): Promise<{ users: IUserDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("Company ID is required");
 
@@ -161,7 +163,9 @@ export class UserService {
       role,
       name,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
   }
 
