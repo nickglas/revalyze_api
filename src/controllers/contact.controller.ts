@@ -33,6 +33,8 @@ export const getContacts = async (
       : undefined;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
+    const sortBy = req.query.sortBy?.toString() || "createdAt";
+    const sortOrder = req.query.sortOrder?.toString() === "asc" ? 1 : -1;
 
     const contactService = Container.get(ContactService);
     const { contacts, total } = await contactService.getContacts(
@@ -42,12 +44,19 @@ export const getContacts = async (
       isActive,
       createdAfter,
       page,
-      limit
+      limit,
+      sortBy,
+      sortOrder
     );
 
     res.status(200).json({
       data: contacts,
-      meta: { total, page, limit, pages: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (err) {
     next(err);

@@ -29,11 +29,11 @@ export class ContactRepository {
     isActive?: boolean,
     createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt", // Default sorting field
+    sortOrder = -1 // Default descending order (newest first)
   ): Promise<{ contacts: IContactDocument[]; total: number }> {
-    const filter: FilterQuery<IContactDocument> = {
-      companyId,
-    };
+    const filter: FilterQuery<IContactDocument> = { companyId };
 
     if (externalCompanyId) {
       filter.externalCompanyId = externalCompanyId;
@@ -43,6 +43,8 @@ export class ContactRepository {
       filter.$or = [
         { firstName: { $regex: name, $options: "i" } },
         { lastName: { $regex: name, $options: "i" } },
+        { email: { $regex: name, $options: "i" } },
+        { phone: { $regex: name, $options: "i" } },
       ];
     }
 
@@ -55,10 +57,13 @@ export class ContactRepository {
     }
 
     const skip = (page - 1) * limit;
+    const sort: Record<string, any> = {};
+    sort[sortBy] = sortOrder;
 
     const [contacts, total] = await Promise.all([
       ContactModel.find(filter)
         .populate("externalCompany")
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .exec(),

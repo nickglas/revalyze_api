@@ -139,7 +139,9 @@ export class ContactService {
     isActive?: boolean,
     createdAfter?: Date,
     page = 1,
-    limit = 20
+    limit = 20,
+    sortBy = "createdAt",
+    sortOrder = -1
   ): Promise<{ contacts: IContactDocument[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -150,7 +152,9 @@ export class ContactService {
       isActive,
       createdAfter,
       page,
-      limit
+      limit,
+      sortBy, // Pass to repository
+      sortOrder // Pass to repository
     );
   }
 
