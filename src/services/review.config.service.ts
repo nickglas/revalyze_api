@@ -272,34 +272,41 @@ export class ReviewConfigService {
     if (!config)
       throw new NotFoundError(`Review config with id ${id} not found`);
 
-    // Convert criteriaIds strings to ObjectId[]
-    if (updates.criteriaIds) {
-      const criteriaObjectIds = updates.criteriaIds.map(
-        (cid) => new mongoose.Types.ObjectId(cid)
+    // Update criteria if provided
+    if (updates.criteria) {
+      const criteriaObjectIds = updates.criteria.map(
+        (c) => new mongoose.Types.ObjectId(c.criterionId)
       );
 
       // Check if criteriaIds exist in DB
       const existingCriteria = await this.criteriaRepository.findManyByIds(
         criteriaObjectIds
       );
+
       if (existingCriteria.length !== criteriaObjectIds.length) {
-        throw new BadRequestError("One or more criteriaIds are invalid");
+        throw new BadRequestError("One or more criteria are invalid");
       }
 
-      config.criteriaIds = criteriaObjectIds;
+      // Map to proper structure
+      config.criteria = updates.criteria.map((c) => ({
+        criterionId: new mongoose.Types.ObjectId(c.criterionId),
+        weight: c.weight,
+      }));
     }
 
     // Update other fields safely
     if (updates.name !== undefined) config.name = updates.name;
+    if (updates.description !== undefined)
+      config.description = updates.description;
+    if (updates.isActive !== undefined) config.isActive = updates.isActive;
 
-    if (updates.modelSettings !== undefined) {
+    // Update model settings
+    if (updates.modelSettings) {
       config.modelSettings = {
         ...config.modelSettings,
         ...updates.modelSettings,
       };
     }
-
-    if (updates.isActive !== undefined) config.isActive = updates.isActive;
 
     // Save updated document
     const updatedConfig = await this.reviewConfigRepository.update(

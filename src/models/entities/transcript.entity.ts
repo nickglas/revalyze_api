@@ -14,12 +14,13 @@ const transcriptSchema = new Schema<ITranscriptDocument>(
     companyId: { type: Schema.Types.ObjectId, required: true, ref: "Company" },
     externalCompanyId: {
       type: Schema.Types.ObjectId,
-      required: true,
+      required: false,
       ref: "ExternalCompany",
     },
-    contactId: { type: Schema.Types.ObjectId, required: true, ref: "Contact" },
+    contactId: { type: Schema.Types.ObjectId, required: false, ref: "Contact" },
     content: { type: String, required: true },
     timestamp: { type: Date, required: true },
+    timestampEnd: { type: Date, required: false },
     uploadedBy: { type: Schema.Types.ObjectId, required: true, ref: "User" },
     reviewStatus: {
       type: String,

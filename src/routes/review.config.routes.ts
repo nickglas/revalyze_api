@@ -29,15 +29,16 @@ router.post(
   createReviewConfig
 );
 
-router.put(
+router.patch(
   "/:id",
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   validateDto(UpdateReviewConfigDto),
   updateReviewConfig
 );
+
 router.patch(
-  "/:id/toggleActivation",
+  "/:id/status",
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   toggleReviewConfigActivationStatus

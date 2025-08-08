@@ -81,11 +81,12 @@ export class ReviewConfigRepository {
     id: string | mongoose.Types.ObjectId,
     update: Partial<IReviewConfigDocument>
   ) {
-    return await ReviewConfigModel.findByIdAndUpdate(id, update, {
-      new: true,
-    }).exec();
+    return await ReviewConfigModel.findByIdAndUpdate(
+      id,
+      { $set: update },
+      { new: true }
+    ).exec();
   }
-
   async delete(id: string) {
     return await ReviewConfigModel.findByIdAndDelete(id).exec();
   }
