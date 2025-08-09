@@ -19,6 +19,7 @@ import { SubscriptionRepository } from "../repositories/subscription.repository"
 import { UserRepository } from "../repositories/user.repository";
 import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import { ReviewRepository } from "../repositories/review.repository";
+import { TranscriptSummaryDto } from "../dto/transcript/transcript.summary.dto";
 
 @Service()
 export class TranscriptService {
@@ -58,8 +59,10 @@ export class TranscriptService {
     createdAtFrom?: Date,
     createdAtTo?: Date,
     page = 1,
-    limit = 20
-  ): Promise<{ transcripts: ITranscriptDocument[]; total: number }> {
+    limit = 20,
+    sortBy = "timestamp",
+    sortOrder = -1
+  ): Promise<{ transcripts: TranscriptSummaryDto[]; total: number }> {
     if (!companyId) throw new BadRequestError("No company id specified");
 
     return this.transcriptRepository.findByCompanyId(companyId, {
@@ -77,6 +80,8 @@ export class TranscriptService {
           : undefined,
       page,
       limit,
+      sortBy,
+      sortOrder,
     });
   }
 
@@ -150,12 +155,12 @@ export class TranscriptService {
     dto: CreateTranscriptDto,
     companyId: mongoose.Types.ObjectId,
     employeeIdFromToken: mongoose.Types.ObjectId,
-    uploadedBy: mongoose.Types.ObjectId,
+    uploadedById: mongoose.Types.ObjectId,
     userRole: string
   ): Promise<ITranscriptDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
     if (!employeeIdFromToken) throw new BadRequestError("Missing employee ID");
-    if (!uploadedBy) throw new BadRequestError("Missing uploader ID");
+    if (!uploadedById) throw new BadRequestError("Missing uploader ID");
 
     // Validate company existence and active status
     const company = await this.companyRepository.findById(companyId);
@@ -215,12 +220,14 @@ export class TranscriptService {
     }
 
     // Validate uploader exists
-    const uploader = await this.userRepository.findById(uploadedBy);
+    const uploader = await this.userRepository.findById(uploadedById);
     if (!uploader)
-      throw new NotFoundError(`Uploader with id ${uploadedBy} was not found`);
+      throw new NotFoundError(`Uploader with id ${uploadedById} was not found`);
 
     if (!uploader.isActive)
-      throw new ForbiddenError(`Uploaded with id ${uploadedBy} is not active`);
+      throw new ForbiddenError(
+        `Uploaded with id ${uploadedById} is not active`
+      );
 
     // Check active subscription
     const subscription = await this.subscriptionRepository.findOne({
@@ -251,7 +258,7 @@ export class TranscriptService {
     const transcriptData: Partial<ITranscriptDocument> = {
       companyId,
       employeeId: finalEmployeeId,
-      uploadedBy,
+      uploadedById,
       externalCompanyId: new mongoose.Types.ObjectId(dto.externalCompanyId),
       contactId: new mongoose.Types.ObjectId(dto.contactId),
       content: dto.content,

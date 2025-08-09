@@ -16,7 +16,7 @@ export interface ITranscriptData {
   content: string;
   timestamp: Date;
   timestampEnd: Date;
-  uploadedBy: mongoose.Types.ObjectId;
+  uploadedById: mongoose.Types.ObjectId;
   reviewStatus: ReviewStatus;
   isReviewed: boolean;
 }

@@ -191,7 +191,7 @@ export class SeedService {
           contactId: faker.helpers.arrayElement(contacts)._id,
           content: faker.lorem.paragraphs(3),
           timestamp: faker.date.recent(),
-          uploadedBy: admin._id,
+          uploadedById: admin._id,
           reviewStatus: ReviewStatus.NOT_STARTED,
           isReviewed: false,
         });

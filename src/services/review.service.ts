@@ -29,7 +29,6 @@ import {
 } from "../models/entities/criterion.entity";
 import { ReviewStatus } from "../models/types/transcript.type";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
-import { IExpandedReviewConfig } from "../models/types/review.config.type";
 import { UserRepository } from "../repositories/user.repository";
 
 @Service()

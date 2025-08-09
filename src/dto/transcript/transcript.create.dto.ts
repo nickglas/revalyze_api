@@ -8,13 +8,13 @@ import {
 import { IsMongoObjectId } from "../../validators/mongo.objectId.validator";
 
 export class CreateTranscriptDto {
-  @IsNotEmpty({ message: "External Company ID is required" })
+  @IsOptional()
   @IsMongoObjectId({
     message: "External Company ID must be a valid Mongo ObjectId",
   })
   externalCompanyId!: string;
 
-  @IsNotEmpty({ message: "Contact ID is required" })
+  @IsOptional()
   @IsMongoObjectId({ message: "Contact ID must be a valid Mongo ObjectId" })
   contactId!: string;
 

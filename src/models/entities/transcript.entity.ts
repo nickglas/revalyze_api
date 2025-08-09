@@ -21,7 +21,7 @@ const transcriptSchema = new Schema<ITranscriptDocument>(
     content: { type: String, required: true },
     timestamp: { type: Date, required: true },
     timestampEnd: { type: Date, required: false },
-    uploadedBy: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+    uploadedById: { type: Schema.Types.ObjectId, required: true, ref: "User" },
     reviewStatus: {
       type: String,
       enum: Object.values(ReviewStatus),
