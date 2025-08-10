@@ -76,19 +76,19 @@ const reviewSchema = new Schema<IReviewDocument>(
     externalCompanyId: {
       type: Schema.Types.ObjectId,
       ref: "ExternalCompany",
-      required: true,
+      required: false,
       index: true,
     },
     employeeId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: false,
       index: true,
     },
     clientId: {
       type: Schema.Types.ObjectId,
       ref: "Client",
-      required: true,
+      required: false,
       index: true,
     },
     companyId: {

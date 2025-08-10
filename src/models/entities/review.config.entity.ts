@@ -30,7 +30,7 @@ const reviewConfigSchema = new Schema<IReviewConfigDocument>(
       type: String,
       trim: true,
       minlength: 5,
-      maxlength: 25,
+      maxlength: 250,
     },
     criteria: [
       {

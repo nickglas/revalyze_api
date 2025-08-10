@@ -20,6 +20,9 @@ import { UserRepository } from "../repositories/user.repository";
 import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import { ReviewRepository } from "../repositories/review.repository";
 import { TranscriptSummaryDto } from "../dto/transcript/transcript.summary.dto";
+import { privateDecrypt } from "crypto";
+import { ReviewService } from "./review.service";
+import { ReviewConfigRepository } from "../repositories/review.config.repository";
 
 @Service()
 export class TranscriptService {
@@ -30,7 +33,9 @@ export class TranscriptService {
     private readonly contactRepository: ContactRepository,
     private readonly subscriptionRepository: SubscriptionRepository,
     private readonly userRepository: UserRepository,
-    private readonly reviewRepository: ReviewRepository
+    private readonly reviewRepository: ReviewRepository,
+    private readonly reviewService: ReviewService,
+    private readonly reviewConfigRepository: ReviewConfigRepository
   ) {}
 
   /**
@@ -162,42 +167,39 @@ export class TranscriptService {
     if (!employeeIdFromToken) throw new BadRequestError("Missing employee ID");
     if (!uploadedById) throw new BadRequestError("Missing uploader ID");
 
-    // Validate company existence and active status
-    const company = await this.companyRepository.findById(companyId);
-    if (!company)
-      throw new NotFoundError(`Company with id ${companyId} was not found`);
-    if (!company.isActive)
-      throw new UnauthorizedError(`Company with id ${companyId} is not active`);
+    // Validate externalCompanyId belongs to the company and exists
+    if (dto.externalCompanyId) {
+      const externalCompany = await this.externalCompanyRepository.findOne({
+        _id: new mongoose.Types.ObjectId(dto.externalCompanyId),
+        companyId,
+      });
+      if (!externalCompany)
+        throw new NotFoundError(
+          `External company with id ${dto.externalCompanyId} not found or does not belong to company ${companyId}`
+        );
 
-    // Validate externalCompanyId belongs to the company
-    const externalCompany = await this.externalCompanyRepository.findOne({
-      _id: new mongoose.Types.ObjectId(dto.externalCompanyId),
-      companyId,
-    });
-    if (!externalCompany)
-      throw new NotFoundError(
-        `External company with id ${dto.externalCompanyId} not found or does not belong to company ${companyId}`
-      );
-
-    if (!externalCompany.isActive)
-      throw new BadRequestError(
-        `External company with id ${dto.externalCompanyId} is not active`
-      );
+      if (!externalCompany.isActive)
+        throw new BadRequestError(
+          `External company with id ${dto.externalCompanyId} is not active`
+        );
+    }
 
     // Validate contact belongs to the external company
-    const contact = await this.contactRepository.findOne({
-      _id: new mongoose.Types.ObjectId(dto.contactId),
-      externalCompanyId: new mongoose.Types.ObjectId(dto.externalCompanyId),
-    });
-    if (!contact)
-      throw new NotFoundError(
-        `Contact with id ${dto.contactId} not found or does not belong to external company ${dto.externalCompanyId}`
-      );
+    if (dto.contactId) {
+      const contact = await this.contactRepository.findOne({
+        _id: new mongoose.Types.ObjectId(dto.contactId),
+        externalCompanyId: new mongoose.Types.ObjectId(dto.externalCompanyId),
+      });
+      if (!contact)
+        throw new NotFoundError(
+          `Contact with id ${dto.contactId} not found or does not belong to external company ${dto.externalCompanyId}`
+        );
 
-    if (!contact.isActive)
-      throw new BadRequestError(
-        `Contact with id ${dto.contactId} is not active`
-      );
+      if (!contact.isActive)
+        throw new BadRequestError(
+          `Contact with id ${dto.contactId} is not active`
+        );
+    }
 
     // Validate employeeId (if provided and admin)
     let finalEmployeeId: mongoose.Types.ObjectId;
@@ -219,54 +221,55 @@ export class TranscriptService {
       finalEmployeeId = employeeIdFromToken;
     }
 
-    // Validate uploader exists
-    const uploader = await this.userRepository.findById(uploadedById);
-    if (!uploader)
-      throw new NotFoundError(`Uploader with id ${uploadedById} was not found`);
-
-    if (!uploader.isActive)
-      throw new ForbiddenError(
-        `Uploaded with id ${uploadedById} is not active`
-      );
-
-    // Check active subscription
-    const subscription = await this.subscriptionRepository.findOne({
-      companyId,
-      status: "active",
-    });
-
-    if (!subscription) {
-      throw new ForbiddenError("No active subscription found for this company");
-    }
-
-    // Check transcript limits within current billing period
-    const transcriptCount = await this.transcriptRepository.count({
-      companyId,
-      createdAt: {
-        $gte: subscription.currentPeriodStart,
-        $lte: subscription.currentPeriodEnd,
-      },
-    });
-
-    if (transcriptCount >= subscription.allowedTranscripts) {
-      throw new ForbiddenError(
-        `Transcript limit reached (${subscription.allowedTranscripts}) for this billing period`
-      );
-    }
-
     // Prepare transcript data
     const transcriptData: Partial<ITranscriptDocument> = {
       companyId,
       employeeId: finalEmployeeId,
       uploadedById,
-      externalCompanyId: new mongoose.Types.ObjectId(dto.externalCompanyId),
-      contactId: new mongoose.Types.ObjectId(dto.contactId),
+      externalCompanyId: dto.externalCompanyId
+        ? new mongoose.Types.ObjectId(dto.externalCompanyId)
+        : undefined,
+      contactId: dto.contactId
+        ? new mongoose.Types.ObjectId(dto.contactId)
+        : undefined,
       content: dto.content,
       timestamp: new Date(dto.timestamp),
     };
 
     // Create and return the transcript
-    return this.transcriptRepository.create(transcriptData);
+    const transcript = await this.transcriptRepository.create(transcriptData);
+
+    if (dto.autoStartReview) {
+      console.warn(dto);
+      console.warn("Start review");
+      const reviewConfig = await this.reviewConfigRepository.findById(
+        dto.reviewConfigId!
+      );
+
+      console.warn(reviewConfig);
+
+      if (!reviewConfig) return transcript;
+
+      const subscription = await this.subscriptionRepository.findOne({
+        companyId: companyId,
+        status: "active",
+      });
+      console.warn(subscription);
+
+      if (!subscription) return transcript;
+
+      this.reviewService.createReview(
+        {
+          transcriptId: transcript.id,
+          reviewConfigId: dto.reviewConfigId!,
+          type: "both",
+        },
+        companyId,
+        subscription
+      );
+    }
+
+    return transcript;
   }
 
   /**

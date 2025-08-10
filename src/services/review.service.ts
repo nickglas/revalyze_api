@@ -232,8 +232,13 @@ export class ReviewService {
       companyId
     );
 
+    console.warn(config);
+
     //validate criteria
-    const criteria = await this.findCriterionOrThrow(config.criteriaIds);
+    const criteriaIds = config.criteria?.map((x) => x.criterionId) ?? [];
+    const criteria = await this.findCriterionOrThrow(criteriaIds);
+
+    console.warn(criteria);
 
     //create review with status NOT_STARTED
     const reviewData: Partial<IReviewDocument> = {

@@ -4,6 +4,8 @@ import {
   IsDateString,
   IsMongoId,
   IsOptional,
+  isBoolean,
+  IsBoolean,
 } from "class-validator";
 import { IsMongoObjectId } from "../../validators/mongo.objectId.validator";
 
@@ -31,4 +33,13 @@ export class CreateTranscriptDto {
     message: "EmployeeId ID must be a valid Mongo ObjectId",
   })
   employeeId!: string;
+
+  @IsBoolean({ message: "autoStartReview must be a boolean" })
+  autoStartReview!: boolean;
+
+  @IsOptional()
+  @IsMongoObjectId({
+    message: "reviewConfigId ID must be a valid Mongo ObjectId",
+  })
+  reviewConfigId?: string;
 }

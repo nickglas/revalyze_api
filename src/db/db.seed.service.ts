@@ -2,6 +2,7 @@
 import { Service } from "typedi";
 import { faker } from "@faker-js/faker";
 import bcrypt from "bcryptjs";
+import mongoose from "mongoose";
 
 import { logger } from "../utils/logger";
 import { CompanyModel } from "../models/entities/company.entity";
@@ -140,46 +141,89 @@ export class SeedService {
         contacts.push(contact);
       }
 
-      // 7. Create criteria
-      const criteria = [];
-      const criterionNames = [
-        "Product Knowledge",
-        "Communication",
-        "Problem Solving",
-        "Empathy",
-        "Efficiency",
-        "Professionalism",
-        "Technical Skills",
-        "Collaboration",
-        "Adaptability",
-        "Leadership",
+      // 7. Create default criteria
+      const defaultCriteriaData = [
+        {
+          title: "Empathie",
+          description:
+            "Evalueer of de medewerker blijk gaf van empathie tijdens het gesprek. Let op of de medewerker begrip toont voor de situatie, emotioneel aansluit bij de klant, en oprechte betrokkenheid uitstraalt.",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Oplossingsgerichtheid",
+          description:
+            "Kijk of de medewerker actief werkte aan het oplossen van het probleem van de klant. Was de geboden oplossing passend? Werd er snel en duidelijk richting een uitkomst gestuurd?",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Professionaliteit",
+          description:
+            "Beoordeel of de medewerker professioneel overkwam. Let op taalgebruik, toon, houding en consistentie. Was het gesprek beleefd, respectvol en zakelijk waar nodig?",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Klanttevredenheid",
+          description:
+            "Analyseer hoe tevreden de klant waarschijnlijk was aan het einde van de interactie. Gebruik signalen in de tekst zoals woordkeuze, afsluitende zinnen en toon om een inschatting te maken van de tevredenheid.",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Sentiment klant",
+          description:
+            "Analyseer het algemene sentiment van de klant tijdens het gesprek. Was de toon positief, neutraal of negatief? En hoe ontwikkelde dit sentiment zich tijdens het gesprek?",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Helderheid en begrijpelijkheid",
+          description:
+            "Evalueer of de medewerker duidelijke en begrijpelijke taal gebruikte. Werden instructies of informatie op een toegankelijke manier uitgelegd?",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Responsiviteit/luistervaardigheid",
+          description:
+            "Beoordeel of de medewerker actief luisterde en passend reageerde op de input van de klant. Werden vragen goed beantwoord? Was er sprake van herhaling, bevestiging of doorvragen?",
+          isActive: true,
+          companyId: company._id,
+        },
+        {
+          title: "Tijdsefficiëntie/doelgerichtheid",
+          description:
+            "Beoordeel of het gesprek doelgericht verliep. Werden irrelevante uitweidingen vermeden? Was het gesprek effectief in het bereiken van een oplossing zonder onnodige vertraging?",
+          isActive: true,
+          companyId: company._id,
+        },
       ];
 
-      for (const name of criterionNames) {
-        const criterion = await CriterionModel.create({
-          companyId: company._id,
-          title: name,
-          description: `Evaluation of ${name.toLowerCase()}`,
-          isActive: true,
-        });
+      const criteria = [];
+      for (const data of defaultCriteriaData) {
+        const criterion = await CriterionModel.create(data);
         criteria.push(criterion);
       }
 
-      // 8. Create review configs
-      const reviewConfigs = [];
-      for (let i = 0; i < 2; i++) {
-        const config = await ReviewConfigModel.create({
-          name: `Review Config ${i + 1}`,
-          companyId: company._id,
-          isActive: true,
-          criteriaIds: criteria.slice(0, 5).map((c) => c._id),
-          modelSettings: {
-            temperature: 0.7,
-            maxTokens: 2000,
-          },
-        });
-        reviewConfigs.push(config);
-      }
+      // 8. Create default review config
+      const defaultReviewConfig = await ReviewConfigModel.create({
+        name: "Default",
+        description: "Default review configuration",
+        companyId: company._id,
+        isActive: true,
+        criteria: criteria.map((c) => ({
+          criterionId: c._id,
+          weight: 1 / criteria.length, // Equal weight for all criteria
+        })),
+        modelSettings: {
+          temperature: 0.7,
+          maxTokens: 1000,
+        },
+      });
+
+      const reviewConfigs = [defaultReviewConfig];
 
       // 9. Create transcripts
       const transcripts = [];
@@ -204,27 +248,17 @@ export class SeedService {
 
         await ReviewModel.create({
           transcriptId: transcript._id,
-          reviewConfig: reviewConfigs[i % 2].toObject(),
+          reviewConfig: defaultReviewConfig.toObject(), // Use default config
           reviewStatus: ReviewStatus.REVIEWED,
           type: "both",
-          criteriaScores: [
-            {
-              criterionName: "Product Knowledge",
-              criterionDescription: "Knowledge of products",
-              score: faker.number.float({ min: 7, max: 10 }),
-              comment: faker.lorem.sentence(),
-              quote: faker.lorem.sentence(),
-              feedback: faker.lorem.paragraph(),
-            },
-            {
-              criterionName: "Communication",
-              criterionDescription: "Communication skills",
-              score: faker.number.float({ min: 7, max: 10 }),
-              comment: faker.lorem.sentence(),
-              quote: faker.lorem.sentence(),
-              feedback: faker.lorem.paragraph(),
-            },
-          ],
+          criteriaScores: criteria.map((c) => ({
+            criterionName: c.title,
+            criterionDescription: c.description,
+            score: faker.number.float({ min: 7, max: 10 }),
+            comment: faker.lorem.sentence(),
+            quote: faker.lorem.sentence(),
+            feedback: faker.lorem.paragraph(),
+          })),
           overallScore: faker.number.float({ min: 7, max: 10 }),
           overallFeedback: faker.lorem.paragraph(),
           sentimentScore: faker.number.float({ min: 7, max: 10 }),
