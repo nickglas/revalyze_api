@@ -4,6 +4,7 @@ import { authenticate } from "../middlewares/auth.middleware";
 import { validateDto } from "../middlewares/validate.middleware";
 import { RequestResetPasswordDto } from "../dto/auth/auth.request.password.reset.dto";
 import { ResetPasswordDto } from "../dto/auth/auth.reset.password.dto";
+import { ActivateAccountDto } from "../dto/auth/auth.activate.account.dto";
 
 const router = Router();
 
@@ -29,6 +30,16 @@ router.post(
   "/password-reset",
   validateDto(ResetPasswordDto),
   authController.resetPassword
+);
+
+router.get(
+  "/activate-tokens/:token",
+  authController.validateActivationToken as RequestHandler
+);
+router.post(
+  "/activate",
+  validateDto(ActivateAccountDto),
+  authController.activateAccount as RequestHandler
 );
 
 export default router;

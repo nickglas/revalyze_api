@@ -1,9 +1,33 @@
 // src/dto/user/user.create.dto.ts
-import { IsEmail, IsEnum, IsNotEmpty, IsString, Length } from "class-validator";
+import {
+  IsBoolean,
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  ValidateNested,
+  ArrayMinSize,
+} from "class-validator";
+import { Type } from "class-transformer";
+import { IsMongoObjectId } from "../../validators/mongo.objectId.validator";
 
 export enum UserRoleEnum {
   EMPLOYEE = "employee",
   COMPANY_ADMIN = "company_admin",
+}
+
+class TeamDto {
+  @IsMongoObjectId({
+    message: "Team id must be a valid Mongo ObjectId",
+  })
+  @IsNotEmpty({ message: "Team id is required" })
+  id!: string;
+
+  @IsBoolean({ message: "isManager must be a boolean value" })
+  @IsNotEmpty({ message: "isManager is required" })
+  isManager!: boolean;
 }
 
 export class CreateUserDto {
@@ -20,4 +44,14 @@ export class CreateUserDto {
     message: "Role must be either 'employee' or 'company_admin'",
   })
   role!: UserRoleEnum;
+
+  @IsBoolean({ message: "IsActive must be a boolean value" })
+  @IsNotEmpty({ message: "IsActive is required" })
+  isActive!: boolean;
+
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => TeamDto)
+  @ArrayMinSize(1, { message: "Teams array cannot be empty if provided" })
+  teams?: TeamDto[];
 }

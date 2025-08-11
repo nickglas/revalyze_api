@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { Container } from "typedi";
 import { UserService } from "../services/user.service";
+import { CreateUserDto } from "../dto/user/user.create.dto";
 
 /**
  * Controller to handle GET /users
@@ -91,8 +92,9 @@ export const createUser = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const dto: CreateUserDto = req.body;
     const userService = Container.get(UserService);
-    const user = await userService.createUser(companyId, req.body);
+    const user = await userService.createUser(companyId, dto);
 
     res.status(201).json(user);
   } catch (err) {

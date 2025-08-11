@@ -2,9 +2,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service";
 import Container from "typedi";
-import { UserService } from "../services/user.service";
 import { MailService } from "../services/mail.service";
-import * as crypto from "crypto";
 
 export const login = async (
   req: Request,
@@ -106,6 +104,39 @@ export const resetPassword = async (
     await authService.resetPassword(token, password);
 
     res.status(200).json({ message: "Password has been reset successfully." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const validateActivationToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { token } = req.params;
+    const authService = Container.get(AuthService);
+    const isValid = await authService.validateActivationToken(token);
+    res.status(200).json({ valid: isValid });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const activateAccount = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { token, password } = req.body;
+    const authService = Container.get(AuthService);
+    await authService.activateAccount(token, password);
+
+    res
+      .status(200)
+      .json({ message: "Account has been activated successfully." });
   } catch (error) {
     next(error);
   }

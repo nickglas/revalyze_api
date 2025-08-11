@@ -15,5 +15,7 @@ export const mapPendingToAdminUser = (
     role: "company_admin",
     companyId: companyId,
     isActive: true,
+    activationToken: null,
+    isActivated: false,
   };
 };

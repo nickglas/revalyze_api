@@ -2,6 +2,7 @@
 import { Schema, model, Document, Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import { IUserData, IUserMetrics, UserRole } from "../types/user.type";
+import { boolean } from "joi";
 
 export interface IUserDocument extends IUserData, Document {
   companyId: string | Types.ObjectId;
@@ -38,6 +39,8 @@ const userSchema = new Schema<IUserDocument>(
       required: true,
     },
     isActive: { type: Boolean, default: true },
+    isActivated: { type: Boolean, default: false },
+    activationToken: { type: String, unique: true },
     role: {
       type: String,
       enum: ["employee", "company_admin", "super_admin"],

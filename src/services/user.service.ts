@@ -9,12 +9,19 @@ import {
 } from "../utils/errors";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { IUserDocument } from "../models/entities/user.entity";
+import { CreateUserDto } from "../dto/user/user.create.dto";
+import { TeamRepository } from "../repositories/team.repository";
+import { MailService } from "./mail.service";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
 
 @Service()
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly subscriptionRepository: SubscriptionRepository
+    private readonly subscriptionRepository: SubscriptionRepository,
+    private readonly teamRepository: TeamRepository,
+    private readonly mailService: MailService
   ) {}
 
   /**
@@ -93,23 +100,12 @@ export class UserService {
    */
   async createUser(
     companyId: mongoose.Types.ObjectId | string,
-    userData: Partial<IUserDocument>
+    dto: CreateUserDto
   ): Promise<IUserDocument> {
     if (!companyId) throw new BadRequestError("Company ID is missing");
 
-    const normalizedCompanyId =
-      typeof companyId === "string"
-        ? new mongoose.Types.ObjectId(companyId)
-        : companyId;
-
-    userData.companyId = normalizedCompanyId;
-
-    if (!userData.email) throw new BadRequestError("Email is missing");
-    if (!userData.name) throw new BadRequestError("Name is missing");
-    if (!userData.role) throw new BadRequestError("Role is missing");
-
     const subscription = await this.subscriptionRepository.findOne({
-      companyId: normalizedCompanyId,
+      companyId: companyId,
       status: "active",
     });
 
@@ -118,10 +114,8 @@ export class UserService {
     }
 
     const userCount = await this.userRepository.countActiveUsersByCompany(
-      normalizedCompanyId
+      companyId
     );
-
-    console.warn(userCount);
 
     if (userCount >= subscription.allowedUsers) {
       throw new BadRequestError(
@@ -129,10 +123,42 @@ export class UserService {
       );
     }
 
-    const existing = await this.userRepository.findByEmail(userData.email);
-    if (existing) throw new BadRequestError("Email already in use");
+    const existing = await this.userRepository.findByEmail(dto.email);
 
-    return this.userRepository.create(userData);
+    if (existing) throw new BadRequestError("Email already in use");
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = await bcrypt.hash(rawToken, 10);
+
+    const user = await this.userRepository.create({
+      name: dto.name,
+      email: dto.email,
+      companyId: companyId,
+      role: dto.role,
+      isActive: dto.isActive,
+      activationToken: tokenHash,
+    });
+
+    await this.mailService.sendAccountActivationEmail(user.email, rawToken);
+
+    if (dto.teams && dto.teams.length > 0) {
+      for (const selectedTeam of dto.teams) {
+        const team = await this.teamRepository.findOne({
+          companyId,
+          _id: selectedTeam.id,
+        });
+
+        if (!team) {
+          throw new BadRequestError(
+            `Team with id ${selectedTeam.id} not found`
+          );
+        }
+
+        team.users.push({ user: user.id, isManager: selectedTeam.isManager });
+        await this.teamRepository.update(team.id, team);
+      }
+    }
+
+    return user;
   }
 
   /**

@@ -21,6 +21,8 @@ export interface IUserData {
   password: string;
   companyId: string | mongoose.Types.ObjectId;
   isActive: boolean;
+  isActivated: boolean;
+  activationToken: string | null;
   role: UserRole;
   metrics?: IUserMetrics;
 }

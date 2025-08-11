@@ -35,9 +35,6 @@ export class AuthService {
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = await bcrypt.hash(rawToken, 10);
 
-    console.warn(rawToken);
-    console.warn(tokenHash);
-
     await this.resetTokenRepository.create({
       userId: user.id,
       tokenHash,
@@ -156,5 +153,35 @@ export class AuthService {
       throw new BadRequestError("User ID is required");
     }
     await this.refreshTokenRepository.deleteAllByUserId(userId);
+  }
+
+  async validateActivationToken(rawToken: string): Promise<boolean> {
+    const users = await this.userRepository.findAllWithActivationToken();
+    for (const user of users) {
+      const match = await bcrypt.compare(rawToken, user.activationToken!);
+      if (match) return true;
+    }
+    return false;
+  }
+
+  async activateAccount(rawToken: string, newPassword: string) {
+    const users = await this.userRepository.findAllWithActivationToken();
+    let matchedUser = null;
+
+    for (const user of users) {
+      const match = await bcrypt.compare(rawToken, user.activationToken!);
+      if (match) {
+        matchedUser = user;
+        break;
+      }
+    }
+
+    if (!matchedUser) throw new UnauthorizedError("Invalid or expired token");
+
+    matchedUser.password = await bcrypt.hash(newPassword, 10);
+    matchedUser.activationToken = null;
+    matchedUser.isActivated = true;
+
+    await this.userRepository.update(matchedUser.id, matchedUser);
   }
 }

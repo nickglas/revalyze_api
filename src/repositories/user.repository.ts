@@ -40,6 +40,16 @@ export class UserRepository {
   }
 
   /**
+   * Finds all users with a valid (non-null, non-expired) activation token.
+   * Used during account activation flow.
+   */
+  async findAllWithActivationToken() {
+    return UserModel.find({
+      activationToken: { $ne: null },
+    }).exec();
+  }
+
+  /**
    * Retrieves paginated users for a specific company, with optional filters.
    *
    * @param companyId - The company ID.

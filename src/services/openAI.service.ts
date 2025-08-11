@@ -152,7 +152,7 @@ export class OpenAIService {
   }> {
     try {
       const model = reviewConfig.modelSettings?.model ?? "gpt-4o-mini";
-      const temperature = reviewConfig.modelSettings?.temperature ?? 0.7;
+      const temperature = reviewConfig.modelSettings?.temperature ?? 0.1;
       const maxTokens = reviewConfig.modelSettings?.maxTokens ?? 1000;
 
       const messages: ChatCompletionMessageParam[] = [
@@ -165,6 +165,8 @@ export class OpenAIService {
           content: this.createPrompt(transcript, criteria),
         },
       ];
+
+      console.warn(messages);
 
       const response = await this.openai.chat.completions.create({
         model,
