@@ -33,4 +33,5 @@ export interface IReviewData {
   employeeId: mongoose.Types.ObjectId;
   clientId: mongoose.Types.ObjectId;
   companyId: mongoose.Types.ObjectId;
+  errorMessage: String;
 }

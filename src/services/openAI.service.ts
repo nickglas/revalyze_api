@@ -36,102 +36,158 @@ export class OpenAIService {
     });
   }
 
-  private createPrompt = (
+  private cleanAIResponse(content: string): string {
+    if (content.startsWith("```json") && content.endsWith("```")) {
+      return content.substring(6, content.length - 3).trim();
+    }
+    if (content.startsWith("```") && content.endsWith("```")) {
+      return content.substring(3, content.length - 3).trim();
+    }
+    return content;
+  }
+
+  private createSentimentPrompt(transcript: ITranscriptDocument): string {
+    return `
+    Analyze the customer sentiment in the following conversation.
+    If the transcript has insufficient content (less than 50 words), return a JSON object with:
+    - "error": "Insufficient content for sentiment analysis"
+    - "minWordsRequired": 50
+    - "actualWordCount": ${transcript.content.split(/\s+/).length}
+
+    Otherwise, analyze sentiment and return:
+    - "sentimentScore": number (0-10, 10=most positive)
+    - "sentimentLabel": "positive", "neutral", or "negative"
+    - "sentimentAnalysis": string (detailed analysis)
+
+    Transcript: ${transcript.content}
+
+    STRICT RULES:
+    - Output must be valid JSON without markdown
+    - Start with { and end with }
+    - No additional text outside the JSON object
+  `;
+  }
+
+  async createSentimentAnalysis(transcript: ITranscriptDocument): Promise<{
+    sentimentScore: number;
+    sentimentLabel: "negative" | "neutral" | "positive";
+    sentimentAnalysis: string;
+  }> {
+    const messages: ChatCompletionMessageParam[] = [
+      {
+        role: "system",
+        content:
+          "You are an expert at analyzing customer sentiment in conversations.",
+      },
+      {
+        role: "user",
+        content: this.createSentimentPrompt(transcript),
+      },
+    ];
+
+    const response = await this.openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+      temperature: 0.1,
+      max_tokens: 500,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("No content in response");
+
+    return JSON.parse(content);
+  }
+
+  private createPrompt(
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[]
-  ): string => {
-    const criteriaList = criteria
-      .map(
-        (c) => `{ "criterion": "${c.title}", "description": "${c.description}"}`
-      )
-      .join(",\n");
+    criteria: ICriterionDocument[],
+    type: "performance" | "both"
+  ): string {
+    const wordCount = transcript.content.split(/\s+/).length;
 
     return `
-      Use the following transcript:
+    Analyze the following conversation transcript:
     ${transcript.content}
 
-    Transcript ID: ${transcript.id}
+    WORD COUNT: ${wordCount}
 
-    Clean and format the transcript using only the criteria below — do not add or infer any new ones.
+    If word count < 50, return JSON with:
+    - "error": "Insufficient content for analysis"
+    - "minWordsRequired": 50
+    - "actualWordCount": ${wordCount}
 
-    Use the weights to guide how strictly each criterion is evaluated. Higher-weighted criteria should be graded more strictly and considered more important in feedback.
+    Otherwise, evaluate:
+    ${
+      type === "both"
+        ? "1. Agent performance AND customer sentiment"
+        : "Agent performance"
+    }
 
-    CRITERIA: ${criteria.map((c) => c.title).join(", ")}
+    CRITERIA:
+    ${criteria.map((c) => `- ${c.title}: ${c.description}`).join("\n")}
 
-    Criteria details: [${criteriaList}]
-
-    Include the full configuration object as provided in the input under the key "configuration", exactly as found in the original input. This should be embedded as an object within the output JSON.
-
-    Output Format:
-
-    Return a single valid JSON object, containing:
-
-    - "results" — an array of objects, each including:
-      - "criterion" (must match one of the titles)
-      - "score" (1–10)
-      - "comment"
-      - "quote"
-      - "feedback"
-    - "overall_score" — number between 0 and 10, computed as the weighted average of the individual scores
-    - "overall_feedback" — paragraph summarizing overall agent performance, highlighting strengths and suggesting specific areas for improvement
-    - "sentimentScore" — number between 0 and 10 representing the customer's overall emotional tone (10 = very positive, 0 = very negative)
-    - "sentimentLabel" — one of: "positive", "neutral", "negative"
-    - "sentimentAnalysis" — a paragraph summarizing the emotional tone of the client, referencing specific phrases or tone indicators that justify the sentimentScore and sentimentLabel
-
-    ### Example Output:
-
+    OUTPUT FORMAT (JSON only):
     {
       "results": [
         {
-          "criterion": "Empathy",
-          "score": 8,
-          "comment": "Agent showed understanding",
-          "quote": "I completely understand how frustrating that must be.",
-          "feedback": "You did well acknowledging the customer's frustration. For an even higher score, try adding reassurance or proactive follow-up, like offering immediate solutions."
+          "criterion": "Criterion Name",
+          "score": 1-10,
+          "comment": "...",
+          "quote": "...",
+          "feedback": "..."
         }
       ],
-      "overall_score": 7.9,
-      "overall_feedback": "The agent demonstrated strong empathy and clarity in communication, which helped the customer feel heard and informed. However, there were missed opportunities for proactive support and deeper personalization. Focus on using the customer's name more often, anticipating concerns, and giving detailed explanations of next steps to improve overall customer experience.",
-      "sentimentScore": 8.5,
-      "sentimentLabel": "positive"
-      "sentimentAnalysis": "The client was very happy with the service and expressed satisfaction multiple times throughout the interaction. Their tone was consistently positive, and they responded warmly to the agent’s assistance. Phrases such as 'Thanks so much!' and 'You've been incredibly helpful' indicate a high level of contentment and trust in the support received."
+      "overall_score": 0-10,
+      "overall_feedback": "...",
+      ${
+        type === "both"
+          ? `
+      "sentimentScore": 0-10,
+      "sentimentLabel": "negative/neutral/positive",
+      "sentimentAnalysis": "..."`
+          : ""
+      }
     }
 
     STRICT RULES:
-      - Do not add any extra criteria.
-      - Output must be a single, clean JSON object.
-      - Do not wrap or escape the JSON.
-      - The output must start with { and end with }.
-        `;
-  };
+    - Output must be pure JSON without markdown
+    - Start with { and end with }
+    - No additional text outside the JSON
+    - Include all fields exactly as specified
+  `;
+  }
 
-  private parseAIResponse = (
-    aiResponseStr: string
-  ): {
+  private parseAIResponse(aiResponseStr: string): {
     overallScore: number;
     overallFeedback: string;
     criteriaScores: ICriteriaScore[];
     sentimentScore: number;
     sentimentLabel: "negative" | "neutral" | "positive";
     sentimentAnalysis: string;
-  } => {
-    const data: OpenAIResponse = JSON.parse(aiResponseStr);
-
-    return {
-      overallScore: data.overall_score ?? 0,
-      overallFeedback: data.overall_feedback ?? "",
-      criteriaScores: data.results.map((r) => ({
-        criterionName: r.criterion,
-        score: r.score,
-        comment: r.comment,
-        quote: r.quote,
-        feedback: r.feedback,
-      })),
-      sentimentScore: data.sentimentScore ?? 0,
-      sentimentLabel: data.sentimentLabel ?? "neutral",
-      sentimentAnalysis: data.sentimentAnalysis ?? "",
-    };
-  };
+  } {
+    try {
+      const cleaned = this.cleanAIResponse(aiResponseStr);
+      const data: OpenAIResponse = JSON.parse(cleaned);
+      return {
+        overallScore: data.overall_score ?? 0,
+        overallFeedback: data.overall_feedback ?? "",
+        criteriaScores: data.results.map((r) => ({
+          criterionName: r.criterion,
+          score: r.score,
+          comment: r.comment,
+          quote: r.quote,
+          feedback: r.feedback,
+        })),
+        sentimentScore: data.sentimentScore ?? 0,
+        sentimentLabel: data.sentimentLabel ?? "neutral",
+        sentimentAnalysis: data.sentimentAnalysis ?? "",
+      };
+    } catch (error) {
+      console.error("Error parsing AI response:", error);
+      console.error("Original content:", aiResponseStr);
+      throw new Error("Failed to parse AI response as JSON");
+    }
+  }
 
   /**
    * Sends a chat completion request to OpenAI and returns the response.
@@ -141,14 +197,15 @@ export class OpenAIService {
   async createChatCompletion(
     reviewConfig: IReviewConfigDocument,
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[]
+    criteria: ICriterionDocument[],
+    type: "performance" | "both"
   ): Promise<{
     overallScore: number;
     overallFeedback: string;
     criteriaScores: ICriteriaScore[];
-    sentimentScore: number;
-    sentimentLabel: "negative" | "neutral" | "positive";
-    sentimentAnalysis: string;
+    sentimentScore?: number;
+    sentimentLabel?: "negative" | "neutral" | "positive";
+    sentimentAnalysis?: string;
   }> {
     try {
       const model = reviewConfig.modelSettings?.model ?? "gpt-4o-mini";
@@ -158,15 +215,13 @@ export class OpenAIService {
       const messages: ChatCompletionMessageParam[] = [
         {
           role: "system",
-          content: `You are a helpful assistant performing a review based on the following configuration: ${reviewConfig.name}.`,
+          content: `You are a helpful assistant performing a ${type} review.`,
         },
         {
           role: "user",
-          content: this.createPrompt(transcript, criteria),
+          content: this.createPrompt(transcript, criteria, type),
         },
       ];
-
-      console.warn(messages);
 
       const response = await this.openai.chat.completions.create({
         model,

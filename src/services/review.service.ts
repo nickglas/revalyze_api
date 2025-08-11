@@ -193,11 +193,15 @@ export class ReviewService {
     await this.reviewRepository.update(failedReview.id, failedReview);
 
     //start review
-    this.processOpenAIReview(failedReview, config, transcript, criteria).catch(
-      (err) => {
-        console.error("Async OpenAI retry failed:", err);
-      }
-    );
+    this.processOpenAIReview(
+      failedReview,
+      config,
+      transcript,
+      criteria,
+      failedReview.type
+    ).catch((err) => {
+      console.error("Async OpenAI retry failed:", err);
+    });
 
     return failedReview;
   }
@@ -226,27 +230,32 @@ export class ReviewService {
       companyId
     );
 
-    //validate review config
-    const config = await this.findValidConfigOrThrow(
-      dto.reviewConfigId,
-      companyId
-    );
+    let config: IReviewConfigDocument | null = null;
+    let criteria: ICriterionDocument[] = [];
 
-    console.warn(config);
+    if (dto.type === "performance" || dto.type === "both") {
+      if (!dto.reviewConfigId) {
+        throw new BadRequestError(
+          "reviewConfigId is required for performance or both review types"
+        );
+      }
 
-    //validate criteria
-    const criteriaIds = config.criteria?.map((x) => x.criterionId) ?? [];
-    const criteria = await this.findCriterionOrThrow(criteriaIds);
+      config = await this.findValidConfigOrThrow(dto.reviewConfigId, companyId);
 
-    console.warn(criteria);
+      // Validate criteria exists for performance reviews
+      const criteriaIds = config.criteria?.map((x) => x.criterionId) ?? [];
+      criteria = await this.findCriterionOrThrow(criteriaIds);
+
+      if (criteria.length === 0) {
+        throw new BadRequestError(
+          "Review config must have at least one criterion for performance reviews"
+        );
+      }
+    }
 
     //create review with status NOT_STARTED
     const reviewData: Partial<IReviewDocument> = {
       transcriptId: transcript.id,
-      reviewConfig: {
-        ...config.toJSON?.(),
-        criteria: criteria.map((c) => c.toJSON?.() ?? c),
-      } as any,
       type: dto.type,
       criteriaScores: [],
       externalCompanyId: transcript.externalCompanyId,
@@ -255,59 +264,102 @@ export class ReviewService {
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
     };
+
+    if (config) {
+      reviewData.reviewConfig = {
+        ...config.toJSON?.(),
+        criteria: criteria.map((c) => c.toJSON?.() ?? c),
+      } as any;
+    }
+
     const review = await this.reviewRepository.create(reviewData);
 
     //fire and forget OpenAI processing — do NOT await it
-    this.processOpenAIReview(review, config, transcript, criteria).catch(
-      (err) => {
-        console.error("Async OpenAI processing failed:", err);
-      }
-    );
+    this.processOpenAIReview(
+      review,
+      config,
+      transcript,
+      criteria,
+      dto.type
+    ).catch((err) => {
+      console.error("Async OpenAI processing failed:", err);
+    });
 
     return review;
   }
 
+  async createSentimentReview(transcriptId: string) {}
+
   // Helper method to process OpenAI review asynchronously
   private async processOpenAIReview(
     review: IReviewDocument,
-    config: IReviewConfigDocument,
+    config: IReviewConfigDocument | null,
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[]
+    criteria: ICriterionDocument[],
+    type: "performance" | "sentiment" | "both"
   ) {
     try {
       review.reviewStatus = ReviewStatus.STARTED;
       await review.save();
 
-      const aiResult = await this.openAIService.createChatCompletion(
-        config,
-        transcript,
-        criteria
-      );
-
-      console.warn("AI Result parsed:", aiResult);
-
-      if (!aiResult) {
-        throw new Error("AI result is empty or invalid");
+      let aiResult: any;
+      if (type === "sentiment") {
+        aiResult = await this.openAIService.createSentimentAnalysis(transcript);
+      } else {
+        if (!config) {
+          throw new Error("Review config is required for performance reviews");
+        }
+        aiResult = await this.openAIService.createChatCompletion(
+          config,
+          transcript,
+          criteria,
+          type
+        );
       }
 
-      review.overallScore = aiResult.overallScore;
-      review.overallFeedback = aiResult.overallFeedback;
-      review.criteriaScores = aiResult.criteriaScores;
+      // Handle insufficient content error
+      if (aiResult.error) {
+        review.reviewStatus = ReviewStatus.ERROR;
+        review.errorMessage = aiResult.error;
+        await review.save();
+        return;
+      }
 
-      review.sentimentScore = aiResult.sentimentScore;
-      review.sentimentLabel = aiResult.sentimentLabel;
-      review.sentimentAnalysis = aiResult.sentimentAnalysis;
+      // Update based on review type
+      if (type === "sentiment") {
+        review.sentimentScore = aiResult.sentimentScore;
+        review.sentimentLabel = aiResult.sentimentLabel;
+        review.sentimentAnalysis = aiResult.sentimentAnalysis;
+      } else {
+        review.overallScore = aiResult.overallScore;
+        review.overallFeedback = aiResult.overallFeedback;
+        review.criteriaScores = aiResult.criteriaScores;
+        review.sentimentScore = aiResult.sentimentScore;
+        review.sentimentLabel = aiResult.sentimentLabel;
+        review.sentimentAnalysis = aiResult.sentimentAnalysis;
+      }
 
       review.reviewStatus = ReviewStatus.REVIEWED;
       await review.save();
 
+      // Update transcript status
       transcript.isReviewed = true;
       transcript.reviewStatus = ReviewStatus.REVIEWED;
       await transcript.save();
+
       await this.updateUserMetrics(transcript.employeeId.toString());
     } catch (error) {
       console.error("Error processing OpenAI review:", error);
       review.reviewStatus = ReviewStatus.ERROR;
+
+      if (error instanceof Error) {
+        review.errorMessage = error.message;
+      } else if (typeof error === "string") {
+        review.errorMessage = error;
+      } else {
+        review.errorMessage = "Unknown error occurred during processing";
+      }
+
       await review.save();
     }
   }

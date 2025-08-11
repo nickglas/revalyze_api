@@ -40,7 +40,7 @@ const userSchema = new Schema<IUserDocument>(
     },
     isActive: { type: Boolean, default: true },
     isActivated: { type: Boolean, default: false },
-    activationToken: { type: String, unique: true },
+    activationToken: { type: String },
     role: {
       type: String,
       enum: ["employee", "company_admin", "super_admin"],

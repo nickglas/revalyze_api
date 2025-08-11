@@ -33,7 +33,13 @@ const reviewSchema = new Schema<IReviewDocument>(
     },
     reviewConfig: {
       type: Schema.Types.Mixed,
-      required: true,
+      required: function () {
+        return this.type === "performance" || this.type === "both";
+      },
+    },
+    errorMessage: {
+      type: String,
+      trim: true,
     },
     reviewStatus: {
       type: String,

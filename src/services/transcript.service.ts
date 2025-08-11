@@ -11,7 +11,10 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from "../utils/errors";
-import { CreateTranscriptDto } from "../dto/transcript/transcript.create.dto";
+import {
+  CreateTranscriptDto,
+  ReviewType,
+} from "../dto/transcript/transcript.create.dto";
 import { CompanyRepository } from "../repositories/company.repository";
 import { ExternalCompanyRepository } from "../repositories/external.company.repository";
 import { ContactRepository } from "../repositories/contact.repository";
@@ -240,21 +243,19 @@ export class TranscriptService {
     const transcript = await this.transcriptRepository.create(transcriptData);
 
     if (dto.autoStartReview) {
-      console.warn(dto);
-      console.warn("Start review");
-      const reviewConfig = await this.reviewConfigRepository.findById(
-        dto.reviewConfigId!
-      );
-
-      console.warn(reviewConfig);
-
-      if (!reviewConfig) return transcript;
+      // Validate review type requirements
+      if (dto.reviewType === "performance" || dto.reviewType === "both") {
+        if (!dto.reviewConfigId) {
+          throw new BadRequestError(
+            "reviewConfigId is required for performance or both review types"
+          );
+        }
+      }
 
       const subscription = await this.subscriptionRepository.findOne({
         companyId: companyId,
         status: "active",
       });
-      console.warn(subscription);
 
       if (!subscription) return transcript;
 
@@ -262,7 +263,7 @@ export class TranscriptService {
         {
           transcriptId: transcript.id,
           reviewConfigId: dto.reviewConfigId!,
-          type: "both",
+          type: dto.reviewType || ReviewType.BOTH,
         },
         companyId,
         subscription

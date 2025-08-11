@@ -6,8 +6,17 @@ import {
   IsOptional,
   isBoolean,
   IsBoolean,
+  isString,
+  IsIn,
+  IsEnum,
 } from "class-validator";
 import { IsMongoObjectId } from "../../validators/mongo.objectId.validator";
+
+export enum ReviewType {
+  PERFORMANCE = "performance",
+  SENTIMENT = "sentiment",
+  BOTH = "both",
+}
 
 export class CreateTranscriptDto {
   @IsOptional()
@@ -42,4 +51,10 @@ export class CreateTranscriptDto {
     message: "reviewConfigId ID must be a valid Mongo ObjectId",
   })
   reviewConfigId?: string;
+
+  @IsOptional()
+  @IsEnum(ReviewType, {
+    message: 'Review type must be "performance", "sentiment", or "both"',
+  })
+  reviewType?: ReviewType;
 }
