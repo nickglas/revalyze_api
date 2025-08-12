@@ -30,6 +30,22 @@ import {
 import { ReviewStatus } from "../models/types/transcript.type";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 import { UserRepository } from "../repositories/user.repository";
+import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
+
+interface ReviewServiceOptions {
+  companyId: mongoose.Types.ObjectId;
+  transcriptId?: string;
+  type?: "performance" | "sentiment" | "both";
+  employeeId?: string;
+  externalCompanyId?: string;
+  clientId?: string;
+  createdAtFrom?: Date;
+  createdAtTo?: Date;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: number;
+}
 
 @Service()
 export class ReviewService {
@@ -57,54 +73,40 @@ export class ReviewService {
    * @returns Paginated reviews and total count
    */
   async getReviews(
-    companyId: mongoose.Types.ObjectId,
-    transcriptId?: string,
-    type?: "performance" | "sentiment" | "both",
-    employeeId?: string,
-    externalCompanyId?: string,
-    clientId?: string,
-    createdAtFrom?: Date,
-    createdAtTo?: Date,
-    page = 1,
-    limit = 20
-  ): Promise<{ reviews: IReviewDocument[]; total: number }> {
-    if (!companyId) throw new BadRequestError("No company id specified");
+    options: ReviewServiceOptions
+  ): Promise<{ reviews: ReviewSummaryDto[]; total: number }> {
+    const {
+      companyId,
+      transcriptId,
+      type,
+      employeeId,
+      externalCompanyId,
+      clientId,
+      createdAtFrom,
+      createdAtTo,
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      sortOrder = -1,
+    } = options;
 
-    const filter: ReviewFilterOptions = { companyId };
-
-    if (transcriptId && mongoose.Types.ObjectId.isValid(transcriptId)) {
-      filter.transcriptId = new mongoose.Types.ObjectId(transcriptId);
-    }
-
-    if (type) {
-      filter.type = type;
-    }
-
-    if (employeeId && mongoose.Types.ObjectId.isValid(employeeId)) {
-      filter.employeeId = new mongoose.Types.ObjectId(employeeId);
-    }
-
-    if (
-      externalCompanyId &&
-      mongoose.Types.ObjectId.isValid(externalCompanyId)
-    ) {
-      filter.externalCompanyId = new mongoose.Types.ObjectId(externalCompanyId);
-    }
-
-    if (clientId && mongoose.Types.ObjectId.isValid(clientId)) {
-      filter.clientId = new mongoose.Types.ObjectId(clientId);
-    }
-
-    if (createdAtFrom || createdAtTo) {
-      filter.createdAtRange = {};
-      if (createdAtFrom) filter.createdAtRange.from = createdAtFrom;
-      if (createdAtTo) filter.createdAtRange.to = createdAtTo;
-    }
+    if (!companyId) throw new BadRequestError("Company ID is required");
 
     return this.reviewRepository.getAll({
-      ...filter,
+      companyId,
+      transcriptId,
+      type,
+      employeeId,
+      externalCompanyId,
+      clientId,
+      createdAtRange: {
+        from: createdAtFrom,
+        to: createdAtTo,
+      },
       page,
       limit,
+      sortBy,
+      sortOrder,
     });
   }
 

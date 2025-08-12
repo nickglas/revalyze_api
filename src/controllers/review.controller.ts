@@ -23,24 +23,30 @@ export const getReviews = async (
       clientId,
       createdAtFrom,
       createdAtTo,
+      sortBy,
+      sortOrder,
     } = req.query;
 
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
 
     const reviewService = Container.get(ReviewService);
-    const { reviews, total } = await reviewService.getReviews(
+    const { reviews, total } = await reviewService.getReviews({
       companyId,
-      transcriptId?.toString(),
-      type as "performance" | "sentiment" | "both",
-      employeeId?.toString(),
-      externalCompanyId?.toString(),
-      clientId?.toString(),
-      createdAtFrom ? new Date(createdAtFrom.toString()) : undefined,
-      createdAtTo ? new Date(createdAtTo.toString()) : undefined,
+      transcriptId: transcriptId?.toString(),
+      type: type as "performance" | "sentiment" | "both",
+      employeeId: employeeId?.toString(),
+      externalCompanyId: externalCompanyId?.toString(),
+      clientId: clientId?.toString(),
+      createdAtFrom: createdAtFrom
+        ? new Date(createdAtFrom.toString())
+        : undefined,
+      createdAtTo: createdAtTo ? new Date(createdAtTo.toString()) : undefined,
       page,
-      limit
-    );
+      limit,
+      sortBy: sortBy?.toString() || "createdAt",
+      sortOrder: sortOrder?.toString() === "desc" ? -1 : 1,
+    });
 
     res.status(200).json({
       data: reviews,

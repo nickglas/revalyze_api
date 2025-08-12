@@ -2,6 +2,7 @@ import { Service } from "typedi";
 import mongoose, { FilterQuery } from "mongoose";
 import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import { ReviewStatus } from "../models/types/review.type";
+import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
 
 type DateRange = { from?: Date; to?: Date };
 
@@ -14,6 +15,8 @@ export interface ReviewFilterOptions {
   companyId?: string | mongoose.Types.ObjectId;
   sentimentScoreRange?: { min?: number; max?: number };
   createdAtRange?: DateRange;
+  sortBy?: string;
+  sortOrder?: number;
   page?: number;
   limit?: number;
 }
@@ -22,84 +25,88 @@ export interface ReviewFilterOptions {
 export class ReviewRepository {
   async getAll(
     options: ReviewFilterOptions = {}
-  ): Promise<{ reviews: IReviewDocument[]; total: number }> {
+  ): Promise<{ reviews: ReviewSummaryDto[]; total: number }> {
     const {
+      companyId,
       transcriptId,
       type,
       externalCompanyId,
       employeeId,
       clientId,
-      companyId,
       sentimentScoreRange,
       createdAtRange,
       page = 1,
       limit = 20,
+      sortBy = "createdAt",
+      sortOrder = -1,
     } = options;
 
-    const filter: FilterQuery<IReviewDocument> = {};
+    const filter: FilterQuery<IReviewDocument> = { companyId };
 
-    if (transcriptId && mongoose.Types.ObjectId.isValid(transcriptId)) {
-      filter.transcriptId = new mongoose.Types.ObjectId(transcriptId);
-    }
+    const applyIdFilter = (
+      field: string,
+      value?: string | mongoose.Types.ObjectId
+    ) => {
+      if (value && mongoose.Types.ObjectId.isValid(value)) {
+        filter[field] = new mongoose.Types.ObjectId(value);
+      }
+    };
 
-    if (type) {
-      filter.type = type;
-    }
+    applyIdFilter("transcriptId", transcriptId);
+    applyIdFilter("externalCompanyId", externalCompanyId);
+    applyIdFilter("employeeId", employeeId);
+    applyIdFilter("clientId", clientId);
 
-    if (
-      externalCompanyId &&
-      mongoose.Types.ObjectId.isValid(externalCompanyId)
-    ) {
-      filter.externalCompanyId = new mongoose.Types.ObjectId(externalCompanyId);
-    }
-
-    if (employeeId && mongoose.Types.ObjectId.isValid(employeeId)) {
-      filter.employeeId = new mongoose.Types.ObjectId(employeeId);
-    }
-
-    if (clientId && mongoose.Types.ObjectId.isValid(clientId)) {
-      filter.clientId = new mongoose.Types.ObjectId(clientId);
-    }
-
-    if (companyId && mongoose.Types.ObjectId.isValid(companyId)) {
-      filter.companyId = new mongoose.Types.ObjectId(companyId);
-    }
+    if (type) filter.type = type;
 
     if (
       sentimentScoreRange?.min !== undefined ||
       sentimentScoreRange?.max !== undefined
     ) {
       filter.sentimentScore = {};
-      if (sentimentScoreRange.min !== undefined) {
+      if (sentimentScoreRange.min !== undefined)
         filter.sentimentScore.$gte = sentimentScoreRange.min;
-      }
-      if (sentimentScoreRange.max !== undefined) {
+      if (sentimentScoreRange.max !== undefined)
         filter.sentimentScore.$lte = sentimentScoreRange.max;
-      }
     }
 
     if (createdAtRange?.from || createdAtRange?.to) {
       filter.createdAt = {};
-      if (createdAtRange.from) {
-        filter.createdAt.$gte = createdAtRange.from;
-      }
-      if (createdAtRange.to) {
-        filter.createdAt.$lte = createdAtRange.to;
-      }
+      if (createdAtRange.from) filter.createdAt.$gte = createdAtRange.from;
+      if (createdAtRange.to) filter.createdAt.$lte = createdAtRange.to;
     }
 
+    const sort: Record<string, any> = { [sortBy]: sortOrder };
     const skip = (page - 1) * limit;
 
     const [reviews, total] = await Promise.all([
       ReviewModel.find(filter)
-        .sort({ createdAt: -1 })
+        .select(
+          "_id reviewStatus type overallScore overallFeedback employeeId createdAt sentimentAnalysis sentimentLabel sentimentScore"
+        )
+        .populate("employeeId", "_id name")
+        .sort(sort)
         .skip(skip)
         .limit(limit)
+        .lean()
         .exec(),
       ReviewModel.countDocuments(filter).exec(),
     ]);
 
-    return { reviews, total };
+    const summaries: ReviewSummaryDto[] = reviews.map((r: any) => ({
+      _id: r._id.toString(),
+      reviewStatus: r.reviewStatus,
+      type: r.type,
+      overallScore: r.overallScore,
+      overallFeedback: r.overallFeedback,
+      employee: { id: r.employeeId._id.toString(), name: r.employeeId.name },
+      createdAt: r.createdAt,
+      sentimentAnalysis: r.sentimentAnalysis,
+      sentimentLabel: r.sentimentLabel,
+      sentimentScore: r.sentimentScore,
+    }));
+
+    return { reviews: summaries, total };
   }
 
   async findRecentByEmployeeId(
