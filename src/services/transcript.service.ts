@@ -264,6 +264,7 @@ export class TranscriptService {
           transcriptId: transcript.id,
           reviewConfigId: dto.reviewConfigId!,
           type: dto.reviewType || ReviewType.BOTH,
+          criteriaWeights: dto.criteriaWeights,
         },
         companyId,
         subscription

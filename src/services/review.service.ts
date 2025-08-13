@@ -218,15 +218,15 @@ export class ReviewService {
   async createReview(
     dto: CreateReviewDto,
     companyId: mongoose.Types.ObjectId | string,
-    subsription: ISubscriptionDocument
+    subscription: ISubscriptionDocument
   ): Promise<IReviewDocument> {
     if (!companyId) throw new BadRequestError("Missing company ID");
 
-    //get the current review count and enforce limits
-    if (!(await this.isReviewQuotaAvailable(companyId, subsription)))
+    // Validate review quota
+    if (!(await this.isReviewQuotaAvailable(companyId, subscription)))
       throw new ForbiddenError("Review quota has been reached");
 
-    //validate transcript
+    // Validate transcript
     const transcript = await this.findTranscriptOrThrow(
       dto.transcriptId,
       companyId
@@ -234,7 +234,9 @@ export class ReviewService {
 
     let config: IReviewConfigDocument | null = null;
     let criteria: ICriterionDocument[] = [];
+    let reviewConfigWithWeights: any = null;
 
+    // Process performance-related review components
     if (dto.type === "performance" || dto.type === "both") {
       if (!dto.reviewConfigId) {
         throw new BadRequestError(
@@ -242,9 +244,10 @@ export class ReviewService {
         );
       }
 
+      // Fetch and validate review config
       config = await this.findValidConfigOrThrow(dto.reviewConfigId, companyId);
 
-      // Validate criteria exists for performance reviews
+      // Fetch and validate criteria - safely handle possible undefined
       const criteriaIds = config.criteria?.map((x) => x.criterionId) ?? [];
       criteria = await this.findCriterionOrThrow(criteriaIds);
 
@@ -253,9 +256,62 @@ export class ReviewService {
           "Review config must have at least one criterion for performance reviews"
         );
       }
+
+      // Process custom weights if provided
+      if (dto.criteriaWeights) {
+        // Create set of valid criterion IDs from config - safely handle undefined
+        const configCriterionIds = new Set(
+          config.criteria?.map((c) => c.criterionId.toString()) ?? []
+        );
+
+        // Validate each weight entry
+        dto.criteriaWeights.forEach((w) => {
+          if (!configCriterionIds.has(w.criterionId)) {
+            throw new BadRequestError(
+              `Criterion ${w.criterionId} not found in review config`
+            );
+          }
+        });
+
+        // Convert config to plain object
+        const reviewConfigData = config.toObject();
+
+        // Apply custom weights to criteria - safely handle undefined
+        const updatedCriteria = (reviewConfigData.criteria ?? []).map(
+          (confCriterion: { criterionId: any; weight: number }) => {
+            const customWeight = dto.criteriaWeights?.find(
+              (w) => w.criterionId === confCriterion.criterionId.toString()
+            );
+
+            return {
+              ...confCriterion,
+              weight: customWeight?.weight ?? confCriterion.weight,
+            };
+          }
+        );
+
+        // Build enriched config object with weights
+        reviewConfigWithWeights = {
+          ...reviewConfigData,
+          criteria: updatedCriteria,
+          populatedCriteria: criteria.map((crit) => ({
+            ...crit.toObject(),
+            weight: updatedCriteria.find(
+              (uc: { criterionId: any }) =>
+                uc.criterionId.toString() === crit._id.toString()
+            )?.weight,
+          })),
+        };
+      } else {
+        // Use original config if no custom weights
+        reviewConfigWithWeights = {
+          ...config.toObject(),
+          populatedCriteria: criteria.map((c) => c.toObject()),
+        };
+      }
     }
 
-    //create review with status NOT_STARTED
+    // Create review data
     const reviewData: Partial<IReviewDocument> = {
       transcriptId: transcript.id,
       type: dto.type,
@@ -265,18 +321,12 @@ export class ReviewService {
       clientId: transcript.contactId,
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
+      reviewConfig: reviewConfigWithWeights,
     };
-
-    if (config) {
-      reviewData.reviewConfig = {
-        ...config.toJSON?.(),
-        criteria: criteria.map((c) => c.toJSON?.() ?? c),
-      } as any;
-    }
 
     const review = await this.reviewRepository.create(reviewData);
 
-    //fire and forget OpenAI processing — do NOT await it
+    // Fire and forget OpenAI processing
     this.processOpenAIReview(
       review,
       config,
@@ -285,6 +335,7 @@ export class ReviewService {
       dto.type
     ).catch((err) => {
       console.error("Async OpenAI processing failed:", err);
+      // Consider adding error reporting here
     });
 
     return review;

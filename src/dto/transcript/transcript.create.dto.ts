@@ -9,8 +9,22 @@ import {
   isString,
   IsIn,
   IsEnum,
+  IsNumber,
+  Min,
+  Max,
+  ValidateNested,
+  IsArray,
 } from "class-validator";
 import { IsMongoObjectId } from "../../validators/mongo.objectId.validator";
+import { Type } from "class-transformer";
+
+class CriteriaWeightDto {
+  @IsMongoId()
+  criterionId!: string;
+
+  @IsNumber()
+  weight!: number;
+}
 
 export enum ReviewType {
   PERFORMANCE = "performance",
@@ -57,4 +71,10 @@ export class CreateTranscriptDto {
     message: 'Review type must be "performance", "sentiment", or "both"',
   })
   reviewType?: ReviewType;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CriteriaWeightDto)
+  criteriaWeights?: CriteriaWeightDto[];
 }
