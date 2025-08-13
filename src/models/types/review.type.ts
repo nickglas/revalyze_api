@@ -22,6 +22,7 @@ export interface IReviewData {
   transcriptId: mongoose.Types.ObjectId;
   reviewConfig: IReviewConfigDocument;
   type: "performance" | "sentiment" | "both";
+  subject?: string;
   reviewStatus: ReviewStatus;
   overallScore: number;
   overallFeedback: string;

@@ -51,6 +51,11 @@ const reviewSchema = new Schema<IReviewDocument>(
       enum: ["performance", "sentiment", "both"],
       required: true,
     },
+    subject: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     criteriaScores: {
       type: [criteriaScoreSchema],
       default: [],

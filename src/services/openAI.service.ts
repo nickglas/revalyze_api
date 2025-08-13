@@ -19,6 +19,7 @@ interface OpenAIResponse {
   sentimentScore?: number;
   sentimentLabel?: "negative" | "neutral" | "positive";
   sentimentAnalysis?: string;
+  subject: string;
 }
 
 @Service()
@@ -88,7 +89,7 @@ export class OpenAIService {
     const response = await this.openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages,
-      temperature: 0.1,
+      temperature: 0.0,
       max_tokens: 500,
     });
 
@@ -100,10 +101,21 @@ export class OpenAIService {
 
   private createPrompt(
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[],
+    config: IReviewConfigDocument, // Receive config instead of criteria
     type: "performance" | "both"
   ): string {
     const wordCount = transcript.content.split(/\s+/).length;
+
+    // Extract criteria with weights from config
+    const criteriaWithWeights = (config.populatedCriteria || []).map((c) => {
+      const weight =
+        config.criteria?.find(
+          (confCriterion) =>
+            confCriterion.criterionId.toString() === c._id.toString()
+        )?.weight || 1; // Default to 1 if weight missing
+
+      return `- ${c.title} (Weight: ${weight.toFixed(2)}): ${c.description}`;
+    });
 
     return `
     Analyze the following conversation transcript:
@@ -123,21 +135,26 @@ export class OpenAIService {
         : "Agent performance"
     }
 
-    CRITERIA:
-    ${criteria.map((c) => `- ${c.title}: ${c.description}`).join("\n")}
+    IMPORTANT: Calculate overall_score as a WEIGHTED AVERAGE using these weights:
+
+    TASKS:
+    1. Generate a short (max 15 words) subject summarizing the conversation
+    2. Evaluate agent performance using these criteria:
+    ${criteriaWithWeights.join("\n")}
 
     OUTPUT FORMAT (JSON only):
     {
+      "subject": "Short summary of conversation",
       "results": [
         {
           "criterion": "Criterion Name",
-          "score": 1-10,
+          "score": 1.0-10.0 (decimal scores allowed),
           "comment": "...",
           "quote": "...",
           "feedback": "..."
         }
       ],
-      "overall_score": 0-10,
+      "overall_score": 0-10 (WEIGHTED AVERAGE),
       "overall_feedback": "...",
       ${
         type === "both"
@@ -154,7 +171,13 @@ export class OpenAIService {
     - Start with { and end with }
     - No additional text outside the JSON
     - Include all fields exactly as specified
-  `;
+    - Calculate overall_score as weighted average of criterion scores
+    - Use weights exactly as provided
+
+    SCORING RULES:
+      - Use decimal scores (e.g., 6.5, 8.0, 3.5)
+      - Scores should reflect nuanced performance
+      `;
   }
 
   private parseAIResponse(aiResponseStr: string): {
@@ -164,11 +187,13 @@ export class OpenAIService {
     sentimentScore: number;
     sentimentLabel: "negative" | "neutral" | "positive";
     sentimentAnalysis: string;
+    subject: string;
   } {
     try {
       const cleaned = this.cleanAIResponse(aiResponseStr);
       const data: OpenAIResponse = JSON.parse(cleaned);
       return {
+        subject: data.subject ?? "",
         overallScore: data.overall_score ?? 0,
         overallFeedback: data.overall_feedback ?? "",
         criteriaScores: data.results.map((r) => ({
@@ -197,7 +222,6 @@ export class OpenAIService {
   async createChatCompletion(
     reviewConfig: IReviewConfigDocument,
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[],
     type: "performance" | "both"
   ): Promise<{
     overallScore: number;
@@ -219,7 +243,7 @@ export class OpenAIService {
         },
         {
           role: "user",
-          content: this.createPrompt(transcript, criteria, type),
+          content: this.createPrompt(transcript, reviewConfig, type),
         },
       ];
 

@@ -346,9 +346,9 @@ export class ReviewService {
   // Helper method to process OpenAI review asynchronously
   private async processOpenAIReview(
     review: IReviewDocument,
-    config: IReviewConfigDocument | null,
+    config: any, // Use any since we're passing custom object
     transcript: ITranscriptDocument,
-    criteria: ICriterionDocument[],
+    criteria: any[], // Use any since we're passing custom object
     type: "performance" | "sentiment" | "both"
   ) {
     try {
@@ -359,13 +359,9 @@ export class ReviewService {
       if (type === "sentiment") {
         aiResult = await this.openAIService.createSentimentAnalysis(transcript);
       } else {
-        if (!config) {
-          throw new Error("Review config is required for performance reviews");
-        }
         aiResult = await this.openAIService.createChatCompletion(
-          config,
+          config, // Pass the full config object
           transcript,
-          criteria,
           type
         );
       }
@@ -392,6 +388,7 @@ export class ReviewService {
         review.sentimentAnalysis = aiResult.sentimentAnalysis;
       }
 
+      review.subject = aiResult.subject;
       review.reviewStatus = ReviewStatus.REVIEWED;
       await review.save();
 
