@@ -41,7 +41,7 @@ interface ReviewServiceOptions {
   type?: "performance" | "sentiment" | "both";
   employeeId?: string;
   externalCompanyId?: string;
-  clientId?: string;
+  contactId?: string;
   createdAtFrom?: Date;
   createdAtTo?: Date;
   page?: number;
@@ -68,7 +68,7 @@ export class ReviewService {
    * @param type - Filter by review type ("performance", "sentiment", "both") (optional)
    * @param employeeId - Filter by employee ID (optional)
    * @param externalCompanyId - Filter by external company ID (optional)
-   * @param clientId - Filter by client ID (optional)
+   * @param contactId - Filter by client ID (optional)
    * @param createdAtFrom - Filter reviews created after this date (optional)
    * @param createdAtTo - Filter reviews created before this date (optional)
    * @param page - Pagination page (default 1)
@@ -84,7 +84,7 @@ export class ReviewService {
       type,
       employeeId,
       externalCompanyId,
-      clientId,
+      contactId: contactId,
       createdAtFrom,
       createdAtTo,
       page = 1,
@@ -101,7 +101,7 @@ export class ReviewService {
       type,
       employeeId,
       externalCompanyId,
-      clientId,
+      contactId: contactId,
       createdAtRange: {
         from: createdAtFrom,
         to: createdAtTo,
@@ -140,7 +140,7 @@ export class ReviewService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<ReviewDetailDto> {
+  ): Promise<Partial<IReviewDocument>> {
     if (!id) throw new BadRequestError("No review id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -151,7 +151,7 @@ export class ReviewService {
 
     if (!review) throw new NotFoundError(`Review not found with id ${id}`);
 
-    return new ReviewDetailDto(review);
+    return review;
   }
 
   async retryReview(
@@ -256,7 +256,7 @@ export class ReviewService {
       criteriaScores: [],
       externalCompanyId: transcript.externalCompanyId,
       employeeId: transcript.employeeId,
-      clientId: transcript.contactId,
+      contactId: transcript.contactId,
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
       reviewConfig: undefined,
@@ -367,7 +367,7 @@ export class ReviewService {
       criteriaScores: [],
       externalCompanyId: transcript.externalCompanyId,
       employeeId: transcript.employeeId,
-      clientId: transcript.contactId,
+      contactId: transcript.contactId,
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
       reviewConfig: undefined,

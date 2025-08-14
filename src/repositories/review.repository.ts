@@ -11,7 +11,7 @@ export interface ReviewFilterOptions {
   type?: "performance" | "sentiment" | "both";
   externalCompanyId?: string | mongoose.Types.ObjectId;
   employeeId?: string | mongoose.Types.ObjectId;
-  clientId?: string | mongoose.Types.ObjectId;
+  contactId?: string | mongoose.Types.ObjectId;
   companyId?: string | mongoose.Types.ObjectId;
   sentimentScoreRange?: { min?: number; max?: number };
   createdAtRange?: DateRange;
@@ -32,7 +32,7 @@ export class ReviewRepository {
       type,
       externalCompanyId,
       employeeId,
-      clientId,
+      contactId: contactId,
       sentimentScoreRange,
       createdAtRange,
       page = 1,
@@ -55,7 +55,7 @@ export class ReviewRepository {
     applyIdFilter("transcriptId", transcriptId);
     applyIdFilter("externalCompanyId", externalCompanyId);
     applyIdFilter("employeeId", employeeId);
-    applyIdFilter("clientId", clientId);
+    applyIdFilter("contactId", contactId);
 
     if (type) filter.type = type;
 
@@ -161,12 +161,8 @@ export class ReviewRepository {
     return await ReviewModel.findById(id)
       .populate("externalCompanyId", "name")
       .populate("employeeId", "name email")
-      .populate("clientId", "name email")
+      .populate("contactId", "name email")
       .populate("transcriptId", "content")
-      .populate({
-        path: "reviewConfig.criteria.criterionId",
-        select: "title description",
-      })
       .exec();
   }
 
@@ -177,7 +173,12 @@ export class ReviewRepository {
   async findOne(
     filter: FilterQuery<IReviewDocument>
   ): Promise<IReviewDocument | null> {
-    return await ReviewModel.findOne(filter).exec();
+    return await ReviewModel.findOne(filter)
+      .populate("externalCompanyId", "name")
+      .populate("employeeId", "name email")
+      .populate("contactId", "name email")
+      .populate("transcriptId", "content")
+      .exec();
   }
 
   async create(data: Partial<IReviewDocument>): Promise<IReviewDocument> {

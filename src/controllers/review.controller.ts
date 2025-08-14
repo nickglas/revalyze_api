@@ -21,7 +21,7 @@ export const getReviews = async (
       type,
       employeeId,
       externalCompanyId,
-      clientId,
+      contactId: contactId,
       createdAtFrom,
       createdAtTo,
       sortBy,
@@ -38,7 +38,7 @@ export const getReviews = async (
       type: type as "performance" | "sentiment" | "both",
       employeeId: employeeId?.toString(),
       externalCompanyId: externalCompanyId?.toString(),
-      clientId: clientId?.toString(),
+      contactId: contactId?.toString(),
       createdAtFrom: createdAtFrom
         ? new Date(createdAtFrom.toString())
         : undefined,

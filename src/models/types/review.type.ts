@@ -32,7 +32,7 @@ export interface IReviewData {
   sentimentAnalysis?: string;
   externalCompanyId: mongoose.Types.ObjectId;
   employeeId: mongoose.Types.ObjectId;
-  clientId: mongoose.Types.ObjectId;
+  contactId: mongoose.Types.ObjectId;
   companyId: mongoose.Types.ObjectId;
   errorMessage: String;
 }

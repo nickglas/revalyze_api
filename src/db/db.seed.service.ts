@@ -266,7 +266,7 @@ export class SeedService {
           sentimentAnalysis: faker.lorem.paragraph(),
           externalCompanyId: transcript.externalCompanyId,
           employeeId: transcript.employeeId,
-          clientId: transcript.contactId,
+          contactId: transcript.contactId,
           companyId: company._id,
         });
       }

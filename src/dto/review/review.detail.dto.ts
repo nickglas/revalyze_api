@@ -27,7 +27,7 @@ export class ReviewDetailDto {
   employeeId: string;
   employeeName?: string;
   employeeEmail?: string;
-  clientId: string;
+  contactId: string;
   clientName?: string;
   clientEmail?: string;
   companyId: string;
@@ -62,9 +62,9 @@ export class ReviewDetailDto {
     this.employeeName = review.employeeId?.name;
     this.employeeEmail = review.employeeId?.email;
 
-    this.clientId = review.clientId?._id?.toString() || review.clientId;
-    this.clientName = review.clientId?.name;
-    this.clientEmail = review.clientId?.email;
+    this.contactId = review.contactId?._id?.toString() || review.contactId;
+    this.clientName = review.contactId?.name;
+    this.clientEmail = review.contactId?.email;
 
     this.reviewStatus = review.reviewStatus;
     this.type = review.type;

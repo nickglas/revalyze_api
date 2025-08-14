@@ -96,9 +96,9 @@ const reviewSchema = new Schema<IReviewDocument>(
       required: false,
       index: true,
     },
-    clientId: {
+    contactId: {
       type: Schema.Types.ObjectId,
-      ref: "Client",
+      ref: "Contact",
       required: false,
       index: true,
     },
@@ -111,15 +111,5 @@ const reviewSchema = new Schema<IReviewDocument>(
   },
   { timestamps: true }
 );
-
-reviewSchema.virtual("reviewConfig.criteria.criterionId", {
-  ref: "Criteria",
-  localField: "reviewConfig.criteria.criterionId",
-  foreignField: "_id",
-  justOne: true,
-});
-
-reviewSchema.set("toObject", { virtuals: true });
-reviewSchema.set("toJSON", { virtuals: true });
 
 export const ReviewModel = model<IReviewDocument>("Review", reviewSchema);

@@ -25,7 +25,7 @@ class CriteriaWeightDto {
 /**
  * DTO used for creating a Review.
  * - Only requires the transcriptId, reviewConfigId, and type.
- * - Other fields (employeeId, externalCompanyId, clientId, etc.) are derived from the Transcript.
+ * - Other fields (employeeId, externalCompanyId, contactId, etc.) are derived from the Transcript.
  */
 export class CreateReviewDto {
   @IsMongoId({ message: "transcriptId must be a valid MongoDB ObjectId." })
