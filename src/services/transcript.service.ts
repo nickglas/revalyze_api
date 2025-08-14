@@ -1,5 +1,5 @@
 import { Service } from "typedi";
-import mongoose from "mongoose";
+import mongoose, { BooleanExpression } from "mongoose";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import {
   TranscriptModel,
@@ -62,6 +62,7 @@ export class TranscriptService {
     employeeId?: string,
     externalCompanyId?: string,
     contactId?: string,
+    isReviewed?: boolean,
     timestampFrom?: Date,
     timestampTo?: Date,
     createdAtFrom?: Date,
@@ -78,6 +79,7 @@ export class TranscriptService {
       employeeId,
       externalCompanyId,
       contactId,
+      isReviewed,
       timestampRange:
         timestampFrom || timestampTo
           ? { from: timestampFrom, to: timestampTo }
@@ -259,7 +261,7 @@ export class TranscriptService {
 
       if (!subscription) return transcript;
 
-      this.reviewService.createReview(
+      this.reviewService.createReviewFromTranscript(
         {
           transcriptId: transcript.id,
           reviewConfigId: dto.reviewConfigId!,

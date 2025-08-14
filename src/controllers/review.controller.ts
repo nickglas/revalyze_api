@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { Container } from "typedi";
 import mongoose from "mongoose";
 import { ReviewService } from "../services/review.service";
+import { CreateReviewDto } from "../dto/review/review.create.dto";
 
 /**
  * GET /reviews
@@ -96,7 +97,7 @@ export const createReview = async (
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
     const subscription = req.user?.companySubscription;
-    const dto = req.body;
+    const dto = req.body as CreateReviewDto;
 
     const reviewService = Container.get(ReviewService);
     const review = await reviewService.createReview(

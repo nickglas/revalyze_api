@@ -1,5 +1,5 @@
 import { Service } from "typedi";
-import mongoose, { mongo } from "mongoose";
+import mongoose, { mongo, Types } from "mongoose";
 import {
   ReviewRepository,
   ReviewFilterOptions,
@@ -31,6 +31,8 @@ import { ReviewStatus } from "../models/types/transcript.type";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 import { UserRepository } from "../repositories/user.repository";
 import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
+import { CriteriaFlowData } from "../models/types/criterion.type";
+import { ObjectId } from "mongodb";
 
 interface ReviewServiceOptions {
   companyId: mongoose.Types.ObjectId;
@@ -156,7 +158,7 @@ export class ReviewService {
     companyId: mongoose.Types.ObjectId,
     subscription: ISubscriptionDocument
   ): Promise<IReviewDocument> {
-    //get failed review and validate
+    // Get failed review and validate
     const failedReview = await this.reviewRepository.findOne({
       _id: reviewId,
       companyId,
@@ -167,7 +169,7 @@ export class ReviewService {
       throw new NotFoundError("Failed review not found or not in ERROR state");
     }
 
-    //check quota and validate
+    // Check quota
     const quotaAvailable = await this.isReviewQuotaAvailable(
       companyId,
       subscription
@@ -176,36 +178,137 @@ export class ReviewService {
       throw new ForbiddenError("Review quota exceeded for current period");
     }
 
-    //get transcript or throw
+    // Get transcript
     const transcript = await this.findTranscriptOrThrow(
       failedReview.transcriptId,
       companyId
     );
 
-    //reviewConfig in the review document is embedded, so fetch the original one again
-    const config = await this.findValidConfigOrThrow(
-      failedReview.reviewConfig._id.toString(),
-      companyId
-    );
+    let data: CriteriaFlowData[] = [];
 
-    //get criteria
-    const criteria = await this.findCriterionOrThrow(config.criteriaIds);
+    // Only process performance-related components if needed
+    if (failedReview.type === "performance" || failedReview.type === "both") {
+      // Extract criterion IDs from the embedded config
+      const criterionIds =
+        failedReview.reviewConfig?.criteria?.map(
+          (c) => new mongoose.Types.ObjectId(c.criterionId)
+        ) ?? [];
 
+      // Fetch full criteria documents
+      const fullCriteria = await this.findCriterionOrThrow(criterionIds);
+
+      // Create mapping for quick lookup
+      const criteriaMap = new Map(
+        fullCriteria.map((c) => [c._id.toString(), c])
+      );
+
+      // Build data array with weights and criterion details
+      failedReview.reviewConfig?.criteria?.forEach((c) => {
+        const match = criteriaMap.get(c.criterionId.toString());
+        data.push({
+          _id: c.criterionId,
+          weight: c.weight,
+          title: match?.title ?? "",
+          description: match?.description ?? "",
+        });
+      });
+    }
+
+    // Reset review status
     failedReview.reviewStatus = ReviewStatus.NOT_STARTED;
-    await this.reviewRepository.update(failedReview.id, failedReview);
+    await failedReview.save();
 
-    //start review
+    // Start review processing
     this.processOpenAIReview(
       failedReview,
-      config,
+      failedReview.reviewConfig, // Use the embedded config
       transcript,
-      criteria,
+      data, // Pass the built data array
       failedReview.type
     ).catch((err) => {
       console.error("Async OpenAI retry failed:", err);
     });
 
     return failedReview;
+  }
+
+  async createReviewFromTranscript(
+    dto: CreateReviewDto,
+    companyId: mongoose.Types.ObjectId | string,
+    subscription: ISubscriptionDocument
+  ) {
+    if (!companyId) throw new BadRequestError("Missing company ID");
+
+    // Validate review quota
+    if (!(await this.isReviewQuotaAvailable(companyId, subscription)))
+      throw new ForbiddenError("Review quota has been reached");
+
+    // Validate transcript
+    const transcript = await this.findTranscriptOrThrow(
+      dto.transcriptId,
+      companyId
+    );
+
+    let reviewData: Partial<IReviewDocument> = {
+      transcriptId: transcript.id,
+      type: dto.type,
+      criteriaScores: [],
+      externalCompanyId: transcript.externalCompanyId,
+      employeeId: transcript.employeeId,
+      clientId: transcript.contactId,
+      companyId: transcript.companyId,
+      reviewStatus: ReviewStatus.NOT_STARTED,
+      reviewConfig: undefined,
+    };
+
+    let data: CriteriaFlowData[] = [];
+
+    if (dto.type === "performance" || dto.type === "both") {
+      const ids = dto.criteriaWeights?.map((x) => x.criterionId) ?? [];
+      const originalCriteria = await this.findCriterionOrThrow(ids);
+
+      const originalConfigDoc = await this.findValidConfigOrThrow(
+        dto.reviewConfigId,
+        companyId
+      );
+
+      const originalConfig = originalConfigDoc.toObject();
+
+      originalConfig.criteria = dto.criteriaWeights?.map((x) => ({
+        criterionId: new mongoose.Types.ObjectId(x.criterionId),
+        weight: x.weight,
+      }));
+
+      console.warn(originalCriteria);
+
+      const criteriaMap = new Map(
+        originalCriteria.map((c) => [c._id.toString(), c])
+      );
+
+      originalConfig.criteria?.forEach((x) => {
+        const match = criteriaMap.get(x.criterionId.toString());
+        data.push({
+          _id: x.criterionId,
+          weight: x.weight,
+          title: match?.title ?? "",
+          description: match?.description ?? "",
+        });
+      });
+
+      reviewData.reviewConfig = originalConfig;
+    }
+
+    const review = await this.reviewRepository.create(reviewData);
+
+    this.processOpenAIReview(
+      review,
+      reviewData.reviewConfig,
+      transcript,
+      data,
+      dto.type
+    ).catch((err) => {
+      console.error("Async OpenAI processing failed:", err);
+    });
   }
 
   /**
@@ -232,87 +335,7 @@ export class ReviewService {
       companyId
     );
 
-    let config: IReviewConfigDocument | null = null;
-    let criteria: ICriterionDocument[] = [];
-    let reviewConfigWithWeights: any = null;
-
-    // Process performance-related review components
-    if (dto.type === "performance" || dto.type === "both") {
-      if (!dto.reviewConfigId) {
-        throw new BadRequestError(
-          "reviewConfigId is required for performance or both review types"
-        );
-      }
-
-      // Fetch and validate review config
-      config = await this.findValidConfigOrThrow(dto.reviewConfigId, companyId);
-
-      // Fetch and validate criteria - safely handle possible undefined
-      const criteriaIds = config.criteria?.map((x) => x.criterionId) ?? [];
-      criteria = await this.findCriterionOrThrow(criteriaIds);
-
-      if (criteria.length === 0) {
-        throw new BadRequestError(
-          "Review config must have at least one criterion for performance reviews"
-        );
-      }
-
-      // Process custom weights if provided
-      if (dto.criteriaWeights) {
-        // Create set of valid criterion IDs from config - safely handle undefined
-        const configCriterionIds = new Set(
-          config.criteria?.map((c) => c.criterionId.toString()) ?? []
-        );
-
-        // Validate each weight entry
-        dto.criteriaWeights.forEach((w) => {
-          if (!configCriterionIds.has(w.criterionId)) {
-            throw new BadRequestError(
-              `Criterion ${w.criterionId} not found in review config`
-            );
-          }
-        });
-
-        // Convert config to plain object
-        const reviewConfigData = config.toObject();
-
-        // Apply custom weights to criteria - safely handle undefined
-        const updatedCriteria = (reviewConfigData.criteria ?? []).map(
-          (confCriterion: { criterionId: any; weight: number }) => {
-            const customWeight = dto.criteriaWeights?.find(
-              (w) => w.criterionId === confCriterion.criterionId.toString()
-            );
-
-            return {
-              ...confCriterion,
-              weight: customWeight?.weight ?? confCriterion.weight,
-            };
-          }
-        );
-
-        // Build enriched config object with weights
-        reviewConfigWithWeights = {
-          ...reviewConfigData,
-          criteria: updatedCriteria,
-          populatedCriteria: criteria.map((crit) => ({
-            ...crit.toObject(),
-            weight: updatedCriteria.find(
-              (uc: { criterionId: any }) =>
-                uc.criterionId.toString() === crit._id.toString()
-            )?.weight,
-          })),
-        };
-      } else {
-        // Use original config if no custom weights
-        reviewConfigWithWeights = {
-          ...config.toObject(),
-          populatedCriteria: criteria.map((c) => c.toObject()),
-        };
-      }
-    }
-
-    // Create review data
-    const reviewData: Partial<IReviewDocument> = {
+    let reviewData: Partial<IReviewDocument> = {
       transcriptId: transcript.id,
       type: dto.type,
       criteriaScores: [],
@@ -321,34 +344,80 @@ export class ReviewService {
       clientId: transcript.contactId,
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
-      reviewConfig: reviewConfigWithWeights,
+      reviewConfig: undefined,
     };
+
+    let data: CriteriaFlowData[] = [];
+
+    if (dto.type === "performance" || dto.type === "both") {
+      if (!dto.reviewConfigId) {
+        throw new BadRequestError(
+          "reviewConfigId is required for performance or both review types"
+        );
+      }
+
+      // Fetch and validate review config
+      const config = await this.findValidConfigOrThrow(
+        dto.reviewConfigId,
+        companyId
+      );
+
+      // Get plain object representation of config
+      const reviewConfig = config.toObject();
+
+      // Apply DTO weights if provided
+      if (dto.criteriaWeights) {
+        reviewConfig.criteria = dto.criteriaWeights.map((x) => ({
+          criterionId: new mongoose.Types.ObjectId(x.criterionId),
+          weight: x.weight,
+        }));
+      }
+
+      // Fetch full criteria documents
+      const criteriaIds =
+        reviewConfig.criteria?.map((x) => x.criterionId) ?? [];
+      const fullCriteria = await this.findCriterionOrThrow(criteriaIds);
+
+      // Create mapping for quick lookup
+      const criteriaMap = new Map(
+        fullCriteria.map((c) => [c._id.toString(), c])
+      );
+
+      // Build data array with weights and criterion details
+      reviewConfig.criteria?.forEach((x) => {
+        const match = criteriaMap.get(x.criterionId.toString());
+        data.push({
+          _id: x.criterionId,
+          weight: x.weight,
+          title: match?.title ?? "",
+          description: match?.description ?? "",
+        });
+      });
+
+      reviewData.reviewConfig = reviewConfig;
+    }
 
     const review = await this.reviewRepository.create(reviewData);
 
-    // Fire and forget OpenAI processing
     this.processOpenAIReview(
       review,
-      config,
+      reviewData.reviewConfig,
       transcript,
-      criteria,
+      data,
       dto.type
     ).catch((err) => {
       console.error("Async OpenAI processing failed:", err);
-      // Consider adding error reporting here
     });
 
     return review;
   }
 
-  async createSentimentReview(transcriptId: string) {}
-
   // Helper method to process OpenAI review asynchronously
   private async processOpenAIReview(
     review: IReviewDocument,
-    config: any, // Use any since we're passing custom object
+    config: any,
     transcript: ITranscriptDocument,
-    criteria: any[], // Use any since we're passing custom object
+    criteria: CriteriaFlowData[],
     type: "performance" | "sentiment" | "both"
   ) {
     try {
@@ -360,8 +429,9 @@ export class ReviewService {
         aiResult = await this.openAIService.createSentimentAnalysis(transcript);
       } else {
         aiResult = await this.openAIService.createChatCompletion(
-          config, // Pass the full config object
+          config,
           transcript,
+          criteria,
           type
         );
       }

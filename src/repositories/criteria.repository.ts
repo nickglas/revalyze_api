@@ -97,8 +97,8 @@ export class CriteriaRepository {
   async findManyByIds(
     ids: mongoose.Types.ObjectId[]
   ): Promise<ICriterionDocument[]> {
-    return CriterionModel.find({
-      _id: { $in: ids },
-    }).exec();
+    return CriterionModel.find({ _id: { $in: ids } })
+      .select("title description")
+      .exec();
   }
 }

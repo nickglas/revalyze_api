@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema, Types } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 import { IReviewConfigData, IModelSettings } from "../types/review.config.type";
 import { ICriterionDocument } from "./criterion.entity";
 
@@ -11,7 +11,6 @@ export interface IReviewConfigDocument extends IReviewConfigData, Document {
     criterionId: mongoose.Types.ObjectId;
     weight: number;
   }[];
-
   populatedCriteria?: mongoose.Types.Array<ICriterionDocument>;
 }
 
@@ -48,7 +47,6 @@ const reviewConfigSchema = new Schema<IReviewConfigDocument>(
         },
       },
     ],
-
     modelSettings: { type: modelSettingsSchema, required: true },
     companyId: {
       type: Schema.Types.ObjectId,

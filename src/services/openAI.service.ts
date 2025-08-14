@@ -5,6 +5,7 @@ import { ITranscriptDocument } from "../models/entities/transcript.entity";
 import { ICriterionDocument } from "../models/entities/criterion.entity";
 import { ICriteriaScore } from "../models/types/review.type";
 import { IReviewConfigDocument } from "../models/entities/review.config.entity";
+import { CriteriaFlowData } from "../models/types/criterion.type";
 
 interface OpenAIResponse {
   results: {
@@ -101,20 +102,14 @@ export class OpenAIService {
 
   private createPrompt(
     transcript: ITranscriptDocument,
-    config: IReviewConfigDocument, // Receive config instead of criteria
+    criteria: CriteriaFlowData[],
     type: "performance" | "both"
   ): string {
     const wordCount = transcript.content.split(/\s+/).length;
 
     // Extract criteria with weights from config
-    const criteriaWithWeights = (config.populatedCriteria || []).map((c) => {
-      const weight =
-        config.criteria?.find(
-          (confCriterion) =>
-            confCriterion.criterionId.toString() === c._id.toString()
-        )?.weight || 1; // Default to 1 if weight missing
-
-      return `- ${c.title} (Weight: ${weight.toFixed(2)}): ${c.description}`;
+    const criteriaWithWeights = criteria.map((c) => {
+      return `- ${c.title} (Weight: ${c.weight.toFixed(2)}): ${c.description}`;
     });
 
     return `
@@ -222,6 +217,7 @@ export class OpenAIService {
   async createChatCompletion(
     reviewConfig: IReviewConfigDocument,
     transcript: ITranscriptDocument,
+    criteria: CriteriaFlowData[],
     type: "performance" | "both"
   ): Promise<{
     overallScore: number;
@@ -243,7 +239,7 @@ export class OpenAIService {
         },
         {
           role: "user",
-          content: this.createPrompt(transcript, reviewConfig, type),
+          content: this.createPrompt(transcript, criteria, type),
         },
       ];
 

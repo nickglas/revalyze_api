@@ -7,3 +7,10 @@ export interface ICriterionData {
   description: string;
   isActive: boolean;
 }
+
+export interface CriteriaFlowData {
+  _id: mongoose.Types.ObjectId;
+  title: string;
+  description: string;
+  weight: number;
+}

@@ -1,6 +1,7 @@
 // src/types/review.type.ts
 import mongoose from "mongoose";
 import { IReviewConfigDocument } from "../entities/review.config.entity";
+import { IModelSettings } from "./review.config.type";
 
 export enum ReviewStatus {
   NOT_STARTED = "NOT_STARTED",
@@ -35,4 +36,17 @@ export interface IReviewData {
   clientId: mongoose.Types.ObjectId;
   companyId: mongoose.Types.ObjectId;
   errorMessage: String;
+}
+
+export interface IReviewConfigForProcessing {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  modelSettings: IModelSettings;
+  mergedCriteria: {
+    _id: mongoose.Types.ObjectId;
+    title: string;
+    description: string;
+    weight: number;
+  }[];
 }

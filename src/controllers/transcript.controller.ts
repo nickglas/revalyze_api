@@ -35,6 +35,10 @@ export const getTranscripts = async (
     const limit = parseInt(req.query.limit as string) || 20;
     const sortBy = req.query.sortBy?.toString() || "timestamp";
     const sortOrder = req.query.sortOrder?.toString() === "asc" ? 1 : -1;
+    const isReviewed =
+      req.query.isReviewed !== undefined
+        ? req.query.isReviewed === "true"
+        : undefined;
 
     const transcriptService = Container.get(TranscriptService);
     const { transcripts, total } = await transcriptService.getTranscripts(
@@ -43,6 +47,7 @@ export const getTranscripts = async (
       employeeId,
       externalCompanyId,
       contactId,
+      isReviewed,
       timestampFrom,
       timestampTo,
       createdAtFrom,

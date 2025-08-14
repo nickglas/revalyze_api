@@ -13,6 +13,7 @@ export interface TranscriptFilterOptions {
   employeeId?: string;
   externalCompanyId?: string;
   contactId?: string;
+  isReviewed?: boolean;
   timestampRange?: DateRange;
   createdAtRange?: DateRange;
   sortBy?: string;
@@ -32,6 +33,7 @@ export class TranscriptRepository {
       employeeId,
       externalCompanyId,
       contactId,
+      isReviewed,
       timestampRange,
       createdAtRange,
       page = 1,
@@ -64,6 +66,10 @@ export class TranscriptRepository {
       filter.contactId = new mongoose.Types.ObjectId(contactId);
     }
 
+    if (isReviewed !== undefined) {
+      filter.isReviewed = isReviewed;
+    }
+
     if (timestampRange?.from || timestampRange?.to) {
       filter.timestamp = {};
       if (timestampRange.from) filter.timestamp.$gte = timestampRange.from;
@@ -85,9 +91,9 @@ export class TranscriptRepository {
         .sort(sort)
         .skip(skip)
         .limit(limit)
-        .populate("employeeId", "name")
-        .populate("contactId", "email")
-        .populate("externalCompanyId", "name")
+        .populate("employeeId", "name email")
+        .populate("contactId", "firstName email")
+        .populate("externalCompanyId", "name email")
         .populate("uploadedById", "name")
         .lean()
         .exec(),
@@ -100,18 +106,47 @@ export class TranscriptRepository {
         typeof t.uploadedById === "object" && "name" in t.uploadedById
           ? (t.uploadedById as any).name
           : null,
+
+      employeeId:
+        typeof t.employeeId === "object" && "_id" in t.employeeId
+          ? (t.employeeId as any)._id.toString()
+          : "",
       employeeName:
         typeof t.employeeId === "object" && "name" in t.employeeId
           ? (t.employeeId as any).name
+          : "",
+      employeeEmail:
+        typeof t.employeeId === "object" && "email" in t.employeeId
+          ? (t.employeeId as any).email
+          : "",
+
+      contactId:
+        typeof t.contactId === "object" && "_id" in t.contactId
+          ? (t.contactId as any)._id.toString()
           : null,
-      contactName:
-        typeof t.contactId === "object" && "name" in t.contactId
-          ? (t.contactId as any).name
-          : (t.contactId as any)?.email || null,
-      externalCompany:
+      contactFirstName:
+        typeof t.contactId === "object" && "firstName" in t.contactId
+          ? (t.contactId as any).firstName
+          : null,
+      contactEmail:
+        typeof t.contactId === "object" && "email" in t.contactId
+          ? (t.contactId as any).email
+          : null,
+
+      externalCompanyId:
+        typeof t.externalCompanyId === "object" && "_id" in t.externalCompanyId
+          ? (t.externalCompanyId as any)._id.toString()
+          : null,
+      externalCompanyName:
         typeof t.externalCompanyId === "object" && "name" in t.externalCompanyId
           ? (t.externalCompanyId as any).name
           : null,
+      externalCompanyEmail:
+        typeof t.externalCompanyId === "object" &&
+        "email" in t.externalCompanyId
+          ? (t.externalCompanyId as any).email
+          : null,
+
       timestamp: t.timestamp,
       createdAt: t.createdAt,
       reviewStatus: t.reviewStatus,
