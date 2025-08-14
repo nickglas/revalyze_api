@@ -157,7 +157,17 @@ export class ReviewRepository {
     id: string | mongoose.Types.ObjectId
   ): Promise<IReviewDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return await ReviewModel.findById(id).exec();
+
+    return await ReviewModel.findById(id)
+      .populate("externalCompanyId", "name")
+      .populate("employeeId", "name email")
+      .populate("clientId", "name email")
+      .populate("transcriptId", "content")
+      .populate({
+        path: "reviewConfig.criteria.criterionId",
+        select: "title description",
+      })
+      .exec();
   }
 
   async find(filter: FilterQuery<IReviewDocument>): Promise<IReviewDocument[]> {

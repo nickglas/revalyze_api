@@ -33,6 +33,7 @@ import { UserRepository } from "../repositories/user.repository";
 import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
 import { CriteriaFlowData } from "../models/types/criterion.type";
 import { ObjectId } from "mongodb";
+import { ReviewDetailDto } from "../dto/review/review.detail.dto";
 
 interface ReviewServiceOptions {
   companyId: mongoose.Types.ObjectId;
@@ -139,7 +140,7 @@ export class ReviewService {
   async getById(
     id: string,
     companyId: mongoose.Types.ObjectId
-  ): Promise<IReviewDocument> {
+  ): Promise<ReviewDetailDto> {
     if (!id) throw new BadRequestError("No review id specified");
     if (!companyId) throw new BadRequestError("No company id specified");
 
@@ -150,7 +151,7 @@ export class ReviewService {
 
     if (!review) throw new NotFoundError(`Review not found with id ${id}`);
 
-    return review;
+    return new ReviewDetailDto(review);
   }
 
   async retryReview(
@@ -264,38 +265,61 @@ export class ReviewService {
     let data: CriteriaFlowData[] = [];
 
     if (dto.type === "performance" || dto.type === "both") {
-      const ids = dto.criteriaWeights?.map((x) => x.criterionId) ?? [];
-      const originalCriteria = await this.findCriterionOrThrow(ids);
+      if (!dto.reviewConfigId) {
+        throw new BadRequestError(
+          "reviewConfigId is required for performance or both review types"
+        );
+      }
 
-      const originalConfigDoc = await this.findValidConfigOrThrow(
+      // Fetch and validate review config
+      const config = await this.findValidConfigOrThrow(
         dto.reviewConfigId,
         companyId
       );
 
-      const originalConfig = originalConfigDoc.toObject();
+      // Get plain object representation of config
+      const reviewConfig = config.toObject();
 
-      originalConfig.criteria = dto.criteriaWeights?.map((x) => ({
-        criterionId: new mongoose.Types.ObjectId(x.criterionId),
+      // Apply DTO weights if provided
+      if (dto.criteriaWeights) {
+        reviewConfig.criteria = dto.criteriaWeights.map((x) => ({
+          criterionId: new mongoose.Types.ObjectId(x.criterionId),
+          weight: x.weight,
+        }));
+      }
+
+      // Fetch full criteria documents
+      const criteriaIds =
+        reviewConfig.criteria?.map((x) => x.criterionId) ?? [];
+      const fullCriteria = await this.findCriterionOrThrow(criteriaIds);
+
+      // Create enhanced criteria array with titles/descriptions
+      const enhancedCriteria =
+        reviewConfig.criteria?.map((x) => {
+          const criterion = fullCriteria.find(
+            (c) => c._id.toString() === x.criterionId.toString()
+          );
+          return {
+            criterionId: x.criterionId,
+            weight: x.weight,
+            title: criterion?.title || "",
+            description: criterion?.description || "",
+          };
+        }) || [];
+
+      // Update reviewConfig with enhanced criteria
+      reviewConfig.criteria = enhancedCriteria;
+
+      // Build data array for processing
+      data = enhancedCriteria.map((x) => ({
+        _id: x.criterionId,
         weight: x.weight,
+        title: x.title,
+        description: x.description,
       }));
 
-      console.warn(originalCriteria);
-
-      const criteriaMap = new Map(
-        originalCriteria.map((c) => [c._id.toString(), c])
-      );
-
-      originalConfig.criteria?.forEach((x) => {
-        const match = criteriaMap.get(x.criterionId.toString());
-        data.push({
-          _id: x.criterionId,
-          weight: x.weight,
-          title: match?.title ?? "",
-          description: match?.description ?? "",
-        });
-      });
-
-      reviewData.reviewConfig = originalConfig;
+      //needs to be fixed in the future
+      reviewData.reviewConfig = reviewConfig as any;
     }
 
     const review = await this.reviewRepository.create(reviewData);
@@ -309,6 +333,8 @@ export class ReviewService {
     ).catch((err) => {
       console.error("Async OpenAI processing failed:", err);
     });
+
+    return review;
   }
 
   /**
@@ -378,23 +404,33 @@ export class ReviewService {
         reviewConfig.criteria?.map((x) => x.criterionId) ?? [];
       const fullCriteria = await this.findCriterionOrThrow(criteriaIds);
 
-      // Create mapping for quick lookup
-      const criteriaMap = new Map(
-        fullCriteria.map((c) => [c._id.toString(), c])
-      );
+      // Create enhanced criteria array with titles/descriptions
+      const enhancedCriteria =
+        reviewConfig.criteria?.map((x) => {
+          const criterion = fullCriteria.find(
+            (c) => c._id.toString() === x.criterionId.toString()
+          );
+          return {
+            criterionId: x.criterionId,
+            weight: x.weight,
+            title: criterion?.title || "",
+            description: criterion?.description || "",
+          };
+        }) || [];
 
-      // Build data array with weights and criterion details
-      reviewConfig.criteria?.forEach((x) => {
-        const match = criteriaMap.get(x.criterionId.toString());
-        data.push({
-          _id: x.criterionId,
-          weight: x.weight,
-          title: match?.title ?? "",
-          description: match?.description ?? "",
-        });
-      });
+      // Update reviewConfig with enhanced criteria
+      reviewConfig.criteria = enhancedCriteria;
 
-      reviewData.reviewConfig = reviewConfig;
+      // Build data array for processing
+      data = enhancedCriteria.map((x) => ({
+        _id: x.criterionId,
+        weight: x.weight,
+        title: x.title,
+        description: x.description,
+      }));
+
+      //needs to be fixed in the future
+      reviewData.reviewConfig = reviewConfig as any;
     }
 
     const review = await this.reviewRepository.create(reviewData);

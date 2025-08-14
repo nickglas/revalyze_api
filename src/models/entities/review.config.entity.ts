@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 import { IReviewConfigData, IModelSettings } from "../types/review.config.type";
 import { ICriterionDocument } from "./criterion.entity";
 

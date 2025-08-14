@@ -1,6 +1,5 @@
 // src/types/review.type.ts
 import mongoose from "mongoose";
-import { IReviewConfigDocument } from "../entities/review.config.entity";
 import { IModelSettings } from "./review.config.type";
 
 export enum ReviewStatus {
@@ -21,7 +20,7 @@ export interface ICriteriaScore {
 
 export interface IReviewData {
   transcriptId: mongoose.Types.ObjectId;
-  reviewConfig: IReviewConfigDocument;
+  reviewConfig?: IStoredReviewConfig;
   type: "performance" | "sentiment" | "both";
   subject?: string;
   reviewStatus: ReviewStatus;
@@ -49,4 +48,19 @@ export interface IReviewConfigForProcessing {
     description: string;
     weight: number;
   }[];
+}
+
+export interface IStoredReviewConfigCriteria {
+  criterionId: mongoose.Types.ObjectId;
+  weight: number;
+  title: string;
+  description: string;
+}
+
+export interface IStoredReviewConfig {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  description: string;
+  modelSettings: IModelSettings;
+  criteria?: IStoredReviewConfigCriteria[];
 }
