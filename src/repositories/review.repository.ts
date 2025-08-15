@@ -159,9 +159,9 @@ export class ReviewRepository {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
     return await ReviewModel.findById(id)
-      .populate("externalCompanyId", "name")
+      .populate("externalCompanyId", "name email")
       .populate("employeeId", "name email")
-      .populate("contactId", "name email")
+      .populate("contactId", "firstName email")
       .populate("transcriptId", "content")
       .exec();
   }
@@ -174,9 +174,9 @@ export class ReviewRepository {
     filter: FilterQuery<IReviewDocument>
   ): Promise<IReviewDocument | null> {
     return await ReviewModel.findOne(filter)
-      .populate("externalCompanyId", "name")
+      .populate("externalCompanyId", "name email")
       .populate("employeeId", "name email")
-      .populate("contactId", "name email")
+      .populate("contactId", "firstName email")
       .populate("transcriptId", "content")
       .exec();
   }
