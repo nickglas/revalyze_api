@@ -12,7 +12,7 @@ export class CompanyRepository {
     id: mongoose.Types.ObjectId | string
   ): Promise<ICompanyDocument | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    return await CompanyModel.findById(id).exec();
+    return await CompanyModel.findById(id).lean().exec();
   }
 
   async create(
@@ -27,19 +27,31 @@ export class CompanyRepository {
   }
 
   async update(
-    id: string,
+    id: string | mongoose.Types.ObjectId,
     updateData: Partial<ICompanyDocument>,
     session?: ClientSession
   ): Promise<ICompanyDocument | null> {
+    if (typeof id === "string") {
+      id = new mongoose.Types.ObjectId(id);
+    }
+
     if (session) {
       return await CompanyModel.findByIdAndUpdate(id, updateData, {
         new: true,
         session,
       }).exec();
     }
-    return await CompanyModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).exec();
+
+    return await CompanyModel.findByIdAndUpdate(
+      id,
+      { $set: updateData },
+      {
+        new: true,
+        runValidators: true,
+      }
+    )
+      .lean()
+      .exec();
   }
 
   async findByStripeCustomerId(

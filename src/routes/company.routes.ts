@@ -7,6 +7,7 @@ import {
 } from "../middlewares/auth.middleware";
 import { validateDto } from "../middlewares/validate.middleware";
 import { RegisterCompanyDto } from "../dto/company/register.company.dto";
+import { UpdateCompanyDto } from "../dto/company/update.company.dto";
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.patch(
   "/",
   authenticate as RequestHandler,
   authorizeRole([UserRole.COMPANY_ADMIN]),
+  validateDto(UpdateCompanyDto),
   companyController.updateCompany as RequestHandler
 );
 

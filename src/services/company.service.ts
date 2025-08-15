@@ -29,6 +29,8 @@ import { PlanRepository } from "../repositories/plan.repository";
 import { IPlanDocument } from "../models/entities/plan.entity";
 import { BillingOption } from "../models/types/plan.type";
 import { ISubscriptionData } from "../models/types/subscription.type";
+import { CompanyDetailsDto } from "../dto/company/details.company.dto";
+import { UpdateCompanyDto } from "../dto/company/update.company.dto";
 
 @Service()
 export class CompanyService {
@@ -337,7 +339,7 @@ export class CompanyService {
     return result;
   }
 
-  async getCompanyById(companyId: string) {
+  async getCompanyById(companyId: string): Promise<CompanyDetailsDto> {
     if (!Types.ObjectId.isValid(companyId)) {
       throw new BadRequestError("Invalid company ID");
     }
@@ -348,35 +350,34 @@ export class CompanyService {
       throw new NotFoundError("Company not found");
     }
 
-    return company;
+    return new CompanyDetailsDto(company);
   }
 
   async updateCompanyById(
-    userId: string,
     companyId: string,
-    updates: Partial<any>
-  ) {
-    //check if the fields are valid
-    const allowedFields = ["mainEmail", "phone", "address"];
-    const filteredUpdates: Partial<any> = {};
-    for (const key of allowedFields) {
-      if (updates[key]) {
-        filteredUpdates[key] = updates[key];
-      }
+    dto: UpdateCompanyDto
+  ): Promise<CompanyDetailsDto> {
+    if (!Types.ObjectId.isValid(companyId)) {
+      throw new BadRequestError("Invalid company ID");
     }
+    const updates = {
+      name: dto.name,
+      mainEmail: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+    };
 
     const updatedCompany = await this.companyRepository.update(
       companyId,
-      filteredUpdates
+      updates
     );
 
     if (!updatedCompany) {
       throw new BadRequestError("Error updating company");
     }
 
-    return updatedCompany;
+    return new CompanyDetailsDto(updatedCompany);
   }
-
   async updateSubscription(companyId: string, newPriceId: string) {
     const company = await this.getCompanyOrThrow(companyId);
     const activeSubscription = await this.getActiveSubscriptionOrThrow(company);

@@ -1,9 +1,10 @@
 // src/controllers/company.controller.ts
 import { Request, Response, NextFunction } from "express";
-import { BadRequestError } from "../utils/errors";
+import { BadRequestError, ForbiddenError } from "../utils/errors";
 import { Container } from "typedi";
 import { CompanyService } from "../services/company.service";
 import { RegisterCompanyDto } from "../dto/company/register.company.dto";
+import { UpdateCompanyDto } from "../dto/company/update.company.dto";
 
 export const register = async (
   req: Request<{}, {}, RegisterCompanyDto>,
@@ -42,17 +43,17 @@ export const updateCompany = async (
   next: NextFunction
 ) => {
   try {
-    const userId = req.user?.id;
     const companyId = req.user?.companyId;
-    if (!userId || !companyId) {
-      throw new BadRequestError("User ID or Company ID missing");
+
+    if (!companyId) {
+      throw new ForbiddenError("User ID or Company ID missing");
     }
 
+    const dto: UpdateCompanyDto = req.body;
     const companyService = Container.get(CompanyService);
     const updatedCompany = await companyService.updateCompanyById(
-      userId,
       companyId,
-      req.body
+      dto
     );
 
     res.json(updatedCompany);
