@@ -46,12 +46,19 @@ export class SeedService {
         isActive: true,
       });
 
-      // 2. Create subscription
+      // Calculate dates for subscription
+      const currentPeriodStart = new Date();
+      const currentPeriodEnd = new Date();
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+      const scheduledDowngradeDate = new Date(currentPeriodEnd);
+      scheduledDowngradeDate.setDate(scheduledDowngradeDate.getDate() - 3);
+
+      // 2. Create subscription with downgrade
       await SubscriptionModel.create({
         companyId: company._id,
         status: "active",
-        currentPeriodStart: new Date(),
-        currentPeriodEnd: faker.date.future(),
+        currentPeriodStart: currentPeriodStart,
+        currentPeriodEnd: currentPeriodEnd,
         priceId: `price_${faker.string.alphanumeric(14)}`,
         productId: `prod_${faker.string.alphanumeric(14)}`,
         productName: "Premium Plan",
@@ -62,6 +69,19 @@ export class SeedService {
         allowedTranscripts: 500,
         allowedReviews: 1000,
         tier: 2,
+        cancelAtPeriodEnd: true,
+        scheduledUpdate: {
+          productName: "Standard Plan",
+          effectiveDate: scheduledDowngradeDate,
+          priceId: `price_${faker.string.alphanumeric(14)}`,
+          productId: `prod_${faker.string.alphanumeric(14)}`,
+          amount: 1490,
+          interval: "month",
+          allowedUsers: 10,
+          allowedTranscripts: 200,
+          tier: 1,
+          scheduleId: `sch_${faker.string.alphanumeric(14)}`,
+        },
       });
 
       // 3. Create users
@@ -272,36 +292,101 @@ export class SeedService {
       }
 
       // 11. Create plan
-      await PlanModel.create({
-        name: "Premium Plan",
-        description: "Premium subscription plan",
-        stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
-        currency: "eur",
-        billingOptions: [
-          {
-            interval: "month",
-            stripePriceId: `price_${faker.string.alphanumeric(14)}`,
-            amount: 2990,
-            tier: 2,
-          },
-          {
-            interval: "year",
-            stripePriceId: `price_${faker.string.alphanumeric(14)}`,
-            amount: 29900,
-            tier: 2,
-          },
-        ],
-        allowedUsers: 25,
-        allowedTranscripts: 500,
-        allowedReviews: 1000,
-        isActive: true,
-        isVisible: true,
-        features: [
-          "Unlimited reviews",
-          "Priority support",
-          "Advanced analytics",
-        ],
-      });
+      const plans = [
+        {
+          name: "Starter Plan",
+          description: "For small teams getting started",
+          stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
+          currency: "usd",
+          billingOptions: [
+            {
+              interval: "month",
+              stripePriceId: `price_${faker.string.alphanumeric(14)}`,
+              amount: 4900,
+              tier: 1,
+            },
+          ],
+          allowedUsers: 5,
+          allowedTranscripts: 100,
+          allowedReviews: 50,
+          isActive: true,
+          isVisible: true,
+          features: [
+            "5 users",
+            "100 transcripts/month",
+            "50 reviews/month",
+            "Basic support",
+          ],
+        },
+        {
+          name: "Business Plan",
+          description: "For growing businesses",
+          stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
+          currency: "usd",
+          billingOptions: [
+            {
+              interval: "month",
+              stripePriceId: `price_${faker.string.alphanumeric(14)}`,
+              amount: 9900,
+              tier: 2,
+            },
+            {
+              interval: "year",
+              stripePriceId: `price_${faker.string.alphanumeric(14)}`,
+              amount: 99000,
+              tier: 2,
+            },
+          ],
+          allowedUsers: 10,
+          allowedTranscripts: 500,
+          allowedReviews: 200,
+          isActive: true,
+          isVisible: true,
+          features: [
+            "10 users",
+            "500 transcripts/month",
+            "200 reviews/month",
+            "Priority support",
+            "Advanced analytics",
+          ],
+        },
+        {
+          name: "Enterprise Plan",
+          description: "For large organizations",
+          stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
+          currency: "usd",
+          billingOptions: [
+            {
+              interval: "month",
+              stripePriceId: `price_${faker.string.alphanumeric(14)}`,
+              amount: 19900,
+              tier: 3,
+            },
+            {
+              interval: "year",
+              stripePriceId: `price_${faker.string.alphanumeric(14)}`,
+              amount: 199000,
+              tier: 3,
+            },
+          ],
+          allowedUsers: 10000,
+          allowedTranscripts: 2000,
+          allowedReviews: 500,
+          isActive: true,
+          isVisible: true,
+          features: [
+            "Unlimited users",
+            "2000 transcripts/month",
+            "500 reviews/month",
+            "24/7 premium support",
+            "Custom integrations",
+          ],
+        },
+      ];
+
+      for (const planData of plans) {
+        await PlanModel.create(planData);
+      }
 
       // 12. Create refresh token
       await RefreshTokenModel.create({

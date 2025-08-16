@@ -75,7 +75,12 @@ export class PlanRepository {
   }
 
   async findAvailable(): Promise<IPlanDocument[]> {
-    return await PlanModel.find({ isActive: true, isVisible: true }).exec();
+    return await PlanModel.find({
+      isActive: true,
+      isVisible: true,
+    })
+      .lean()
+      .exec();
   }
 
   async findById(planId: string): Promise<IPlanDocument | null> {

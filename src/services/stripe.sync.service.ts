@@ -9,7 +9,6 @@ import { PendingCompanyRepository } from "../repositories/pending.repository";
 import { CompanyService } from "./company.service";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { CompanyRepository } from "../repositories/company.repository";
-import { createWriteStream } from "fs";
 import { ICompanyDocument } from "../models/entities/company.entity";
 import { ISubscriptionDocument } from "../models/entities/subscription.entity";
 
@@ -258,28 +257,23 @@ export class StripeSyncService {
           return await this.createSubscription(s);
         }
 
-        const updatedSubscription = await this.updateSubscription(existing, s);
-
-        if (updatedSubscription) {
-          // Sync scheduled updates for existing subscriptions
-          if (s.schedule) {
-            await this.syncSubscriptionSchedule(
-              s.schedule as Stripe.SubscriptionSchedule,
-              updatedSubscription,
-              s, // Pass the original Stripe subscription
-              testClockTimes
-            );
-          } else {
-            // Clear scheduled update if schedule was removed
-            if (updatedSubscription.scheduledUpdate) {
-              updatedSubscription.scheduledUpdate = undefined;
-              await this.subscriptionRepo.update(
-                updatedSubscription.id,
-                updatedSubscription
-              );
-            }
+        if (s.schedule) {
+          await this.syncSubscriptionSchedule(
+            s.schedule as Stripe.SubscriptionSchedule,
+            existing,
+            s, // Pass the original Stripe subscription
+            testClockTimes
+          );
+        } else {
+          // Clear scheduled update if schedule was removed
+          if (existing.scheduledUpdate) {
+            existing.scheduledUpdate = undefined;
+            await this.subscriptionRepo.update(existing.id, existing);
           }
         }
+
+        console.warn("Updating schedule");
+        const updatedSubscription = await this.updateSubscription(existing, s);
       })
     );
   }

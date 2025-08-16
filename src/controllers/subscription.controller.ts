@@ -6,15 +6,15 @@ import { PlanService } from "../services/plan.service";
 const router = Router();
 
 // Public: Get available plans
-export const getSubscriptions = async (
+export const getPlans = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
   try {
     const planService = Container.get(PlanService);
-    const p = await planService.getAvailablePlans();
-    res.json(p);
+    const plans = await planService.getAvailablePlans();
+    res.json(plans);
   } catch (error) {
     next(error);
   }

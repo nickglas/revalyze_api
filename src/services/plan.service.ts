@@ -3,6 +3,7 @@ import { PlanRepository } from "../repositories/plan.repository";
 import { IPlanDocument, PlanModel } from "../models/entities/plan.entity";
 import { Service } from "typedi";
 import { BadRequestError } from "../utils/errors";
+import { PlanDetailsDTO } from "../dto/plans/plan.details.dto";
 
 @Service()
 export class PlanService {
@@ -57,11 +58,12 @@ export class PlanService {
   }
 
   async getAllPlans(): Promise<IPlanDocument[]> {
-    return this.planRepository.findAll();
+    return await this.planRepository.findAll();
   }
 
-  async getAvailablePlans(): Promise<IPlanDocument[]> {
-    return this.planRepository.findAvailable();
+  async getAvailablePlans(): Promise<PlanDetailsDTO[]> {
+    const plans = await this.planRepository.findAvailable();
+    return plans.map((plan) => new PlanDetailsDTO(plan));
   }
 
   async deletePlan(

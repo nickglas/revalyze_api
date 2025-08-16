@@ -16,6 +16,8 @@ export const scheduledUpdateSchema = new Schema<IScheduledUpdate>(
     },
     allowedUsers: { type: Number, required: true },
     allowedTranscripts: { type: Number, required: true },
+    allowedReviews: { type: Number, required: true },
+
     tier: { type: Number, required: true },
     scheduleId: { type: String, required: true },
   },
