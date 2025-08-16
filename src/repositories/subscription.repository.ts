@@ -25,6 +25,19 @@ export class SubscriptionRepository {
       .exec();
   }
 
+  async findLatestActiveByCompanyId(
+    companyId: string
+  ): Promise<ISubscriptionDocument | null> {
+    if (!mongoose.Types.ObjectId.isValid(companyId)) return null;
+
+    return await SubscriptionModel.findOne({
+      companyId: new mongoose.Types.ObjectId(companyId),
+      status: "active",
+    })
+      .sort({ createdAt: -1 })
+      .exec();
+  }
+
   async findActive(): Promise<ISubscriptionDocument[]> {
     return await SubscriptionModel.find({ status: "active" }).exec();
   }

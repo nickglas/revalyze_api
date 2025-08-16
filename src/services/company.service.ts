@@ -350,7 +350,13 @@ export class CompanyService {
       throw new NotFoundError("Company not found");
     }
 
-    return new CompanyDetailsDto(company);
+    const subscription =
+      await this.subscriptionRepository.findLatestActiveByCompanyId(companyId);
+
+    const companyDto = new CompanyDetailsDto(company);
+    companyDto.setSubscription(subscription);
+
+    return companyDto;
   }
 
   async updateCompanyById(

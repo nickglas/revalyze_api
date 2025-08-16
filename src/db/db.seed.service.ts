@@ -79,6 +79,7 @@ export class SeedService {
           interval: "month",
           allowedUsers: 10,
           allowedTranscripts: 200,
+          allowedReviews: 500,
           tier: 1,
           scheduleId: `sch_${faker.string.alphanumeric(14)}`,
         },
