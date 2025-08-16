@@ -295,7 +295,7 @@ export class SeedService {
       // 11. Create plan
       const plans = [
         {
-          name: "Starter Plan",
+          name: "Starter Plan seed",
           description: "For small teams getting started",
           stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
           currency: "usd",
@@ -320,7 +320,7 @@ export class SeedService {
           ],
         },
         {
-          name: "Business Plan",
+          name: "Business Plan seed",
           description: "For growing businesses",
           stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
           currency: "usd",
@@ -352,7 +352,7 @@ export class SeedService {
           ],
         },
         {
-          name: "Enterprise Plan",
+          name: "Enterprise Plan seed",
           description: "For large organizations",
           stripeProductId: `prod_${faker.string.alphanumeric(14)}`,
           currency: "usd",

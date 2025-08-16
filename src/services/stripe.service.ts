@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { Service } from "typedi";
 import { logger } from "../utils/logger";
 import { ISubscriptionData } from "../models/types/subscription.type";
+import { BadRequestError } from "../utils/errors";
 
 @Service()
 export class StripeService {
@@ -285,6 +286,8 @@ export class StripeService {
       const schedule = await this.stripe.subscriptionSchedules.retrieve(
         scheduleId
       );
+
+      if (!schedule) throw new BadRequestError("Schedule could not be found");
 
       // Only cancel if not already released/canceled
       if (schedule.status !== "canceled" && schedule.status !== "released") {

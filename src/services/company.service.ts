@@ -289,21 +289,19 @@ export class CompanyService {
   }
 
   async cancelScheduledSubscriptionByCompanyId(companyId: string) {
-    const companySubscription = await this.subscriptionRepository.findOne({
-      companyId: companyId,
-    });
+    const companySubscription =
+      await this.subscriptionRepository.findLatestActiveByCompanyId(companyId);
 
-    //check if exists
     if (!companySubscription) throw new BadRequestError("Company not found");
-
-    //check if scheduled exists
     if (!companySubscription.scheduledUpdate)
       throw new BadRequestError("No scheduled subscriptions found");
 
-    //cancel
-    return await this.stripeService.cancelSubscriptionSchedule(
+    // Release schedule instead of canceling
+    const result = await this.stripeService.releaseSubscriptionSchedule(
       companySubscription.scheduledUpdate.scheduleId
     );
+
+    return result;
   }
 
   //cancels the current subscription at the end of the billing cycle. Scheduled downgrades are also cancelled.
