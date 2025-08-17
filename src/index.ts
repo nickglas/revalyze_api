@@ -8,6 +8,7 @@ import { logger } from "./utils/logger";
 import { validateEnv } from "./utils/validate.env";
 import { SeedService } from "./db/db.seed.service";
 import { seedProducts } from "./db/db.seed.plans";
+import { MetricsCron } from "./sync/metrics.cron";
 
 dotenv.config();
 
@@ -48,9 +49,13 @@ mongoose
       // Existing stripe product seeding
       const plans = await seedProducts();
 
-      // cron sync service
+      //get cron services
       const stripeSyncCron = Container.get(StripeSyncCron);
+      const metricsCron = Container.get(MetricsCron);
+
+      //start the services
       stripeSyncCron.start();
+      metricsCron.start();
     });
   })
   .catch((err) => {

@@ -3,6 +3,14 @@ import { Service } from "typedi";
 import { faker } from "@faker-js/faker";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import {
+  startOfDay,
+  subDays,
+  addDays,
+  getTime,
+  subMonths,
+  startOfToday,
+} from "date-fns";
 
 import { logger } from "../utils/logger";
 import { CompanyModel } from "../models/entities/company.entity";
@@ -20,6 +28,8 @@ import { RefreshTokenModel } from "../models/entities/refresh.token.entity";
 import { ResetTokenModel } from "../models/entities/reset.token.entity";
 import { PendingCompanyModel } from "../models/entities/pending.company.entity";
 import { ReviewStatus } from "../models/types/transcript.type";
+import { DailyCriterionMetricModel } from "../models/entities/daily.criterion.metric.entity";
+import { DailyReviewMetricModel } from "../models/entities/daily.review.metric.entity";
 
 @Service()
 export class SeedService {
@@ -244,47 +254,196 @@ export class SeedService {
         },
       });
 
-      const reviewConfigs = [defaultReviewConfig];
+      const daysInYear = 365;
+      const metricsStartDate = startOfDay(subDays(startOfToday(), daysInYear));
+      const criterionNames = criteria.map((c) => c.title);
 
-      // 9. Create transcripts
-      const transcripts = [];
-      for (let i = 0; i < 10; i++) {
-        const transcript = await TranscriptModel.create({
-          employeeId: faker.helpers.arrayElement(users)._id,
-          companyId: company._id,
-          externalCompanyId: faker.helpers.arrayElement(externalCompanies)._id,
-          contactId: faker.helpers.arrayElement(contacts)._id,
-          content: faker.lorem.paragraphs(3),
-          timestamp: faker.date.recent(),
-          uploadedById: admin._id,
-          reviewStatus: ReviewStatus.NOT_STARTED,
-          isReviewed: false,
-        });
-        transcripts.push(transcript);
+      // Define trend pattern for overall scores (0-10 scale)
+      const trendPattern = [
+        { start: 0, end: 90, from: 5.0, to: 7.0 }, // Q1: 50% → 70%
+        { start: 90, end: 180, from: 7.0, to: 5.4 }, // Q2: 70% → 54%
+        { start: 180, end: 270, from: 5.4, to: 6.0 }, // Q3: 54% → 60%
+        { start: 270, end: 365, from: 6.0, to: 8.0 }, // Q4: 60% → 80%
+      ];
+
+      // Create daily metrics for the last year
+      for (let d = 0; d <= daysInYear; d++) {
+        const currentDate = startOfDay(addDays(metricsStartDate, d));
+        const dayOfWeek = currentDate.getDay();
+
+        // Determine review volume - more on weekdays
+        let reviewCount = 0;
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          // Weekdays
+          reviewCount = faker.number.int({ min: 3, max: 12 });
+        } else if (d % 4 === 0) {
+          // Occasional weekend reviews
+          reviewCount = faker.number.int({ min: 1, max: 3 });
+        }
+
+        if (reviewCount > 0) {
+          // Calculate trend position
+          const progress = d / daysInYear;
+
+          // Find current trend segment
+          const segment =
+            trendPattern.find((s) => d >= s.start && d <= s.end) ||
+            trendPattern[0];
+          const segmentProgress =
+            (d - segment.start) / (segment.end - segment.start);
+
+          // Base scores with trend
+          const baseOverall =
+            segment.from + (segment.to - segment.from) * segmentProgress;
+          const baseSentiment = 5.5 + 3.0 * progress; // Sentiment improves over year
+
+          // Add daily variation (±15%)
+          const dailyOverall =
+            baseOverall * faker.number.float({ min: 0.85, max: 1.15 });
+          const dailySentiment =
+            baseSentiment * faker.number.float({ min: 0.9, max: 1.1 });
+
+          // Cap scores at 10
+          const overall = Math.min(dailyOverall, 10);
+          const sentiment = Math.min(dailySentiment, 10);
+
+          await DailyReviewMetricModel.create({
+            companyId: company._id,
+            date: currentDate,
+            avgOverall: parseFloat(overall.toFixed(2)),
+            avgSentiment: parseFloat(sentiment.toFixed(2)),
+            reviewCount,
+          });
+
+          // Create criteria metrics with individual trends
+          for (const criterion of criterionNames) {
+            // Criterion-specific variation (±20% from overall)
+            const criterionVariation = faker.number.float({
+              min: 0.8,
+              max: 1.2,
+            });
+            let criterionScore = overall * criterionVariation;
+
+            // Add special trends for specific criteria
+            if (criterion === "Empathie") {
+              criterionScore *= faker.number.float({ min: 0.95, max: 1.15 });
+            } else if (criterion === "Professionaliteit") {
+              criterionScore *= faker.number.float({ min: 1.05, max: 1.25 });
+            }
+
+            criterionScore = Math.min(criterionScore, 10);
+
+            await DailyCriterionMetricModel.create({
+              companyId: company._id,
+              criterionName: criterion,
+              date: currentDate,
+              avgScore: parseFloat(criterionScore.toFixed(2)),
+              reviewCount,
+            });
+          }
+        }
       }
 
-      // 10. Create reviews
-      for (let i = 0; i < 4; i++) {
-        const transcript = faker.helpers.arrayElement(transcripts);
+      // 10. Create 100 demo transcripts and reviews
+      const transcripts = [];
+      const reviews = [];
+
+      for (let i = 0; i < 100; i++) {
+        // Random user index (0-9)
+        const userIndex = faker.number.int({ min: 0, max: 9 });
+        const employee = users[userIndex];
+
+        // Random contact (50% chance)
+        const contact = faker.datatype.boolean()
+          ? faker.helpers.arrayElement(contacts)
+          : null;
+
+        // Random external company (50% chance if contact exists)
+        let externalCompany = null;
+        if (contact) {
+          externalCompany = contact.externalCompanyId;
+        } else if (faker.datatype.boolean()) {
+          externalCompany = faker.helpers.arrayElement(externalCompanies)._id;
+        }
+
+        // Generate random conversation content
+        const content = Array.from({
+          length: faker.number.int({ min: 5, max: 15 }),
+        })
+          .map(() => {
+            const speaker = faker.datatype.boolean() ? "Agent" : "Customer";
+            return `${speaker}: ${faker.lorem.sentences(
+              faker.number.int({ min: 1, max: 3 })
+            )}`;
+          })
+          .join("\n\n");
+
+        // Random date in the past year
+        const startDate = faker.date.between({
+          from: subMonths(new Date(), 12),
+          to: new Date(),
+        });
+        const duration = faker.number.int({ min: 5, max: 60 }); // minutes
+        const endDate = new Date(startDate.getTime() + duration * 60000);
+
+        // Create transcript
+        const transcript = await TranscriptModel.create({
+          employeeId: employee._id,
+          companyId: company._id,
+          externalCompanyId: externalCompany,
+          contactId: contact?._id,
+          content: content,
+          timestamp: startDate,
+          timestampEnd: endDate,
+          uploadedById: faker.helpers.arrayElement(users)._id,
+          reviewStatus: ReviewStatus.REVIEWED,
+          isReviewed: true,
+        });
+        transcripts.push(transcript);
+
+        // Create corresponding review
+        const reviewType = faker.helpers.arrayElement([
+          "performance",
+          "sentiment",
+          "both",
+        ]);
+        const criteriaScores =
+          reviewType !== "sentiment"
+            ? criteria.map((criterion) => ({
+                criterionName: criterion.title,
+                criterionDescription: criterion.description,
+                score: faker.number.float({ min: 0, max: 10 }),
+                comment: faker.lorem.sentence(),
+                quote: faker.lorem.sentence(),
+                feedback: faker.lorem.sentence(),
+              }))
+            : [];
+
+        const sentimentLabels = ["negative", "neutral", "positive"];
 
         await ReviewModel.create({
           transcriptId: transcript._id,
-          reviewConfig: defaultReviewConfig.toObject(), // Use default config
+          reviewConfig:
+            reviewType !== "sentiment" ? defaultReviewConfig._id : undefined,
           reviewStatus: ReviewStatus.REVIEWED,
-          type: "both",
-          criteriaScores: criteria.map((c) => ({
-            criterionName: c.title,
-            criterionDescription: c.description,
-            score: faker.number.float({ min: 7, max: 10 }),
-            comment: faker.lorem.sentence(),
-            quote: faker.lorem.sentence(),
-            feedback: faker.lorem.paragraph(),
-          })),
-          overallScore: faker.number.float({ min: 7, max: 10 }),
+          type: reviewType,
+          subject: `Review for conversation on ${startDate.toLocaleDateString()}`,
+          criteriaScores: criteriaScores,
+          overallScore:
+            reviewType !== "sentiment"
+              ? faker.number.float({ min: 0, max: 10 })
+              : 0,
           overallFeedback: faker.lorem.paragraph(),
-          sentimentScore: faker.number.float({ min: 7, max: 10 }),
-          sentimentLabel: "positive",
-          sentimentAnalysis: faker.lorem.paragraph(),
+          sentimentScore:
+            reviewType !== "performance"
+              ? faker.number.float({ min: 0, max: 10 })
+              : undefined,
+          sentimentLabel:
+            reviewType !== "performance"
+              ? faker.helpers.arrayElement(sentimentLabels)
+              : undefined,
+          sentimentAnalysis:
+            reviewType !== "performance" ? faker.lorem.paragraph() : undefined,
           externalCompanyId: transcript.externalCompanyId,
           employeeId: transcript.employeeId,
           contactId: transcript.contactId,
@@ -292,7 +451,7 @@ export class SeedService {
         });
       }
 
-      // 11. Create plan
+      // 9. Create plan
       const plans = [
         {
           name: "Starter Plan seed",
@@ -389,7 +548,7 @@ export class SeedService {
         await PlanModel.create(planData);
       }
 
-      // 12. Create refresh token
+      // 10. Create refresh token
       await RefreshTokenModel.create({
         userId: users[0]._id,
         token: faker.string.alphanumeric(64),
@@ -398,14 +557,14 @@ export class SeedService {
         userAgent: faker.internet.userAgent(),
       });
 
-      // 13. Create reset token
+      // 11. Create reset token
       await ResetTokenModel.create({
         userId: users[0]._id,
         tokenHash: faker.string.alphanumeric(64),
         expiresAt: faker.date.future(),
       });
 
-      // 14. Create pending company
+      // 12. Create pending company
       await PendingCompanyModel.create({
         stripeSessionId: `cs_${faker.string.alphanumeric(24)}`,
         stripeCustomerId: `cus_${faker.string.alphanumeric(14)}`,
@@ -420,7 +579,7 @@ export class SeedService {
         password: await bcrypt.hash("Password123!", 10),
       });
 
-      logger.info("Database seeding completed successfully");
+      logger.info("Database seeding completed successfully with metrics data");
       return true;
     } catch (error) {
       logger.error("Database seeding failed:", error);
