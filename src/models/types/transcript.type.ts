@@ -11,6 +11,7 @@ export enum ReviewStatus {
 export interface ITranscriptData {
   employeeId: mongoose.Types.ObjectId;
   companyId: mongoose.Types.ObjectId;
+  teamId: mongoose.Types.ObjectId;
   externalCompanyId: mongoose.Types.ObjectId;
   contactId: mongoose.Types.ObjectId;
   content: string;

@@ -57,6 +57,12 @@ export class CreateTranscriptDto {
   })
   employeeId!: string;
 
+  @IsOptional()
+  @IsMongoObjectId({
+    message: "Team ID must be a valid Mongo ObjectId",
+  })
+  teamId!: string;
+
   @IsBoolean({ message: "autoStartReview must be a boolean" })
   autoStartReview!: boolean;
 

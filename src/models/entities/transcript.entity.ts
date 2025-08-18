@@ -11,6 +11,7 @@ export interface ITranscriptDocument extends ITranscriptData, Document {
 const transcriptSchema = new Schema<ITranscriptDocument>(
   {
     employeeId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+    teamId: { type: Schema.Types.ObjectId, required: false, ref: "Team" },
     companyId: { type: Schema.Types.ObjectId, required: true, ref: "Company" },
     externalCompanyId: {
       type: Schema.Types.ObjectId,

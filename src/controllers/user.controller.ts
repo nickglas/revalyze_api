@@ -157,3 +157,21 @@ export const toggleUserStatus = async (
     next(err);
   }
 };
+
+export const getTeams = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const userId = new mongoose.Types.ObjectId(req.params.id);
+
+    const userService = Container.get(UserService);
+    const teams = await userService.getTeamsFromUserId(companyId, userId);
+
+    res.status(200).json(teams);
+  } catch (err) {
+    next(err);
+  }
+};

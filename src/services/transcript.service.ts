@@ -26,6 +26,7 @@ import { TranscriptSummaryDto } from "../dto/transcript/transcript.summary.dto";
 import { privateDecrypt } from "crypto";
 import { ReviewService } from "./review.service";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
+import { TeamRepository } from "../repositories/team.repository";
 
 @Service()
 export class TranscriptService {
@@ -38,7 +39,8 @@ export class TranscriptService {
     private readonly userRepository: UserRepository,
     private readonly reviewRepository: ReviewRepository,
     private readonly reviewService: ReviewService,
-    private readonly reviewConfigRepository: ReviewConfigRepository
+    private readonly reviewConfigRepository: ReviewConfigRepository,
+    private readonly teamRepository: TeamRepository
   ) {}
 
   /**
@@ -226,10 +228,24 @@ export class TranscriptService {
       finalEmployeeId = employeeIdFromToken;
     }
 
+    if (dto.teamId) {
+      //check if the employee is part of the provided team
+      const team = await this.teamRepository.findOne({
+        companyId,
+        _id: dto.teamId,
+        "users.user": finalEmployeeId,
+      });
+
+      if (!team) {
+        throw new BadRequestError("Employee is not part of this team");
+      }
+    }
+
     // Prepare transcript data
     const transcriptData: Partial<ITranscriptDocument> = {
       companyId,
       employeeId: finalEmployeeId,
+      teamId: dto.teamId ? new mongoose.Types.ObjectId(dto.teamId) : undefined,
       uploadedById,
       externalCompanyId: dto.externalCompanyId
         ? new mongoose.Types.ObjectId(dto.externalCompanyId)

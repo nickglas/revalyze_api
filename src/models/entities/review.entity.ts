@@ -96,6 +96,12 @@ const reviewSchema = new Schema<IReviewDocument>(
       required: false,
       index: true,
     },
+    teamId: {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      required: false,
+      index: true,
+    },
     contactId: {
       type: Schema.Types.ObjectId,
       ref: "Contact",

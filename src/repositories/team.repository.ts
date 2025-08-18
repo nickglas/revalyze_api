@@ -115,4 +115,21 @@ export class TeamRepository {
   async delete(id: Types.ObjectId | string) {
     return await TeamModel.findByIdAndDelete(id).exec();
   }
+
+  async getTeamsForUser(
+    companyId: Types.ObjectId,
+    userId: Types.ObjectId,
+    isActiveFlag?: boolean
+  ) {
+    const filter: FilterQuery<ITeamDocument> = {
+      companyId,
+      "users.user": userId,
+    };
+
+    if (isActiveFlag) {
+      filter.isActive = isActiveFlag;
+    }
+
+    return await TeamModel.find(filter).exec();
+  }
 }

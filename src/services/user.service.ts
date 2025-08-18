@@ -14,6 +14,8 @@ import { TeamRepository } from "../repositories/team.repository";
 import { MailService } from "./mail.service";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import { ITeamData } from "../models/types/team.type";
+import { ITeamDocument } from "../models/entities/team.entity";
 
 @Service()
 export class UserService {
@@ -287,6 +289,16 @@ export class UserService {
   ): Promise<number> {
     if (!companyId) throw new BadRequestError("Company ID is required");
     return this.userRepository.countByCompany(companyId);
+  }
+
+  async getTeamsFromUserId(
+    companyId: mongoose.Types.ObjectId,
+    userId: mongoose.Types.ObjectId
+  ): Promise<ITeamDocument[]> {
+    if (!companyId) throw new BadRequestError("Company ID is required");
+    if (!userId) throw new BadRequestError("User ID is required");
+
+    return await this.teamRepository.getTeamsForUser(companyId, userId, true);
   }
 
   /**

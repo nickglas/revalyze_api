@@ -5,6 +5,7 @@ import {
   createUser,
   updateUser,
   toggleUserStatus,
+  getTeams,
 } from "../controllers/user.controller";
 import {
   authenticate,
@@ -23,6 +24,9 @@ router.get("/", authenticate, getUsers);
 
 // Retrieve specific user (admin or self)
 router.get("/:id", authenticate, getUserById);
+
+// Retrieve specific user teams
+router.get("/:id/teams", authenticate, getTeams);
 
 // Only admins can create new users
 router.post(

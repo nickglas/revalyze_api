@@ -256,6 +256,7 @@ export class ReviewService {
       criteriaScores: [],
       externalCompanyId: transcript.externalCompanyId,
       employeeId: transcript.employeeId,
+      teamId: transcript.teamId,
       contactId: transcript.contactId,
       companyId: transcript.companyId,
       reviewStatus: ReviewStatus.NOT_STARTED,
