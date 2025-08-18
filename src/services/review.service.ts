@@ -34,6 +34,10 @@ import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
 import { CriteriaFlowData } from "../models/types/criterion.type";
 import { ObjectId } from "mongodb";
 import { ReviewDetailDto } from "../dto/review/review.detail.dto";
+import { startOfDay } from "date-fns";
+import { DailyTeamMetricModel } from "../models/entities/daily.team.metrics.entity";
+import { logger } from "../utils/logger";
+import { UpdateReviewDto } from "../dto/review/review.update.dto";
 
 interface ReviewServiceOptions {
   companyId: mongoose.Types.ObjectId;
@@ -339,6 +343,50 @@ export class ReviewService {
   }
 
   /**
+   * Update team metrics when a review is processed
+   * @param teamId - Team ID
+   * @param overallScore - Review overall score
+   * @param sentimentScore - Review sentiment score
+   */
+  private async updateTeamMetrics(
+    teamId: Types.ObjectId,
+    overallScore: number,
+    sentimentScore: number
+  ) {
+    try {
+      const today = startOfDay(new Date());
+
+      // Find or create the daily metric
+      const metric = await DailyTeamMetricModel.findOneAndUpdate(
+        { teamId, date: today },
+        {
+          $inc: {
+            reviewCount: 1,
+            totalOverall: overallScore,
+            totalSentiment: sentimentScore,
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+
+      // Calculate new averages
+      const newAvgOverall = metric.avgOverall / metric.reviewCount;
+      const newAvgSentiment = metric.avgSentiment / metric.reviewCount;
+
+      // Update with calculated averages
+      await DailyTeamMetricModel.findByIdAndUpdate(metric._id, {
+        $set: {
+          avgOverall: newAvgOverall,
+          avgSentiment: newAvgSentiment,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to update team metrics:", error);
+      // Fail silently for metrics updates
+    }
+  }
+
+  /**
    * Creates a new AI-generated review from a transcript and a review config.
    *
    * @param dto - The DTO containing transcriptId, reviewConfigId, and review type.
@@ -449,6 +497,143 @@ export class ReviewService {
     return review;
   }
 
+  /**
+   * Update an existing review
+   * @param id - Review ID
+   * @param updateDto - Update data
+   */
+  async updateReview(
+    id: string,
+    updateDto: UpdateReviewDto
+  ): Promise<IReviewDocument> {
+    const review = await ReviewModel.findById(id);
+    if (!review) throw new NotFoundError("Review not found");
+
+    // Capture original values for metrics update
+    const originalTeamId = review.teamId;
+    const originalOverall = review.overallScore;
+    const originalSentiment = review.sentimentScore;
+
+    // Update review
+    const updated = await ReviewModel.findByIdAndUpdate(id, updateDto, {
+      new: true,
+    });
+
+    if (!updated) {
+      throw new BadRequestError("Error updating review");
+    }
+
+    // If team changed, update metrics for both teams
+    if (updateDto.teamId && !originalTeamId?.equals(updateDto.teamId)) {
+      if (originalTeamId) {
+        await this.revertTeamMetrics(
+          originalTeamId,
+          originalOverall || 0,
+          originalSentiment || 0
+        );
+      }
+      await this.updateTeamMetrics(
+        updated.teamId,
+        updated.overallScore || 0,
+        updated.sentimentScore || 0
+      );
+    }
+    // If scores changed but team remains the same
+    else if (
+      (updateDto.overallScore !== undefined &&
+        updateDto.overallScore !== originalOverall) ||
+      (updateDto.sentimentScore !== undefined &&
+        updateDto.sentimentScore !== originalSentiment)
+    ) {
+      if (updated.teamId) {
+        // First revert old values
+        await this.revertTeamMetrics(
+          updated.teamId,
+          originalOverall || 0,
+          originalSentiment || 0
+        );
+        // Then add new values
+        await this.updateTeamMetrics(
+          updated.teamId,
+          updated.overallScore || 0,
+          updated.sentimentScore || 0
+        );
+      }
+    }
+
+    return updated;
+  }
+
+  /**
+   * Soft delete a review
+   * @param id - Review ID
+   */
+  async deleteReview(id: string): Promise<IReviewDocument> {
+    const review = await ReviewModel.findById(id);
+    if (!review) throw new NotFoundError("Review not found");
+
+    const deleted = await ReviewModel.findByIdAndUpdate(
+      id,
+      { isDeleted: true },
+      { new: true }
+    );
+
+    if (!deleted) {
+      throw new BadRequestError("Error deleting");
+    }
+
+    if (review.teamId) {
+      await this.revertTeamMetrics(
+        review.teamId,
+        review.overallScore || 0,
+        review.sentimentScore || 0
+      );
+    }
+
+    return deleted;
+  }
+
+  /**
+   * Revert team metrics when a review is updated or deleted
+   */
+  private async revertTeamMetrics(
+    teamId: Types.ObjectId,
+    overallScore: number,
+    sentimentScore: number
+  ) {
+    try {
+      const today = startOfDay(new Date());
+
+      const metric = await DailyTeamMetricModel.findOneAndUpdate(
+        { teamId, date: today },
+        {
+          $inc: {
+            reviewCount: -1,
+            totalOverall: -overallScore,
+            totalSentiment: -sentimentScore,
+          },
+        },
+        { new: true }
+      );
+
+      if (!metric || metric.reviewCount <= 0) return;
+
+      // Calculate new averages
+      const newAvgOverall = metric.avgOverall / metric.reviewCount;
+      const newAvgSentiment = metric.avgSentiment / metric.reviewCount;
+
+      // Update with calculated averages
+      await DailyTeamMetricModel.findByIdAndUpdate(metric._id, {
+        $set: {
+          avgOverall: newAvgOverall,
+          avgSentiment: newAvgSentiment,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to revert team metrics:", error);
+    }
+  }
+
   // Helper method to process OpenAI review asynchronously
   private async processOpenAIReview(
     review: IReviewDocument,
@@ -504,7 +689,17 @@ export class ReviewService {
       transcript.reviewStatus = ReviewStatus.REVIEWED;
       await transcript.save();
 
+      // Update user metrics
       await this.updateUserMetrics(transcript.employeeId.toString());
+
+      // Update team metrics if team exists
+      if (review.teamId) {
+        await this.updateTeamMetrics(
+          review.teamId,
+          review.overallScore || 0,
+          review.sentimentScore || 0
+        );
+      }
     } catch (error) {
       console.error("Error processing OpenAI review:", error);
       review.reviewStatus = ReviewStatus.ERROR;

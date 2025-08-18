@@ -7,9 +7,11 @@ import {
 import { validateDto } from "../middlewares/validate.middleware";
 import {
   createReview,
+  deleteReview,
   getReviewById,
   getReviews,
   retryReview,
+  updateReview,
 } from "../controllers/review.controller";
 import { CreateReviewDto } from "../dto/review/review.create.dto";
 
@@ -36,6 +38,20 @@ router.post(
   authenticate,
   authorizeRole([UserRole.COMPANY_ADMIN, UserRole.EMPLOYEE]),
   retryReview
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  updateReview
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  deleteReview
 );
 
 export default router;

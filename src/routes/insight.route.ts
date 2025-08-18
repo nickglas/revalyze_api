@@ -11,6 +11,9 @@ import {
   getDashboardMetrics,
   getEmployeeDetails,
   getEmployeeSummary,
+  getSentimentDistribution,
+  getSentimentTrends,
+  getTeamsPerformanceSentimentData,
   getTrends,
 } from "../controllers/insight.controller";
 
@@ -54,6 +57,27 @@ router.get(
   authenticate as RequestHandler,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   getDashboardMetrics as RequestHandler
+);
+
+router.get(
+  "/teams-dashboard-metrics",
+  authenticate as RequestHandler,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  getTeamsPerformanceSentimentData as RequestHandler
+);
+
+router.get(
+  "/sentiment/distribution",
+  authenticate as RequestHandler,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  getSentimentDistribution as RequestHandler
+);
+
+router.get(
+  "/sentiment/trends",
+  authenticate as RequestHandler,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  getSentimentTrends as RequestHandler
 );
 
 export default router;

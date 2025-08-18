@@ -132,3 +132,53 @@ export const getDashboardMetrics = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to load dashboard metrics" });
   }
 };
+
+export const getTeamsPerformanceSentimentData = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    if (!companyId) {
+      return res.status(400).json({ error: "Company ID is missing" });
+    }
+
+    const dashboardService = Container.get(DashboardService);
+    const metrics = await dashboardService.getTeamMetrics(companyId);
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load dashboard metrics" });
+  }
+};
+
+export const getSentimentDistribution = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const dashboardService = Container.get(DashboardService);
+    const distribution = await dashboardService.getSentimentDistribution(days);
+
+    res.status(200).json(distribution);
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const getSentimentTrends = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const dashboardService = Container.get(DashboardService);
+    const trends = await dashboardService.getSentimentTrends(days);
+
+    res.status(200).json(trends);
+  } catch (err) {
+    next(err);
+  }
+};

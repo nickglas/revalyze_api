@@ -17,7 +17,7 @@ export class MetricsCron {
     }
 
     // Run daily at 2:00 AM
-    this.job = cron.schedule("0 2 * * *", async () => {
+    this.job = cron.schedule("* * * * *", async () => {
       try {
         logger.info("Starting daily metrics aggregation...");
         await this.metricsService.aggregateDailyMetrics();

@@ -3,6 +3,7 @@ import { Container } from "typedi";
 import mongoose from "mongoose";
 import { ReviewService } from "../services/review.service";
 import { CreateReviewDto } from "../dto/review/review.create.dto";
+import { UpdateReviewDto } from "../dto/review/review.update.dto";
 
 /**
  * GET /reviews
@@ -134,6 +135,58 @@ export const retryReview = async (
     );
 
     res.status(200).json(retriedReview);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /reviews/:id
+ * Update a review
+ */
+export const updateReview = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const reviewId = req.params.id;
+    const dto = req.body as UpdateReviewDto;
+
+    const reviewService = Container.get(ReviewService);
+
+    // Verify review belongs to company
+    const existing = await reviewService.getById(reviewId, companyId);
+
+    const updated = await reviewService.updateReview(reviewId, dto);
+    res.status(200).json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /reviews/:id
+ * Soft delete a review
+ */
+export const deleteReview = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const reviewId = req.params.id;
+
+    const reviewService = Container.get(ReviewService);
+    const existing = await reviewService.getById(reviewId, companyId);
+    const deleted = await reviewService.deleteReview(reviewId);
+
+    res.status(200).json({
+      message: "Review deleted successfully",
+      deleted,
+    });
   } catch (error) {
     next(error);
   }

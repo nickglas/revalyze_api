@@ -8,16 +8,20 @@ import {
   subMonths,
   subYears,
   isWithinInterval,
+  startOfMonth,
 } from "date-fns";
 import { DailyReviewMetricModel } from "../models/entities/daily.review.metric.entity";
 import { ReviewModel } from "../models/entities/review.entity";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { DailyCriterionMetricModel } from "../models/entities/daily.criterion.metric.entity";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { UserRepository } from "../repositories/user.repository";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { ReviewRepository } from "../repositories/review.repository";
+import { DailyTeamMetricModel } from "../models/entities/daily.team.metrics.entity";
+import { logger } from "../utils/logger";
+import { DailySentimentLabelMetricModel } from "../models/entities/daily.sentiment.label.metric";
 
 @Service()
 export class DashboardService {
@@ -152,7 +156,6 @@ export class DashboardService {
     }));
   }
 
-  // dashboard.service.ts
   async getDashboardMetrics(companyId: string) {
     // 1. Get subscription details
     const subscription = await this.subscriptionRepository.findOne({
@@ -207,6 +210,239 @@ export class DashboardService {
       performance: latestMetric?.avgOverall || 0,
       sentiment: latestMetric?.avgSentiment || 0,
     };
+  }
+
+  /**
+   * Get team metrics for bar chart (current month)
+   * @param companyId - Company ID
+   * @param period - Optional period (default: current month)
+   */
+  async getTeamMetrics(
+    companyId: Types.ObjectId,
+    period: Date = startOfMonth(new Date())
+  ) {
+    try {
+      const monthStart = period;
+      const monthEnd = new Date(
+        monthStart.getFullYear(),
+        monthStart.getMonth() + 1,
+        1
+      );
+
+      return DailyTeamMetricModel.aggregate([
+        {
+          $lookup: {
+            from: "teams",
+            localField: "teamId",
+            foreignField: "_id",
+            as: "team",
+            pipeline: [
+              {
+                $match: {
+                  companyId,
+                  isActive: true,
+                },
+              },
+            ],
+          },
+        },
+        { $unwind: { path: "$team", preserveNullAndEmptyArrays: false } },
+        {
+          $match: {
+            date: {
+              $gte: monthStart,
+              $lt: monthEnd,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$teamId",
+            teamName: { $first: "$team.name" },
+            avgOverall: { $avg: "$avgOverall" },
+            avgSentiment: { $avg: "$avgSentiment" },
+            reviewCount: { $sum: "$reviewCount" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            teamId: "$_id",
+            teamName: 1,
+            avgOverall: { $round: ["$avgOverall", 2] },
+            avgSentiment: { $round: ["$avgSentiment", 2] },
+            reviewCount: 1,
+          },
+        },
+        { $sort: { teamName: 1 } },
+      ]);
+    } catch (error) {
+      logger.error(`Failed to get team metrics: ${error}`);
+      throw error;
+    }
+  }
+
+  async getSentimentDistribution(days: number = 30) {
+    const startDate = startOfDay(subDays(new Date(), days));
+
+    try {
+      const results = await DailySentimentLabelMetricModel.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            negative: { $sum: "$negative" },
+            neutral: { $sum: "$neutral" },
+            positive: { $sum: "$positive" },
+            total: { $sum: "$total" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            negative: 1,
+            neutral: 1,
+            positive: 1,
+            total: 1,
+            negativePercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$negative", "$total"] }, 100] },
+              ],
+            },
+            neutralPercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$neutral", "$total"] }, 100] },
+              ],
+            },
+            positivePercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$positive", "$total"] }, 100] },
+              ],
+            },
+          },
+        },
+      ]);
+
+      return (
+        results[0] || {
+          negative: 0,
+          neutral: 0,
+          positive: 0,
+          total: 0,
+          negativePercentage: 0,
+          neutralPercentage: 0,
+          positivePercentage: 0,
+        }
+      );
+    } catch (error) {
+      logger.error(`Failed to get sentiment distribution: ${error}`);
+      throw error;
+    }
+  }
+
+  async getSentimentTrends(days: number = 30) {
+    const startDate = startOfDay(subDays(new Date(), days));
+
+    try {
+      return DailySentimentLabelMetricModel.aggregate([
+        {
+          $match: {
+            date: { $gte: startDate },
+          },
+        },
+        {
+          $project: {
+            date: 1,
+            negative: 1,
+            neutral: 1,
+            positive: 1,
+            total: 1,
+            negativePercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$negative", "$total"] }, 100] },
+              ],
+            },
+            neutralPercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$neutral", "$total"] }, 100] },
+              ],
+            },
+            positivePercentage: {
+              $cond: [
+                { $eq: ["$total", 0] },
+                0,
+                { $multiply: [{ $divide: ["$positive", "$total"] }, 100] },
+              ],
+            },
+          },
+        },
+        { $sort: { date: 1 } },
+      ]);
+    } catch (error) {
+      logger.error(`Failed to get sentiment trends: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get historical team metrics for charts
+   * @param teamId - Team ID
+   * @param months - Number of months to retrieve
+   */
+  async getHistoricalTeamMetrics(teamId: Types.ObjectId, months: number = 6) {
+    try {
+      const endDate = startOfMonth(new Date());
+      const startDate = subMonths(endDate, months - 1);
+
+      return DailyTeamMetricModel.aggregate([
+        {
+          $match: {
+            teamId,
+            date: {
+              $gte: startDate,
+              $lt: endDate,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: "%Y-%m", date: "$date" },
+            },
+            avgOverall: { $avg: "$avgOverall" },
+            avgSentiment: { $avg: "$avgSentiment" },
+            reviewCount: { $sum: "$reviewCount" },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            period: "$_id",
+            avgOverall: { $round: ["$avgOverall", 2] },
+            avgSentiment: { $round: ["$avgSentiment", 2] },
+            reviewCount: 1,
+          },
+        },
+        { $sort: { period: 1 } },
+      ]);
+    } catch (error) {
+      logger.error(`Failed to get historical team metrics: ${error}`);
+      throw error;
+    }
   }
 
   private calculateChange(current: number, previous: number): number {

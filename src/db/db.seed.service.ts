@@ -30,6 +30,8 @@ import { PendingCompanyModel } from "../models/entities/pending.company.entity";
 import { ReviewStatus } from "../models/types/transcript.type";
 import { DailyCriterionMetricModel } from "../models/entities/daily.criterion.metric.entity";
 import { DailyReviewMetricModel } from "../models/entities/daily.review.metric.entity";
+import { DailyTeamMetricModel } from "../models/entities/daily.team.metrics.entity";
+import { DailySentimentLabelMetricModel } from "../models/entities/daily.sentiment.label.metric";
 
 @Service()
 export class SeedService {
@@ -315,6 +317,21 @@ export class SeedService {
             reviewCount,
           });
 
+          const sentimentDistribution = {
+            negative: Math.floor(reviewCount * 0.15),
+            neutral: Math.floor(reviewCount * 0.25),
+            positive:
+              reviewCount -
+              Math.floor(reviewCount * 0.15) -
+              Math.floor(reviewCount * 0.25),
+          };
+
+          await DailySentimentLabelMetricModel.create({
+            date: currentDate,
+            ...sentimentDistribution,
+            total: reviewCount,
+          });
+
           // Create criteria metrics with individual trends
           for (const criterion of criterionNames) {
             // Criterion-specific variation (±20% from overall)
@@ -344,6 +361,173 @@ export class SeedService {
         }
       }
 
+      // Create daily metrics for the last year
+      for (let d = 0; d <= daysInYear; d++) {
+        const currentDate = startOfDay(addDays(metricsStartDate, d));
+        const dayOfWeek = currentDate.getDay();
+
+        // Determine review volume - more on weekdays
+        let reviewCount = 0;
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          // Weekdays
+          reviewCount = faker.number.int({ min: 3, max: 12 });
+        } else if (d % 4 === 0) {
+          // Occasional weekend reviews
+          reviewCount = faker.number.int({ min: 1, max: 3 });
+        }
+
+        if (reviewCount > 0) {
+          // Calculate trend position
+          const progress = d / daysInYear;
+
+          // Find current trend segment
+          const segment =
+            trendPattern.find((s) => d >= s.start && d <= s.end) ||
+            trendPattern[0];
+          const segmentProgress =
+            (d - segment.start) / (segment.end - segment.start);
+
+          // Base scores with trend
+          const baseOverall =
+            segment.from + (segment.to - segment.from) * segmentProgress;
+          const baseSentiment = 5.5 + 3.0 * progress; // Sentiment improves over year
+
+          // Add daily variation (±15%)
+          const dailyOverall =
+            baseOverall * faker.number.float({ min: 0.85, max: 1.15 });
+          const dailySentiment =
+            baseSentiment * faker.number.float({ min: 0.9, max: 1.1 });
+
+          // Cap scores at 10
+          const overall = Math.min(dailyOverall, 10);
+          const sentiment = Math.min(dailySentiment, 10);
+
+          await DailyReviewMetricModel.create({
+            companyId: company._id,
+            date: currentDate,
+            avgOverall: parseFloat(overall.toFixed(2)),
+            avgSentiment: parseFloat(sentiment.toFixed(2)),
+            reviewCount,
+          });
+
+          // Create criteria metrics with individual trends
+          for (const criterion of criterionNames) {
+            // Criterion-specific variation (±20% from overall)
+            const criterionVariation = faker.number.float({
+              min: 0.8,
+              max: 1.2,
+            });
+            let criterionScore = overall * criterionVariation;
+
+            // Add special trends for specific criteria
+            if (criterion === "Empathie") {
+              criterionScore *= faker.number.float({ min: 0.95, max: 1.15 });
+            } else if (criterion === "Professionaliteit") {
+              criterionScore *= faker.number.float({ min: 1.05, max: 1.25 });
+            }
+
+            criterionScore = Math.min(criterionScore, 10);
+
+            await DailyCriterionMetricModel.create({
+              companyId: company._id,
+              criterionName: criterion,
+              date: currentDate,
+              avgScore: parseFloat(criterionScore.toFixed(2)),
+              reviewCount,
+            });
+          }
+        }
+      }
+
+      // ========== ADD DAILY TEAM METRICS ==========
+      // Define team-specific performance patterns
+      const teamPatterns = [
+        {
+          name: "Sales",
+          overallTrend: { min: 6.5, max: 8.5 },
+          sentimentTrend: { min: 7.0, max: 8.8 },
+          volatility: 0.8,
+        },
+        {
+          name: "Support",
+          overallTrend: { min: 7.0, max: 8.0 },
+          sentimentTrend: { min: 6.5, max: 8.5 },
+          volatility: 0.6,
+        },
+        {
+          name: "Success",
+          overallTrend: { min: 7.5, max: 9.0 },
+          sentimentTrend: { min: 7.5, max: 9.0 },
+          volatility: 0.7,
+        },
+      ];
+
+      // Create daily team metrics for each team
+      for (const team of teams) {
+        const teamPattern =
+          teamPatterns.find((t) => t.name === team.name) || teamPatterns[0];
+
+        for (let d = 0; d <= daysInYear; d++) {
+          const currentDate = startOfDay(addDays(metricsStartDate, d));
+          const dayOfWeek = currentDate.getDay();
+
+          // Determine review volume - more on weekdays
+          let reviewCount = 0;
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            // Weekdays
+            reviewCount = faker.number.int({ min: 1, max: 4 });
+          } else if (d % 7 === 0) {
+            // Occasional weekend reviews
+            reviewCount = faker.number.int({ min: 0, max: 1 });
+          }
+
+          if (reviewCount > 0) {
+            // Calculate trend position
+            const progress = d / daysInYear;
+
+            // Team-specific base scores
+            const baseOverall =
+              teamPattern.overallTrend.min +
+              (teamPattern.overallTrend.max - teamPattern.overallTrend.min) *
+                progress;
+
+            const baseSentiment =
+              teamPattern.sentimentTrend.min +
+              (teamPattern.sentimentTrend.max -
+                teamPattern.sentimentTrend.min) *
+                progress;
+
+            // Add daily variation based on team volatility
+            const dailyOverall =
+              baseOverall *
+              faker.number.float({
+                min: 1 - teamPattern.volatility * 0.1,
+                max: 1 + teamPattern.volatility * 0.1,
+              });
+
+            const dailySentiment =
+              baseSentiment *
+              faker.number.float({
+                min: 1 - teamPattern.volatility * 0.1,
+                max: 1 + teamPattern.volatility * 0.1,
+              });
+
+            // Cap scores at 10
+            const overall = Math.min(dailyOverall, 10);
+            const sentiment = Math.min(dailySentiment, 10);
+
+            await DailyTeamMetricModel.create({
+              teamId: team._id,
+              date: currentDate,
+              avgOverall: parseFloat(overall.toFixed(2)),
+              avgSentiment: parseFloat(sentiment.toFixed(2)),
+              reviewCount,
+            });
+          }
+        }
+      }
+      // ========== END DAILY TEAM METRICS ==========
+
       // 10. Create 100 demo transcripts and reviews
       const transcripts = [];
       const reviews = [];
@@ -352,6 +536,11 @@ export class SeedService {
         // Random user index (0-9)
         const userIndex = faker.number.int({ min: 0, max: 9 });
         const employee = users[userIndex];
+
+        // Random team (80% chance)
+        const team = faker.datatype.boolean(0.8)
+          ? faker.helpers.arrayElement(teams)
+          : null;
 
         // Random contact (50% chance)
         const contact = faker.datatype.boolean()
@@ -392,6 +581,7 @@ export class SeedService {
           companyId: company._id,
           externalCompanyId: externalCompany,
           contactId: contact?._id,
+          teamId: team?._id, // Add team reference
           content: content,
           timestamp: startDate,
           timestampEnd: endDate,
@@ -407,12 +597,53 @@ export class SeedService {
           "sentiment",
           "both",
         ]);
+
+        // Create realistic scores based on team performance
+        let overallScore = 0;
+        let sentimentScore = 0;
+
+        if (team) {
+          // Find team pattern
+          const teamPattern =
+            teamPatterns.find((t) => t.name === team.name) || teamPatterns[0];
+
+          // Calculate base score based on team pattern
+          const progress =
+            (startDate.getTime() - metricsStartDate.getTime()) /
+            (365 * 24 * 60 * 60 * 1000);
+
+          overallScore =
+            teamPattern.overallTrend.min +
+            (teamPattern.overallTrend.max - teamPattern.overallTrend.min) *
+              progress;
+
+          sentimentScore =
+            teamPattern.sentimentTrend.min +
+            (teamPattern.sentimentTrend.max - teamPattern.sentimentTrend.min) *
+              progress;
+
+          // Add individual variation
+          overallScore *= faker.number.float({ min: 0.9, max: 1.1 });
+          sentimentScore *= faker.number.float({ min: 0.9, max: 1.1 });
+
+          // Cap scores at 10
+          overallScore = Math.min(overallScore, 10);
+          sentimentScore = Math.min(sentimentScore, 10);
+        } else {
+          // No team - use company average
+          overallScore = faker.number.float({ min: 6.0, max: 8.5 });
+          sentimentScore = faker.number.float({ min: 6.5, max: 8.8 });
+        }
+
         const criteriaScores =
           reviewType !== "sentiment"
             ? criteria.map((criterion) => ({
                 criterionName: criterion.title,
                 criterionDescription: criterion.description,
-                score: faker.number.float({ min: 0, max: 10 }),
+                score: faker.number.float({
+                  min: overallScore * 0.8,
+                  max: overallScore * 1.2,
+                }),
                 comment: faker.lorem.sentence(),
                 quote: faker.lorem.sentence(),
                 feedback: faker.lorem.sentence(),
@@ -431,12 +662,12 @@ export class SeedService {
           criteriaScores: criteriaScores,
           overallScore:
             reviewType !== "sentiment"
-              ? faker.number.float({ min: 0, max: 10 })
+              ? parseFloat(overallScore.toFixed(2))
               : 0,
           overallFeedback: faker.lorem.paragraph(),
           sentimentScore:
             reviewType !== "performance"
-              ? faker.number.float({ min: 0, max: 10 })
+              ? parseFloat(sentimentScore.toFixed(2))
               : undefined,
           sentimentLabel:
             reviewType !== "performance"
@@ -446,6 +677,7 @@ export class SeedService {
             reviewType !== "performance" ? faker.lorem.paragraph() : undefined,
           externalCompanyId: transcript.externalCompanyId,
           employeeId: transcript.employeeId,
+          teamId: transcript.teamId, // Add team reference
           contactId: transcript.contactId,
           companyId: company._id,
         });
