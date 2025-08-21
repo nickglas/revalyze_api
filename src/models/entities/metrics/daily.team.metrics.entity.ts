@@ -1,7 +1,8 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import { TeamModel } from "./team.entity";
+import { TeamModel } from "../team.entity";
 
 export interface IDailyTeamMetric extends Document {
+  companyId: Types.ObjectId;
   teamId: Types.ObjectId;
   date: Date;
   avgOverall: number;
@@ -13,6 +14,11 @@ export interface IDailyTeamMetric extends Document {
 
 const DailyTeamMetricSchema = new Schema<IDailyTeamMetric>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
     teamId: {
       type: Schema.Types.ObjectId,
       ref: "Team",
@@ -47,7 +53,10 @@ const DailyTeamMetricSchema = new Schema<IDailyTeamMetric>(
   }
 );
 
-DailyTeamMetricSchema.index({ teamId: 1, date: 1 }, { unique: true });
+DailyTeamMetricSchema.index(
+  { companyId: 1, teamId: 1, date: 1 },
+  { unique: true }
+);
 
 DailyTeamMetricSchema.virtual("team", {
   ref: "Team",

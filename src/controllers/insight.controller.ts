@@ -157,9 +157,18 @@ export const getSentimentDistribution = async (
   next: NextFunction
 ) => {
   try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    if (!companyId) {
+      return res.status(400).json({ error: "Company ID is missing" });
+    }
+
     const days = parseInt(req.query.days as string) || 30;
     const dashboardService = Container.get(DashboardService);
-    const distribution = await dashboardService.getSentimentDistribution(days);
+    console.warn(companyId.toString());
+    const distribution = await dashboardService.getSentimentDistribution(
+      companyId,
+      days
+    );
 
     res.status(200).json(distribution);
   } catch (err) {
@@ -173,9 +182,17 @@ export const getSentimentTrends = async (
   next: NextFunction
 ) => {
   try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    if (!companyId) {
+      return res.status(400).json({ error: "Company ID is missing" });
+    }
+
     const days = parseInt(req.query.days as string) || 30;
     const dashboardService = Container.get(DashboardService);
-    const trends = await dashboardService.getSentimentTrends(days);
+    const trends = await dashboardService.getSentimentTrends(
+      companyId.toString(),
+      days
+    );
 
     res.status(200).json(trends);
   } catch (err) {

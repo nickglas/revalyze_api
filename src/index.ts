@@ -54,7 +54,7 @@ mongoose
       const metricsCron = Container.get(MetricsCron);
 
       //start the services
-      stripeSyncCron.start();
+      // stripeSyncCron.start();
       metricsCron.start();
     });
   })

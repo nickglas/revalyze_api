@@ -10,18 +10,21 @@ import {
   isWithinInterval,
   startOfMonth,
 } from "date-fns";
-import { DailyReviewMetricModel } from "../models/entities/daily.review.metric.entity";
+import { DailyReviewMetricModel } from "../models/entities/metrics/daily.review.metric.entity";
 import { ReviewModel } from "../models/entities/review.entity";
-import mongoose, { Types } from "mongoose";
-import { DailyCriterionMetricModel } from "../models/entities/daily.criterion.metric.entity";
+import mongoose, { mongo, Types } from "mongoose";
+import { DailyCriterionMetricModel } from "../models/entities/metrics/daily.criterion.metric.entity";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { UserRepository } from "../repositories/user.repository";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { ReviewRepository } from "../repositories/review.repository";
-import { DailyTeamMetricModel } from "../models/entities/daily.team.metrics.entity";
+import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
 import { logger } from "../utils/logger";
-import { DailySentimentLabelMetricModel } from "../models/entities/daily.sentiment.label.metric";
+import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
+import { ReviewStatus } from "../models/types/transcript.type";
+import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
+import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity";
 
 @Service()
 export class DashboardService {
@@ -122,38 +125,91 @@ export class DashboardService {
   }
 
   async getCriteriaSummary(companyId: string, filter: string) {
-    const { startDate, endDate } = this.getDateRange(filter);
+    const companyObjectId = new mongoose.Types.ObjectId(companyId);
 
-    const currentData = await Promise.all(
-      [
-        "Empathie",
-        "Oplossingsgerichtheid",
-        "Professionaliteit",
-        "Klanttevredenheid",
-        "Sentiment klant",
-        "Helderheid en begrijpelijkheid",
-        "Responsiviteit/luistervaardigheid",
-        "Tijdsefficiëntie/doelgerichtheid",
-      ].map((name) =>
-        this.getCriterionData(companyId, name, startDate, endDate).then(
-          (data) => ({
-            criterion: name,
-            current: data[data.length - 1], // Most recent entry
-            previous: data[0], // Oldest in period
-          })
-        )
-      )
+    // Get all criteria metrics for the company
+    const criteriaMetrics = await DashboardCriterionMetricModel.find({
+      companyId: companyObjectId,
+    }).lean();
+
+    // Calculate date range based on filter
+    const { startDate, endDate } = this.getDateRangeForFilter(filter);
+
+    // Get trend data for the criteria
+    const trendData = await DailyCriterionMetricModel.find({
+      companyId: companyObjectId,
+      date: { $gte: startDate, $lte: endDate },
+    })
+      .sort({ date: 1, criterionName: 1 })
+      .lean();
+
+    // Group trend data by criterion
+    const trendByCriterion = trendData.reduce(
+      (
+        acc: Record<
+          string,
+          Array<{ date: Date; score: number; reviewCount: number }>
+        >,
+        item
+      ) => {
+        if (!acc[item.criterionName]) {
+          acc[item.criterionName] = [];
+        }
+        acc[item.criterionName].push({
+          date: item.date,
+          score: item.avgScore,
+          reviewCount: item.reviewCount,
+        });
+        return acc;
+      },
+      {}
     );
 
-    // 2. Calculate percentage changes
-    return currentData.map(({ criterion, current, previous }) => ({
-      criterion,
-      currentScore: current?.avgScore || 0,
-      changePercentage: this.calculateChange(
-        current?.avgScore || 0,
-        previous?.avgScore || 0
-      ),
+    // Format the response
+    const summary = criteriaMetrics.map((metric) => ({
+      criterionName: metric.criterionName,
+      avgScore: metric.avgScore || 0,
+      reviewCount: metric.reviewCount,
+      trend: trendByCriterion[metric.criterionName] || [],
     }));
+
+    return summary;
+  }
+
+  private getDateRangeForFilter(filter: string) {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (filter) {
+      case "week":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case "month":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          now.getDate()
+        );
+        break;
+      case "quarter":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth() - 3,
+          now.getDate()
+        );
+        break;
+      case "year":
+        startDate = new Date(
+          now.getFullYear() - 1,
+          now.getMonth(),
+          now.getDate()
+        );
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Default to 30 days
+    }
+
+    return { startDate, endDate: now };
   }
 
   async getDashboardMetrics(companyId: string) {
@@ -181,6 +237,9 @@ export class DashboardService {
       },
     });
 
+    console.warn(subscription.currentPeriodStart);
+    console.warn(subscription.currentPeriodEnd);
+
     // 4. Get review count for current billing period
     const reviews =
       await this.reviewRepository.countReviewsWithinPeriodByCompany(
@@ -189,10 +248,10 @@ export class DashboardService {
         subscription.currentPeriodEnd
       );
 
-    // 5. Get latest performance and sentiment scores
-    const latestMetric = await DailyReviewMetricModel.findOne({ companyId })
-      .sort({ date: -1 })
-      .lean();
+    // 5. Get performance and sentiment scores
+    const dashboardMetrics = await DashboardMetricModel.findOne({
+      companyId: new mongoose.Types.ObjectId(companyId),
+    }).lean();
 
     return {
       users: {
@@ -207,8 +266,8 @@ export class DashboardService {
         current: reviews,
         allowed: subscription.allowedReviews,
       },
-      performance: latestMetric?.avgOverall || 0,
-      sentiment: latestMetric?.avgSentiment || 0,
+      performance: dashboardMetrics?.avgOverall,
+      sentiment: dashboardMetrics?.avgSentiment,
     };
   }
 
@@ -282,13 +341,17 @@ export class DashboardService {
     }
   }
 
-  async getSentimentDistribution(days: number = 30) {
+  async getSentimentDistribution(
+    companyId: mongoose.Types.ObjectId,
+    days: number = 30
+  ) {
     const startDate = startOfDay(subDays(new Date(), days));
 
     try {
       const results = await DailySentimentLabelMetricModel.aggregate([
         {
           $match: {
+            companyId,
             date: { $gte: startDate },
           },
         },
@@ -350,13 +413,14 @@ export class DashboardService {
     }
   }
 
-  async getSentimentTrends(days: number = 30) {
+  async getSentimentTrends(companyId: string, days: number = 30) {
     const startDate = startOfDay(subDays(new Date(), days));
 
     try {
       return DailySentimentLabelMetricModel.aggregate([
         {
           $match: {
+            companyId,
             date: { $gte: startDate },
           },
         },

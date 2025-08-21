@@ -1,5 +1,5 @@
 import { Service } from "typedi";
-import mongoose, { FilterQuery } from "mongoose";
+import mongoose, { FilterQuery, ObjectId } from "mongoose";
 import { ReviewModel, IReviewDocument } from "../models/entities/review.entity";
 import { ReviewStatus } from "../models/types/review.type";
 import { ReviewSummaryDto } from "../dto/review/review.summary.dto";
@@ -58,6 +58,7 @@ export class ReviewRepository {
     applyIdFilter("contactId", contactId);
 
     if (type) filter.type = type;
+    filter.deletedAt = null;
 
     if (
       sentimentScoreRange?.min !== undefined ||
@@ -113,7 +114,7 @@ export class ReviewRepository {
     employeeId: string,
     limit: number
   ): Promise<IReviewDocument[]> {
-    return await ReviewModel.find({ employeeId })
+    return await ReviewModel.find({ employeeId, deletedAt: null })
       .sort({ createdAt: -1 })
       .limit(limit)
       .populate("externalCompanyId", "name")
@@ -125,6 +126,7 @@ export class ReviewRepository {
     return ReviewModel.find({
       employeeId: new mongoose.Types.ObjectId(employeeId),
       reviewStatus: ReviewStatus.REVIEWED,
+      deletedAt: null,
     }).exec();
   }
 
@@ -185,7 +187,9 @@ export class ReviewRepository {
     return await ReviewModel.create(data);
   }
 
-  async deleteById(id: string): Promise<IReviewDocument | null> {
+  async deleteById(
+    id: mongoose.Types.ObjectId
+  ): Promise<IReviewDocument | null> {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
     return await ReviewModel.findByIdAndDelete(id).exec();
   }

@@ -168,7 +168,7 @@ export const updateReview = async (
 
 /**
  * DELETE /reviews/:id
- * Soft delete a review
+ * HARD delete a review
  */
 export const deleteReview = async (
   req: Request,
@@ -177,11 +177,13 @@ export const deleteReview = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
-    const reviewId = req.params.id;
+    const reviewId = new mongoose.Types.ObjectId(req.params.id);
+
+    console.warn(companyId);
+    console.warn(reviewId);
 
     const reviewService = Container.get(ReviewService);
-    const existing = await reviewService.getById(reviewId, companyId);
-    const deleted = await reviewService.deleteReview(reviewId);
+    const deleted = await reviewService.deleteReview(companyId, reviewId);
 
     res.status(200).json({
       message: "Review deleted successfully",

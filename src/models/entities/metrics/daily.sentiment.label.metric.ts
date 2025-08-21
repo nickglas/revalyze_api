@@ -1,6 +1,7 @@
 import { Schema, model, Document, Types } from "mongoose";
 
 export interface IDailySentimentLabelMetric extends Document {
+  companyId: Types.ObjectId;
   date: Date;
   negative: number;
   neutral: number;
@@ -12,6 +13,11 @@ export interface IDailySentimentLabelMetric extends Document {
 
 const DailySentimentLabelMetricSchema = new Schema<IDailySentimentLabelMetric>(
   {
+    companyId: {
+      type: Schema.Types.ObjectId,
+      ref: "Company",
+      required: true,
+    },
     date: {
       type: Date,
       required: true,

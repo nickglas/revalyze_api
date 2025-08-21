@@ -5,8 +5,12 @@ import {
   ICriteriaScore,
   ReviewStatus,
 } from "../types/review.type";
+import Container from "typedi";
+import { MetricsAggregationService } from "../../services/metrics.aggregation.service";
+import { startOfDay } from "date-fns";
 
 export interface IReviewDocument extends IReviewData, Document {
+  deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,8 +118,54 @@ const reviewSchema = new Schema<IReviewDocument>(
       required: true,
       index: true,
     },
+    deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
 );
+
+reviewSchema.pre("findOneAndUpdate", async function (next) {
+  this.setOptions({ new: true });
+  const oldDoc = await this.model.findOne(this.getQuery()).lean();
+  (this as any)._oldDoc = oldDoc;
+  next();
+});
+
+reviewSchema.post("findOneAndUpdate", async function (doc) {
+  if (!doc || doc.reviewStatus !== ReviewStatus.REVIEWED) return;
+
+  const metricsService = Container.get(MetricsAggregationService);
+  await metricsService.aggregateDailyMetricsForEntities(
+    startOfDay(doc.createdAt),
+    { companyId: doc.companyId }
+  );
+});
+
+reviewSchema.pre("findOneAndDelete", async function (next) {
+  const docToDelete = await this.model.findOne(this.getQuery()).lean();
+  if (!docToDelete) return next();
+  (this as any)._deletedDoc = docToDelete;
+  next();
+});
+
+reviewSchema.post("findOneAndDelete", async function () {
+  const deletedDoc = (this as any)._deletedDoc;
+  if (!deletedDoc || deletedDoc.reviewStatus !== ReviewStatus.REVIEWED) return;
+
+  const metricsService = Container.get(MetricsAggregationService);
+  await metricsService.aggregateDailyMetricsForEntities(
+    startOfDay(deletedDoc.createdAt),
+    { companyId: deletedDoc.companyId }
+  );
+});
+
+reviewSchema.post("save", async function (doc) {
+  if (doc.deletedAt || doc.reviewStatus !== ReviewStatus.REVIEWED) return;
+
+  const metricsService = Container.get(MetricsAggregationService);
+  await metricsService.aggregateDailyMetricsForEntities(
+    startOfDay(doc.createdAt),
+    { companyId: doc.companyId }
+  );
+});
 
 export const ReviewModel = model<IReviewDocument>("Review", reviewSchema);

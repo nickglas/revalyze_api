@@ -29,12 +29,10 @@ const DailyReviewMetricSchema = new Schema<IDailyReviewMetric>(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
   }
 );
 
-DailyReviewMetricSchema.index({ companyId: 1, date: 1 });
+DailyReviewMetricSchema.index({ companyId: 1, date: 1 }, { unique: true });
 
 export const DailyReviewMetricModel = mongoose.model<IDailyReviewMetric>(
   "DailyReviewMetric",

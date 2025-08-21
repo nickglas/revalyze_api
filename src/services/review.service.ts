@@ -35,7 +35,7 @@ import { CriteriaFlowData } from "../models/types/criterion.type";
 import { ObjectId } from "mongodb";
 import { ReviewDetailDto } from "../dto/review/review.detail.dto";
 import { startOfDay } from "date-fns";
-import { DailyTeamMetricModel } from "../models/entities/daily.team.metrics.entity";
+import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
 import { logger } from "../utils/logger";
 import { UpdateReviewDto } from "../dto/review/review.update.dto";
 
@@ -568,26 +568,20 @@ export class ReviewService {
    * Soft delete a review
    * @param id - Review ID
    */
-  async deleteReview(id: string): Promise<IReviewDocument> {
-    const review = await ReviewModel.findById(id);
+  async deleteReview(
+    companyId: mongoose.Types.ObjectId,
+    reviewId: mongoose.Types.ObjectId
+  ): Promise<IReviewDocument> {
+    const review = await ReviewModel.findOne({
+      _id: reviewId,
+      companyId: companyId,
+    });
     if (!review) throw new NotFoundError("Review not found");
 
-    const deleted = await ReviewModel.findByIdAndUpdate(
-      id,
-      { isDeleted: true },
-      { new: true }
-    );
+    const deleted = await this.reviewRepository.deleteById(reviewId);
 
     if (!deleted) {
       throw new BadRequestError("Error deleting");
-    }
-
-    if (review.teamId) {
-      await this.revertTeamMetrics(
-        review.teamId,
-        review.overallScore || 0,
-        review.sentimentScore || 0
-      );
     }
 
     return deleted;
