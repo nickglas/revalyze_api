@@ -267,6 +267,18 @@ export class MetricsAggregationService {
   }
 
   async updateTeamMetricsForCompany(companyId: mongoose.Types.ObjectId) {
+    // Define the actual criteria
+    const defaultCriteria = [
+      "Empathie",
+      "Oplossingsgerichtheid",
+      "Professionaliteit",
+      "Klanttevredenheid",
+      "Sentiment klant",
+      "Helderheid en begrijpelijkheid",
+      "Responsiviteit/luistervaardigheid",
+      "Tijdsefficiëntie/doelgerichtheid",
+    ];
+
     // Calculate team metrics with type filtering
     const overallResults = await ReviewModel.aggregate([
       {
@@ -274,7 +286,7 @@ export class MetricsAggregationService {
           companyId: companyId,
           reviewStatus: ReviewStatus.REVIEWED,
           type: { $in: ["performance", "both"] },
-          teamId: { $ne: null }, // Exclude reviews without a team
+          teamId: { $ne: null },
         },
       },
       {
@@ -292,7 +304,7 @@ export class MetricsAggregationService {
           companyId: companyId,
           reviewStatus: ReviewStatus.REVIEWED,
           type: { $in: ["sentiment", "both"] },
-          teamId: { $ne: null }, // Exclude reviews without a team
+          teamId: { $ne: null },
         },
       },
       {
@@ -304,14 +316,53 @@ export class MetricsAggregationService {
       },
     ]);
 
-    // Merge the results
+    // Aggregate criteria scores
+    const criteriaResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["performance", "both"] },
+          teamId: { $ne: null },
+          criteriaScores: { $exists: true, $not: { $size: 0 } },
+        },
+      },
+      { $unwind: "$criteriaScores" },
+      {
+        $match: {
+          "criteriaScores.criterionName": { $in: defaultCriteria },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            teamId: "$teamId",
+            criterionName: "$criteriaScores.criterionName",
+          },
+          avgScore: { $avg: "$criteriaScores.score" },
+          reviewCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Merge the results (similar to aggregateTeamMetrics)
     const teamMetrics = new Map();
 
+    // Initialize with overall and sentiment results
     overallResults.forEach((result) => {
       if (result._id) {
         teamMetrics.set(result._id.toString(), {
           avgOverall: result.avgOverall || 0,
           reviewCount: result.reviewCountOverall || 0,
+          // Initialize all criteria to null
+          empathie: null,
+          oplossingsgerichtheid: null,
+          professionaliteit: null,
+          klanttevredenheid: null,
+          sentimentKlant: null,
+          helderheidEnBegrijpelijkheid: null,
+          responsiviteitLuistervaardigheid: null,
+          tijdsefficientieDoelgerichtheid: null,
         });
       }
     });
@@ -327,7 +378,78 @@ export class MetricsAggregationService {
             avgOverall: 0,
             avgSentiment: result.avgSentiment || 0,
             reviewCount: result.reviewCountSentiment || 0,
+            // Initialize all criteria to null
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
           });
+        }
+      }
+    });
+
+    // Add criteria results
+    criteriaResults.forEach((result) => {
+      if (result._id.teamId) {
+        const teamId = result._id.teamId.toString();
+        const criterionName = result._id.criterionName;
+
+        // Map the criterion name to the schema field name
+        let fieldName;
+        switch (criterionName) {
+          case "Empathie":
+            fieldName = "empathie";
+            break;
+          case "Oplossingsgerichtheid":
+            fieldName = "oplossingsgerichtheid";
+            break;
+          case "Professionaliteit":
+            fieldName = "professionaliteit";
+            break;
+          case "Klanttevredenheid":
+            fieldName = "klanttevredenheid";
+            break;
+          case "Sentiment klant":
+            fieldName = "sentimentKlant";
+            break;
+          case "Helderheid en begrijpelijkheid":
+            fieldName = "helderheidEnBegrijpelijkheid";
+            break;
+          case "Responsiviteit/luistervaardigheid":
+            fieldName = "responsiviteitLuistervaardigheid";
+            break;
+          case "Tijdsefficiëntie/doelgerichtheid":
+            fieldName = "tijdsefficientieDoelgerichtheid";
+            break;
+          default:
+            return; // Skip unknown criteria
+        }
+
+        if (teamMetrics.has(teamId)) {
+          const metrics = teamMetrics.get(teamId);
+          metrics[fieldName] = result.avgScore || 0;
+        } else {
+          // Create a new entry if team not already in map
+          const metrics = {
+            avgOverall: 0,
+            avgSentiment: 0,
+            reviewCount: result.reviewCount || 0,
+            // Initialize all criteria to null
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          };
+          metrics[fieldName] = result.avgScore || 0;
+          teamMetrics.set(teamId, metrics);
         }
       }
     });
@@ -346,6 +468,16 @@ export class MetricsAggregationService {
             avgOverall: metrics.avgOverall,
             avgSentiment: metrics.avgSentiment,
             reviewCount: metrics.reviewCount,
+            empathie: metrics.empathie,
+            oplossingsgerichtheid: metrics.oplossingsgerichtheid,
+            professionaliteit: metrics.professionaliteit,
+            klanttevredenheid: metrics.klanttevredenheid,
+            sentimentKlant: metrics.sentimentKlant,
+            helderheidEnBegrijpelijkheid: metrics.helderheidEnBegrijpelijkheid,
+            responsiviteitLuistervaardigheid:
+              metrics.responsiviteitLuistervaardigheid,
+            tijdsefficientieDoelgerichtheid:
+              metrics.tijdsefficientieDoelgerichtheid,
           },
         },
         upsert: true,
@@ -366,6 +498,18 @@ export class MetricsAggregationService {
       activeCompanies.map((c) =>
         limit(async () => {
           try {
+            // Define the actual criteria
+            const defaultCriteria = [
+              "Empathie",
+              "Oplossingsgerichtheid",
+              "Professionaliteit",
+              "Klanttevredenheid",
+              "Sentiment klant",
+              "Helderheid en begrijpelijkheid",
+              "Responsiviteit/luistervaardigheid",
+              "Tijdsefficiëntie/doelgerichtheid",
+            ];
+
             // Calculate team metrics with type filtering
             const overallResults = await ReviewModel.aggregate([
               {
@@ -373,7 +517,7 @@ export class MetricsAggregationService {
                   companyId: c._id,
                   reviewStatus: ReviewStatus.REVIEWED,
                   type: { $in: ["performance", "both"] },
-                  teamId: { $ne: null }, // Exclude reviews without a team
+                  teamId: { $ne: null },
                 },
               },
               {
@@ -391,7 +535,7 @@ export class MetricsAggregationService {
                   companyId: c._id,
                   reviewStatus: ReviewStatus.REVIEWED,
                   type: { $in: ["sentiment", "both"] },
-                  teamId: { $ne: null }, // Exclude reviews without a team
+                  teamId: { $ne: null },
                 },
               },
               {
@@ -403,14 +547,53 @@ export class MetricsAggregationService {
               },
             ]);
 
+            // Aggregate criteria scores
+            const criteriaResults = await ReviewModel.aggregate([
+              {
+                $match: {
+                  companyId: c._id,
+                  reviewStatus: ReviewStatus.REVIEWED,
+                  type: { $in: ["performance", "both"] },
+                  teamId: { $ne: null },
+                  criteriaScores: { $exists: true, $not: { $size: 0 } },
+                },
+              },
+              { $unwind: "$criteriaScores" },
+              {
+                $match: {
+                  "criteriaScores.criterionName": { $in: defaultCriteria },
+                },
+              },
+              {
+                $group: {
+                  _id: {
+                    teamId: "$teamId",
+                    criterionName: "$criteriaScores.criterionName",
+                  },
+                  avgScore: { $avg: "$criteriaScores.score" },
+                  reviewCount: { $sum: 1 },
+                },
+              },
+            ]);
+
             // Merge the results
             const teamMetrics = new Map();
 
+            // Initialize with overall and sentiment results
             overallResults.forEach((result) => {
               if (result._id) {
                 teamMetrics.set(result._id.toString(), {
                   avgOverall: result.avgOverall || 0,
                   reviewCount: result.reviewCountOverall || 0,
+                  // Initialize all criteria to null
+                  empathie: null,
+                  oplossingsgerichtheid: null,
+                  professionaliteit: null,
+                  klanttevredenheid: null,
+                  sentimentKlant: null,
+                  helderheidEnBegrijpelijkheid: null,
+                  responsiviteitLuistervaardigheid: null,
+                  tijdsefficientieDoelgerichtheid: null,
                 });
               }
             });
@@ -426,7 +609,78 @@ export class MetricsAggregationService {
                     avgOverall: 0,
                     avgSentiment: result.avgSentiment || 0,
                     reviewCount: result.reviewCountSentiment || 0,
+                    // Initialize all criteria to null
+                    empathie: null,
+                    oplossingsgerichtheid: null,
+                    professionaliteit: null,
+                    klanttevredenheid: null,
+                    sentimentKlant: null,
+                    helderheidEnBegrijpelijkheid: null,
+                    responsiviteitLuistervaardigheid: null,
+                    tijdsefficientieDoelgerichtheid: null,
                   });
+                }
+              }
+            });
+
+            // Add criteria results
+            criteriaResults.forEach((result) => {
+              if (result._id.teamId) {
+                const teamId = result._id.teamId.toString();
+                const criterionName = result._id.criterionName;
+
+                // Map the criterion name to the schema field name
+                let fieldName;
+                switch (criterionName) {
+                  case "Empathie":
+                    fieldName = "empathie";
+                    break;
+                  case "Oplossingsgerichtheid":
+                    fieldName = "oplossingsgerichtheid";
+                    break;
+                  case "Professionaliteit":
+                    fieldName = "professionaliteit";
+                    break;
+                  case "Klanttevredenheid":
+                    fieldName = "klanttevredenheid";
+                    break;
+                  case "Sentiment klant":
+                    fieldName = "sentimentKlant";
+                    break;
+                  case "Helderheid en begrijpelijkheid":
+                    fieldName = "helderheidEnBegrijpelijkheid";
+                    break;
+                  case "Responsiviteit/luistervaardigheid":
+                    fieldName = "responsiviteitLuistervaardigheid";
+                    break;
+                  case "Tijdsefficiëntie/doelgerichtheid":
+                    fieldName = "tijdsefficientieDoelgerichtheid";
+                    break;
+                  default:
+                    return; // Skip unknown criteria
+                }
+
+                if (teamMetrics.has(teamId)) {
+                  const metrics = teamMetrics.get(teamId);
+                  metrics[fieldName] = result.avgScore || 0;
+                } else {
+                  // Create a new entry if team not already in map
+                  const metrics = {
+                    avgOverall: 0,
+                    avgSentiment: 0,
+                    reviewCount: result.reviewCount || 0,
+                    // Initialize all criteria to null
+                    empathie: null,
+                    oplossingsgerichtheid: null,
+                    professionaliteit: null,
+                    klanttevredenheid: null,
+                    sentimentKlant: null,
+                    helderheidEnBegrijpelijkheid: null,
+                    responsiviteitLuistervaardigheid: null,
+                    tijdsefficientieDoelgerichtheid: null,
+                  };
+                  metrics[fieldName] = result.avgScore || 0;
+                  teamMetrics.set(teamId, metrics);
                 }
               }
             });
@@ -446,6 +700,17 @@ export class MetricsAggregationService {
                       avgOverall: metrics.avgOverall,
                       avgSentiment: metrics.avgSentiment,
                       reviewCount: metrics.reviewCount,
+                      empathie: metrics.empathie,
+                      oplossingsgerichtheid: metrics.oplossingsgerichtheid,
+                      professionaliteit: metrics.professionaliteit,
+                      klanttevredenheid: metrics.klanttevredenheid,
+                      sentimentKlant: metrics.sentimentKlant,
+                      helderheidEnBegrijpelijkheid:
+                        metrics.helderheidEnBegrijpelijkheid,
+                      responsiviteitLuistervaardigheid:
+                        metrics.responsiviteitLuistervaardigheid,
+                      tijdsefficientieDoelgerichtheid:
+                        metrics.tijdsefficientieDoelgerichtheid,
                     },
                   },
                   upsert: true,
@@ -464,7 +729,6 @@ export class MetricsAggregationService {
       )
     );
   }
-
   // ------------------------------------------------------------
   //  Aggregation Implementations
   // ------------------------------------------------------------
@@ -582,13 +846,25 @@ export class MetricsAggregationService {
     entities: EntityContext,
     date: Date
   ) {
+    // Define the actual criteria
+    const defaultCriteria = [
+      "Empathie",
+      "Oplossingsgerichtheid",
+      "Professionaliteit",
+      "Klanttevredenheid",
+      "Sentiment klant",
+      "Helderheid en begrijpelijkheid",
+      "Responsiviteit/luistervaardigheid",
+      "Tijdsefficiëntie/doelgerichtheid",
+    ];
+
     // Calculate team metrics with type filtering
     const overallResults = await ReviewModel.aggregate([
       {
         $match: {
           ...baseMatch,
           type: { $in: ["performance", "both"] },
-          teamId: { $ne: null }, // Exclude reviews without a team
+          teamId: { $ne: null },
         },
       },
       {
@@ -605,7 +881,7 @@ export class MetricsAggregationService {
         $match: {
           ...baseMatch,
           type: { $in: ["sentiment", "both"] },
-          teamId: { $ne: null }, // Exclude reviews without a team
+          teamId: { $ne: null },
         },
       },
       {
@@ -617,22 +893,58 @@ export class MetricsAggregationService {
       },
     ]);
 
+    // Aggregate criteria scores
+    const criteriaResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          type: { $in: ["performance", "both"] },
+          teamId: { $ne: null },
+          criteriaScores: { $exists: true, $not: { $size: 0 } },
+        },
+      },
+      { $unwind: "$criteriaScores" },
+      {
+        $match: {
+          "criteriaScores.criterionName": { $in: defaultCriteria },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            teamId: "$teamId",
+            criterionName: "$criteriaScores.criterionName",
+          },
+          avgScore: { $avg: "$criteriaScores.score" },
+          reviewCount: { $sum: 1 },
+        },
+      },
+    ]);
+
     // Merge the results
     const teamMetrics = new Map();
 
+    // Initialize with overall and sentiment results
     overallResults.forEach((result) => {
       if (result._id) {
-        // Check if teamId exists
         teamMetrics.set(result._id.toString(), {
           avgOverall: result.avgOverall || 0,
           reviewCount: result.reviewCountOverall || 0,
+          // Initialize all criteria to null
+          empathie: null,
+          oplossingsgerichtheid: null,
+          professionaliteit: null,
+          klanttevredenheid: null,
+          sentimentKlant: null,
+          helderheidEnBegrijpelijkheid: null,
+          responsiviteitLuistervaardigheid: null,
+          tijdsefficientieDoelgerichtheid: null,
         });
       }
     });
 
     sentimentResults.forEach((result) => {
       if (result._id) {
-        // Check if teamId exists
         const teamId = result._id.toString();
         if (teamMetrics.has(teamId)) {
           const metrics = teamMetrics.get(teamId);
@@ -642,7 +954,78 @@ export class MetricsAggregationService {
             avgOverall: 0,
             avgSentiment: result.avgSentiment || 0,
             reviewCount: result.reviewCountSentiment || 0,
+            // Initialize all criteria to null
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
           });
+        }
+      }
+    });
+
+    // Add criteria results
+    criteriaResults.forEach((result) => {
+      if (result._id.teamId) {
+        const teamId = result._id.teamId.toString();
+        const criterionName = result._id.criterionName;
+
+        // Map the criterion name to the schema field name
+        let fieldName;
+        switch (criterionName) {
+          case "Empathie":
+            fieldName = "empathie";
+            break;
+          case "Oplossingsgerichtheid":
+            fieldName = "oplossingsgerichtheid";
+            break;
+          case "Professionaliteit":
+            fieldName = "professionaliteit";
+            break;
+          case "Klanttevredenheid":
+            fieldName = "klanttevredenheid";
+            break;
+          case "Sentiment klant":
+            fieldName = "sentimentKlant";
+            break;
+          case "Helderheid en begrijpelijkheid":
+            fieldName = "helderheidEnBegrijpelijkheid";
+            break;
+          case "Responsiviteit/luistervaardigheid":
+            fieldName = "responsiviteitLuistervaardigheid";
+            break;
+          case "Tijdsefficiëntie/doelgerichtheid":
+            fieldName = "tijdsefficientieDoelgerichtheid";
+            break;
+          default:
+            return; // Skip unknown criteria
+        }
+
+        if (teamMetrics.has(teamId)) {
+          const metrics = teamMetrics.get(teamId);
+          metrics[fieldName] = result.avgScore || 0;
+        } else {
+          // Create a new entry if team not already in map
+          const metrics = {
+            avgOverall: 0,
+            avgSentiment: 0,
+            reviewCount: result.reviewCount || 0,
+            // Initialize all criteria to null
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          };
+          metrics[fieldName] = result.avgScore || 0;
+          teamMetrics.set(teamId, metrics);
         }
       }
     });
@@ -664,6 +1047,16 @@ export class MetricsAggregationService {
             avgOverall: metrics.avgOverall,
             avgSentiment: metrics.avgSentiment,
             reviewCount: metrics.reviewCount,
+            empathie: metrics.empathie,
+            oplossingsgerichtheid: metrics.oplossingsgerichtheid,
+            professionaliteit: metrics.professionaliteit,
+            klanttevredenheid: metrics.klanttevredenheid,
+            sentimentKlant: metrics.sentimentKlant,
+            helderheidEnBegrijpelijkheid: metrics.helderheidEnBegrijpelijkheid,
+            responsiviteitLuistervaardigheid:
+              metrics.responsiviteitLuistervaardigheid,
+            tijdsefficientieDoelgerichtheid:
+              metrics.tijdsefficientieDoelgerichtheid,
           },
         },
         upsert: true,

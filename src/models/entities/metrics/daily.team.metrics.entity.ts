@@ -1,3 +1,4 @@
+// src/models/entities/metrics/daily.team.metrics.entity.ts
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface IDailyTeamMetric extends Document {
@@ -7,6 +8,14 @@ export interface IDailyTeamMetric extends Document {
   avgOverall: number;
   avgSentiment: number;
   reviewCount: number;
+  empathie: number | null;
+  oplossingsgerichtheid: number | null;
+  professionaliteit: number | null;
+  klanttevredenheid: number | null;
+  sentimentKlant: number | null;
+  helderheidEnBegrijpelijkheid: number | null;
+  responsiviteitLuistervaardigheid: number | null;
+  tijdsefficientieDoelgerichtheid: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +53,15 @@ const DailyTeamMetricSchema = new Schema<IDailyTeamMetric>(
       required: true,
       default: 0,
     },
+    // Criteria fields - updated with actual criteria names
+    empathie: { type: Number, default: null },
+    oplossingsgerichtheid: { type: Number, default: null },
+    professionaliteit: { type: Number, default: null },
+    klanttevredenheid: { type: Number, default: null },
+    sentimentKlant: { type: Number, default: null },
+    helderheidEnBegrijpelijkheid: { type: Number, default: null },
+    responsiviteitLuistervaardigheid: { type: Number, default: null },
+    tijdsefficientieDoelgerichtheid: { type: Number, default: null },
   },
   {
     timestamps: true,

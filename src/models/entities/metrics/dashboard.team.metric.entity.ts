@@ -7,6 +7,14 @@ export interface IDashboardTeamMetric extends Document {
   avgOverall: number | null;
   avgSentiment: number | null;
   reviewCount: number;
+  empathie: number | null;
+  oplossingsgerichtheid: number | null;
+  professionaliteit: number | null;
+  klanttevredenheid: number | null;
+  sentimentKlant: number | null;
+  helderheidEnBegrijpelijkheid: number | null;
+  responsiviteitLuistervaardigheid: number | null;
+  tijdsefficientieDoelgerichtheid: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +34,14 @@ const DashboardTeamMetricSchema = new Schema<IDashboardTeamMetric>(
     avgOverall: { type: Number, default: null },
     avgSentiment: { type: Number, default: null },
     reviewCount: { type: Number, default: 0 },
+    empathie: { type: Number, default: null },
+    oplossingsgerichtheid: { type: Number, default: null },
+    professionaliteit: { type: Number, default: null },
+    klanttevredenheid: { type: Number, default: null },
+    sentimentKlant: { type: Number, default: null },
+    helderheidEnBegrijpelijkheid: { type: Number, default: null },
+    responsiviteitLuistervaardigheid: { type: Number, default: null },
+    tijdsefficientieDoelgerichtheid: { type: Number, default: null },
   },
   {
     timestamps: true,
