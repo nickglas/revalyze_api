@@ -162,10 +162,13 @@ reviewSchema.post("save", async function (doc) {
   if (doc.deletedAt || doc.reviewStatus !== ReviewStatus.REVIEWED) return;
 
   const metricsService = Container.get(MetricsAggregationService);
-  await metricsService.aggregateDailyMetricsForEntities(
-    startOfDay(doc.createdAt),
-    { companyId: doc.companyId }
-  );
+  await Promise.all([
+    metricsService.aggregateDailyMetricsForEntities(startOfDay(doc.createdAt), {
+      companyId: doc.companyId,
+    }),
+    metricsService.updateSentimentLabelMetricsForCompany(doc.companyId),
+    metricsService.updateTeamMetricsForCompany(doc.companyId),
+  ]);
 });
 
 export const ReviewModel = model<IReviewDocument>("Review", reviewSchema);

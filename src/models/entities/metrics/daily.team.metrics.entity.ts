@@ -1,5 +1,4 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
-import { TeamModel } from "../team.entity";
 
 export interface IDailyTeamMetric extends Document {
   companyId: Types.ObjectId;

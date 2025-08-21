@@ -164,10 +164,8 @@ export const getSentimentDistribution = async (
 
     const days = parseInt(req.query.days as string) || 30;
     const dashboardService = Container.get(DashboardService);
-    console.warn(companyId.toString());
     const distribution = await dashboardService.getSentimentDistribution(
-      companyId,
-      days
+      companyId
     );
 
     res.status(200).json(distribution);

@@ -4,15 +4,17 @@ import { ReviewModel } from "../models/entities/review.entity";
 import { startOfDay, addDays } from "date-fns";
 import { ReviewStatus } from "../models/types/transcript.type";
 import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
-import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
 import mongoose from "mongoose";
 import { DailyReviewMetricModel } from "../models/entities/metrics/daily.review.metric.entity";
 import { DailyCriterionMetricModel } from "../models/entities/metrics/daily.criterion.metric.entity";
 import { CompanyModel } from "../models/entities/company.entity";
 import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
 import { CompanyRepository } from "../repositories/company.repository";
-import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity";
 import pLimit from "p-limit";
+import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity copy";
+import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
+import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard.sentiment.metric.entity";
+import { DashboardTeamMetricModel } from "../models/entities/metrics/dashboard.team.metric.entity";
 
 interface EntityContext {
   companyId?: mongoose.Types.ObjectId;
@@ -67,6 +69,58 @@ export class MetricsAggregationService {
     }
   }
 
+  async updateSentimentLabelMetricsForCompany(
+    companyId: mongoose.Types.ObjectId
+  ) {
+    const sentimentResult = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["sentiment", "both"] },
+          sentimentLabel: { $in: ["negative", "neutral", "positive"] },
+        },
+      },
+      {
+        $group: {
+          _id: "$sentimentLabel",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const counts = { negative: 0, neutral: 0, positive: 0, total: 0 };
+    for (const row of sentimentResult) {
+      counts[row._id as keyof typeof counts] = row.count;
+    }
+    counts.total = counts.negative + counts.neutral + counts.positive;
+
+    await DashboardSentimentMetricModel.findOneAndUpdate(
+      { companyId: companyId },
+      {
+        $set: {
+          negative: counts.negative,
+          neutral: counts.neutral,
+          positive: counts.positive,
+          total: counts.total,
+          negativePercentage:
+            counts.total > 0
+              ? parseFloat(((counts.negative / counts.total) * 100).toFixed(1))
+              : 0,
+          neutralPercentage:
+            counts.total > 0
+              ? parseFloat(((counts.neutral / counts.total) * 100).toFixed(1))
+              : 0,
+          positivePercentage:
+            counts.total > 0
+              ? parseFloat(((counts.positive / counts.total) * 100).toFixed(1))
+              : 0,
+        },
+      },
+      { upsert: true }
+    );
+  }
+
   async updateDashboardMetrics() {
     const activeCompanies = await this.companyRepository.find({
       isActive: true,
@@ -75,8 +129,10 @@ export class MetricsAggregationService {
     // Use a concurrency limit
     const limit = pLimit(5);
 
-    await Promise.all(
-      activeCompanies.map((c) =>
+    await Promise.all([
+      this.updateSentimentLabelMetrics(),
+      this.updateTeamMetrics(),
+      ...activeCompanies.map((c) =>
         limit(async () => {
           try {
             // Calculate overall performance average
@@ -206,6 +262,205 @@ export class MetricsAggregationService {
             );
           }
         })
+      ),
+    ]);
+  }
+
+  async updateTeamMetricsForCompany(companyId: mongoose.Types.ObjectId) {
+    // Calculate team metrics with type filtering
+    const overallResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["performance", "both"] },
+          teamId: { $ne: null }, // Exclude reviews without a team
+        },
+      },
+      {
+        $group: {
+          _id: "$teamId",
+          avgOverall: { $avg: "$overallScore" },
+          reviewCountOverall: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const sentimentResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["sentiment", "both"] },
+          teamId: { $ne: null }, // Exclude reviews without a team
+        },
+      },
+      {
+        $group: {
+          _id: "$teamId",
+          avgSentiment: { $avg: "$sentimentScore" },
+          reviewCountSentiment: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Merge the results
+    const teamMetrics = new Map();
+
+    overallResults.forEach((result) => {
+      if (result._id) {
+        teamMetrics.set(result._id.toString(), {
+          avgOverall: result.avgOverall || 0,
+          reviewCount: result.reviewCountOverall || 0,
+        });
+      }
+    });
+
+    sentimentResults.forEach((result) => {
+      if (result._id) {
+        const teamId = result._id.toString();
+        if (teamMetrics.has(teamId)) {
+          const metrics = teamMetrics.get(teamId);
+          metrics.avgSentiment = result.avgSentiment || 0;
+        } else {
+          teamMetrics.set(teamId, {
+            avgOverall: 0,
+            avgSentiment: result.avgSentiment || 0,
+            reviewCount: result.reviewCountSentiment || 0,
+          });
+        }
+      }
+    });
+
+    if (teamMetrics.size === 0) return;
+
+    // Update dashboard team metrics
+    const ops = Array.from(teamMetrics.entries()).map(([teamId, metrics]) => ({
+      updateOne: {
+        filter: {
+          companyId: companyId,
+          teamId: new mongoose.Types.ObjectId(teamId),
+        },
+        update: {
+          $set: {
+            avgOverall: metrics.avgOverall,
+            avgSentiment: metrics.avgSentiment,
+            reviewCount: metrics.reviewCount,
+          },
+        },
+        upsert: true,
+      },
+    }));
+
+    await DashboardTeamMetricModel.bulkWrite(ops);
+  }
+
+  private async updateTeamMetrics() {
+    const activeCompanies = await this.companyRepository.find({
+      isActive: true,
+    });
+
+    const limit = pLimit(5);
+
+    await Promise.all(
+      activeCompanies.map((c) =>
+        limit(async () => {
+          try {
+            // Calculate team metrics with type filtering
+            const overallResults = await ReviewModel.aggregate([
+              {
+                $match: {
+                  companyId: c._id,
+                  reviewStatus: ReviewStatus.REVIEWED,
+                  type: { $in: ["performance", "both"] },
+                  teamId: { $ne: null }, // Exclude reviews without a team
+                },
+              },
+              {
+                $group: {
+                  _id: "$teamId",
+                  avgOverall: { $avg: "$overallScore" },
+                  reviewCountOverall: { $sum: 1 },
+                },
+              },
+            ]);
+
+            const sentimentResults = await ReviewModel.aggregate([
+              {
+                $match: {
+                  companyId: c._id,
+                  reviewStatus: ReviewStatus.REVIEWED,
+                  type: { $in: ["sentiment", "both"] },
+                  teamId: { $ne: null }, // Exclude reviews without a team
+                },
+              },
+              {
+                $group: {
+                  _id: "$teamId",
+                  avgSentiment: { $avg: "$sentimentScore" },
+                  reviewCountSentiment: { $sum: 1 },
+                },
+              },
+            ]);
+
+            // Merge the results
+            const teamMetrics = new Map();
+
+            overallResults.forEach((result) => {
+              if (result._id) {
+                teamMetrics.set(result._id.toString(), {
+                  avgOverall: result.avgOverall || 0,
+                  reviewCount: result.reviewCountOverall || 0,
+                });
+              }
+            });
+
+            sentimentResults.forEach((result) => {
+              if (result._id) {
+                const teamId = result._id.toString();
+                if (teamMetrics.has(teamId)) {
+                  const metrics = teamMetrics.get(teamId);
+                  metrics.avgSentiment = result.avgSentiment || 0;
+                } else {
+                  teamMetrics.set(teamId, {
+                    avgOverall: 0,
+                    avgSentiment: result.avgSentiment || 0,
+                    reviewCount: result.reviewCountSentiment || 0,
+                  });
+                }
+              }
+            });
+
+            if (teamMetrics.size === 0) return;
+
+            // Update dashboard team metrics
+            const ops = Array.from(teamMetrics.entries()).map(
+              ([teamId, metrics]) => ({
+                updateOne: {
+                  filter: {
+                    companyId: c._id,
+                    teamId: new mongoose.Types.ObjectId(teamId),
+                  },
+                  update: {
+                    $set: {
+                      avgOverall: metrics.avgOverall,
+                      avgSentiment: metrics.avgSentiment,
+                      reviewCount: metrics.reviewCount,
+                    },
+                  },
+                  upsert: true,
+                },
+              })
+            );
+
+            await DashboardTeamMetricModel.bulkWrite(ops);
+          } catch (error) {
+            console.error(
+              `Error updating team metrics for company ${c._id}:`,
+              error
+            );
+          }
+        })
       )
     );
   }
@@ -244,6 +499,81 @@ export class MetricsAggregationService {
       { date, ...this.filterMetricEntities(entities) },
       { $set: counts },
       { upsert: true }
+    );
+  }
+
+  private async updateSentimentLabelMetrics() {
+    const activeCompanies = await this.companyRepository.find({
+      isActive: true,
+    });
+
+    const limit = pLimit(5);
+
+    await Promise.all(
+      activeCompanies.map((c) =>
+        limit(async () => {
+          try {
+            const sentimentResult = await ReviewModel.aggregate([
+              {
+                $match: {
+                  companyId: c._id,
+                  reviewStatus: ReviewStatus.REVIEWED,
+                  type: { $in: ["sentiment", "both"] },
+                  sentimentLabel: { $in: ["negative", "neutral", "positive"] },
+                },
+              },
+              {
+                $group: {
+                  _id: "$sentimentLabel",
+                  count: { $sum: 1 },
+                },
+              },
+            ]);
+
+            const counts = { negative: 0, neutral: 0, positive: 0, total: 0 };
+            for (const row of sentimentResult) {
+              counts[row._id as keyof typeof counts] = row.count;
+            }
+            counts.total = counts.negative + counts.neutral + counts.positive;
+
+            await DashboardSentimentMetricModel.findOneAndUpdate(
+              { companyId: c._id },
+              {
+                $set: {
+                  negative: counts.negative,
+                  neutral: counts.neutral,
+                  positive: counts.positive,
+                  total: counts.total,
+                  negativePercentage:
+                    counts.total > 0
+                      ? parseFloat(
+                          ((counts.negative / counts.total) * 100).toFixed(1)
+                        )
+                      : 0,
+                  neutralPercentage:
+                    counts.total > 0
+                      ? parseFloat(
+                          ((counts.neutral / counts.total) * 100).toFixed(1)
+                        )
+                      : 0,
+                  positivePercentage:
+                    counts.total > 0
+                      ? parseFloat(
+                          ((counts.positive / counts.total) * 100).toFixed(1)
+                        )
+                      : 0,
+                },
+              },
+              { upsert: true }
+            );
+          } catch (error) {
+            console.error(
+              `Error updating sentiment metrics for company ${c._id}:`,
+              error
+            );
+          }
+        })
+      )
     );
   }
 

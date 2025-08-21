@@ -24,7 +24,9 @@ import { logger } from "../utils/logger";
 import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
 import { ReviewStatus } from "../models/types/transcript.type";
 import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
-import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity";
+import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard.sentiment.metric.entity";
+import { DashboardTeamMetricModel } from "../models/entities/metrics/dashboard.team.metric.entity";
+import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity copy";
 
 @Service()
 export class DashboardService {
@@ -276,137 +278,24 @@ export class DashboardService {
    * @param companyId - Company ID
    * @param period - Optional period (default: current month)
    */
-  async getTeamMetrics(
-    companyId: Types.ObjectId,
-    period: Date = startOfMonth(new Date())
-  ) {
+  async getTeamMetrics(companyId: Types.ObjectId) {
     try {
-      const monthStart = period;
-      const monthEnd = new Date(
-        monthStart.getFullYear(),
-        monthStart.getMonth() + 1,
-        1
-      );
-
-      return DailyTeamMetricModel.aggregate([
-        {
-          $lookup: {
-            from: "teams",
-            localField: "teamId",
-            foreignField: "_id",
-            as: "team",
-            pipeline: [
-              {
-                $match: {
-                  companyId,
-                  isActive: true,
-                },
-              },
-            ],
-          },
-        },
-        { $unwind: { path: "$team", preserveNullAndEmptyArrays: false } },
-        {
-          $match: {
-            date: {
-              $gte: monthStart,
-              $lt: monthEnd,
-            },
-          },
-        },
-        {
-          $group: {
-            _id: "$teamId",
-            teamName: { $first: "$team.name" },
-            avgOverall: { $avg: "$avgOverall" },
-            avgSentiment: { $avg: "$avgSentiment" },
-            reviewCount: { $sum: "$reviewCount" },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            teamId: "$_id",
-            teamName: 1,
-            avgOverall: { $round: ["$avgOverall", 2] },
-            avgSentiment: { $round: ["$avgSentiment", 2] },
-            reviewCount: 1,
-          },
-        },
-        { $sort: { teamName: 1 } },
-      ]);
+      return await DashboardTeamMetricModel.find({
+        companyId,
+      })
+        .populate("team", "name")
+        .exec();
     } catch (error) {
       logger.error(`Failed to get team metrics: ${error}`);
       throw error;
     }
   }
 
-  async getSentimentDistribution(
-    companyId: mongoose.Types.ObjectId,
-    days: number = 30
-  ) {
-    const startDate = startOfDay(subDays(new Date(), days));
-
+  async getSentimentDistribution(companyId: mongoose.Types.ObjectId) {
     try {
-      const results = await DailySentimentLabelMetricModel.aggregate([
-        {
-          $match: {
-            companyId,
-            date: { $gte: startDate },
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            negative: { $sum: "$negative" },
-            neutral: { $sum: "$neutral" },
-            positive: { $sum: "$positive" },
-            total: { $sum: "$total" },
-          },
-        },
-        {
-          $project: {
-            _id: 0,
-            negative: 1,
-            neutral: 1,
-            positive: 1,
-            total: 1,
-            negativePercentage: {
-              $cond: [
-                { $eq: ["$total", 0] },
-                0,
-                { $multiply: [{ $divide: ["$negative", "$total"] }, 100] },
-              ],
-            },
-            neutralPercentage: {
-              $cond: [
-                { $eq: ["$total", 0] },
-                0,
-                { $multiply: [{ $divide: ["$neutral", "$total"] }, 100] },
-              ],
-            },
-            positivePercentage: {
-              $cond: [
-                { $eq: ["$total", 0] },
-                0,
-                { $multiply: [{ $divide: ["$positive", "$total"] }, 100] },
-              ],
-            },
-          },
-        },
-      ]);
-
-      return (
-        results[0] || {
-          negative: 0,
-          neutral: 0,
-          positive: 0,
-          total: 0,
-          negativePercentage: 0,
-          neutralPercentage: 0,
-          positivePercentage: 0,
-        }
-      );
+      return await DashboardSentimentMetricModel.findOne({
+        companyId,
+      });
     } catch (error) {
       logger.error(`Failed to get sentiment distribution: ${error}`);
       throw error;
