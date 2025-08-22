@@ -139,12 +139,19 @@ export const getTeamsPerformanceSentimentData = async (
 ) => {
   try {
     const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+    const { filter, startDate, endDate } = req.query;
+
     if (!companyId) {
       return res.status(400).json({ error: "Company ID is missing" });
     }
 
     const dashboardService = Container.get(DashboardService);
-    const metrics = await dashboardService.getTeamMetrics(companyId);
+    const metrics = await dashboardService.getTeamMetrics(
+      companyId,
+      filter?.toString(),
+      startDate ? new Date(startDate.toString()) : undefined,
+      endDate ? new Date(endDate.toString()) : undefined
+    );
     res.json(metrics);
   } catch (error) {
     res.status(500).json({ error: "Failed to load dashboard metrics" });

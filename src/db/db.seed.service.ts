@@ -498,7 +498,6 @@ export class SeedService {
           })),
         },
       ];
-
       // Create test reviews with specific dates to test time filters
       for (let i = 0; i < testReviews.length; i++) {
         const reviewData = testReviews[i];
@@ -601,6 +600,116 @@ export class SeedService {
           createdAt: startDate,
           updatedAt: startDate,
         });
+      }
+
+      // Generate time series data for each team over the past 3 months
+      const timeSeriesStartDate = new Date();
+      timeSeriesStartDate.setMonth(timeSeriesStartDate.getMonth() - 3); // 3 months ago
+
+      // Create reviews with dates spread over time for each team
+      for (const team of teams) {
+        // Get the pattern for this team
+        const pattern = teamPatterns.find((p) => p.name === team.name);
+        if (!pattern) continue;
+
+        // Generate 100 reviews for this team
+        for (let i = 0; i < 100; i++) {
+          // Create a date that progresses through time
+          const reviewDate = new Date(
+            timeSeriesStartDate.getTime() + i * 2.5 * 24 * 60 * 60 * 1000
+          ); // Every 2.5 days
+
+          // Create a slight upward trend over time for both metrics
+          const progressFactor = i / 100; // 0 to 1 over the period
+          const overallScore =
+            pattern.overallTrend.min +
+            (pattern.overallTrend.max - pattern.overallTrend.min) *
+              progressFactor +
+            (Math.random() - 0.5) * 1.0; // Add some randomness
+
+          const sentimentScore =
+            pattern.sentimentTrend.min +
+            (pattern.sentimentTrend.max - pattern.sentimentTrend.min) *
+              progressFactor +
+            (Math.random() - 0.5) * 1.0; // Add some randomness
+
+          // Select a random employee from this team
+          const teamEmployeeIds = team.users.map((u) => u.user.toString());
+          const employeeUsers = users.filter((u) =>
+            teamEmployeeIds.includes(u._id.toString())
+          );
+          const employee = faker.helpers.arrayElement(employeeUsers);
+
+          // Create a contact
+          const contact = faker.helpers.arrayElement(contacts);
+          const externalCompany = contact.externalCompanyId;
+
+          // Generate conversation content
+          const content = Array.from({
+            length: faker.number.int({ min: 5, max: 15 }),
+          })
+            .map(() => {
+              const speaker = faker.datatype.boolean() ? "Agent" : "Customer";
+              return `${speaker}: ${faker.lorem.sentences(
+                faker.number.int({ min: 1, max: 3 })
+              )}`;
+            })
+            .join("\n\n");
+
+          // Create transcript
+          const duration = faker.number.int({ min: 5, max: 60 });
+          const endDate = new Date(reviewDate.getTime() + duration * 60000);
+
+          const transcript = await TranscriptModel.create({
+            employeeId: employee._id,
+            companyId: company._id,
+            externalCompanyId: externalCompany,
+            contactId: contact._id,
+            teamId: team._id,
+            content: content,
+            timestamp: reviewDate,
+            timestampEnd: endDate,
+            uploadedById: faker.helpers.arrayElement(users)._id,
+            reviewStatus: ReviewStatus.REVIEWED,
+            isReviewed: true,
+          });
+
+          // Create review
+          await ReviewModel.create({
+            transcriptId: transcript._id,
+            reviewConfig: defaultReviewConfig._id,
+            reviewStatus: ReviewStatus.REVIEWED,
+            type: "both",
+            subject: `Time series review for ${team.name} - ${i + 1}`,
+            criteriaScores: criteria.map((c) => ({
+              criterionName: c.title,
+              criterionDescription: c.description,
+              score: overallScore + (Math.random() - 0.5) * 0.5, // Slight variation per criterion
+              comment: `Performance on ${c.title} for ${team.name}`,
+              quote: "Customer feedback",
+              feedback: "Standard feedback",
+            })),
+            overallScore: overallScore,
+            overallFeedback: `Time series feedback for ${team.name}`,
+            sentimentScore: sentimentScore,
+            sentimentLabel:
+              sentimentScore >= 8
+                ? "positive"
+                : sentimentScore >= 6
+                ? "neutral"
+                : "negative",
+            sentimentAnalysis: `Sentiment analysis for time series review ${
+              i + 1
+            }`,
+            externalCompanyId: externalCompany,
+            employeeId: employee._id,
+            teamId: team._id,
+            contactId: contact._id,
+            companyId: company._id,
+            createdAt: reviewDate,
+            updatedAt: reviewDate,
+          });
+        }
       }
 
       // 10. Create plan

@@ -65,11 +65,9 @@ export class DashboardService {
       end: now,
     });
 
-    console.warn("ASDA");
     if (fullCoverage) {
       return this.getAggregatedMetrics(companyId, startDate, endDate);
     }
-    console.warn("ASDA2");
 
     // Hybrid approach for recent data
     return this.getHybridMetrics(companyId, startDate, endDate);
@@ -274,20 +272,265 @@ export class DashboardService {
   }
 
   /**
-   * Get team metrics for bar chart (current month)
+   * Get team metrics for dashboard with various time filters
    * @param companyId - Company ID
-   * @param period - Optional period (default: current month)
+   * @param filter - Time period filter (year, month, week, day, custom)
+   * @param customStartDate - Custom start date (for custom filter)
+   * @param customEndDate - Custom end date (for custom filter)
    */
-  async getTeamMetrics(companyId: Types.ObjectId) {
-    try {
-      return await DashboardTeamMetricModel.find({
-        companyId,
-      })
-        .populate("team", "name")
-        .exec();
-    } catch (error) {
-      logger.error(`Failed to get team metrics: ${error}`);
-      throw error;
+  async getTeamMetrics(
+    companyId: mongoose.Types.ObjectId,
+    filter: string = "month",
+    customStartDate?: Date,
+    customEndDate?: Date
+  ) {
+    // Calculate date range based on filter
+    let startDate: Date;
+    let endDate: Date = new Date();
+
+    if (filter.toLowerCase() === "custom" && customStartDate && customEndDate) {
+      startDate = customStartDate;
+      endDate = customEndDate;
+    } else {
+      startDate = this.calculateStartDate(filter, endDate);
+    }
+
+    // Determine the date grouping interval based on the filter
+    let dateGrouping: any;
+    let periodFormat: any;
+
+    switch (filter.toLowerCase()) {
+      case "day":
+        // 1 point per day
+        dateGrouping = {
+          year: { $year: "$date" },
+          month: { $month: "$date" },
+          day: { $dayOfMonth: "$date" },
+        };
+        periodFormat = {
+          $dateFromParts: {
+            year: "$_id.year",
+            month: "$_id.month",
+            day: "$_id.day",
+          },
+        };
+        break;
+
+      case "week":
+        // 1 point per week
+        dateGrouping = {
+          year: { $year: "$date" },
+          week: { $week: "$date" },
+        };
+        periodFormat = {
+          $dateFromParts: {
+            isoWeekYear: "$_id.year",
+            isoWeek: "$_id.week",
+            isoDayOfWeek: 1,
+          },
+        };
+        break;
+
+      case "month":
+        // 1 point per month
+        dateGrouping = {
+          year: { $year: "$date" },
+          month: { $month: "$date" },
+        };
+        periodFormat = {
+          $dateFromParts: {
+            year: "$_id.year",
+            month: "$_id.month",
+            day: 1,
+          },
+        };
+        break;
+
+      case "year":
+        // 1 point per year
+        dateGrouping = {
+          year: { $year: "$date" },
+        };
+        periodFormat = {
+          $dateFromParts: {
+            year: "$_id.year",
+            month: 1,
+            day: 1,
+          },
+        };
+        break;
+
+      case "custom":
+        // For custom range, determine granularity based on date range
+        const daysDiff = Math.ceil(
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (daysDiff <= 7) {
+          // Less than 7 days: daily granularity
+          dateGrouping = {
+            year: { $year: "$date" },
+            month: { $month: "$date" },
+            day: { $dayOfMonth: "$date" },
+          };
+          periodFormat = {
+            $dateFromParts: {
+              year: "$_id.year",
+              month: "$_id.month",
+              day: "$_id.day",
+            },
+          };
+        } else if (daysDiff <= 30) {
+          // 7-30 days: weekly granularity
+          dateGrouping = {
+            year: { $year: "$date" },
+            week: { $week: "$date" },
+          };
+          periodFormat = {
+            $dateFromParts: {
+              isoWeekYear: "$_id.year",
+              isoWeek: "$_id.week",
+              isoDayOfWeek: 1,
+            },
+          };
+        } else if (daysDiff <= 365) {
+          // 30-365 days: monthly granularity
+          dateGrouping = {
+            year: { $year: "$date" },
+            month: { $month: "$date" },
+          };
+          periodFormat = {
+            $dateFromParts: {
+              year: "$_id.year",
+              month: "$_id.month",
+              day: 1,
+            },
+          };
+        } else {
+          // More than 365 days: yearly granularity
+          dateGrouping = {
+            year: { $year: "$date" },
+          };
+          periodFormat = {
+            $dateFromParts: {
+              year: "$_id.year",
+              month: 1,
+              day: 1,
+            },
+          };
+        }
+        break;
+
+      default:
+        // Default to monthly grouping
+        dateGrouping = {
+          year: { $year: "$date" },
+          month: { $month: "$date" },
+        };
+        periodFormat = {
+          $dateFromParts: {
+            year: "$_id.year",
+            month: "$_id.month",
+            day: 1,
+          },
+        };
+    }
+
+    const teamMetrics = await DailyTeamMetricModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          date: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            teamId: "$teamId",
+            ...dateGrouping,
+          },
+          date: { $first: "$date" },
+          avgOverall: { $avg: "$avgOverall" },
+          avgSentiment: { $avg: "$avgSentiment" },
+          reviewCount: { $sum: "$reviewCount" },
+          // Include all criteria fields in the aggregation
+          empathie: { $avg: "$empathie" },
+          oplossingsgerichtheid: { $avg: "$oplossingsgerichtheid" },
+          professionaliteit: { $avg: "$professionaliteit" },
+          klanttevredenheid: { $avg: "$klanttevredenheid" },
+          sentimentKlant: { $avg: "$sentimentKlant" },
+          helderheidEnBegrijpelijkheid: {
+            $avg: "$helderheidEnBegrijpelijkheid",
+          },
+          responsiviteitLuistervaardigheid: {
+            $avg: "$responsiviteitLuistervaardigheid",
+          },
+          tijdsefficientieDoelgerichtheid: {
+            $avg: "$tijdsefficientieDoelgerichtheid",
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "teams",
+          localField: "_id.teamId",
+          foreignField: "_id",
+          as: "team",
+        },
+      },
+      {
+        $unwind: "$team",
+      },
+      {
+        $project: {
+          _id: 0,
+          teamId: "$_id.teamId",
+          teamName: "$team.name",
+          period: periodFormat,
+          avgOverall: { $round: ["$avgOverall", 2] },
+          avgSentiment: { $round: ["$avgSentiment", 2] },
+          reviewCount: 1,
+          empathie: { $round: ["$empathie", 2] },
+          oplossingsgerichtheid: { $round: ["$oplossingsgerichtheid", 2] },
+          professionaliteit: { $round: ["$professionaliteit", 2] },
+          klanttevredenheid: { $round: ["$klanttevredenheid", 2] },
+          sentimentKlant: { $round: ["$sentimentKlant", 2] },
+          helderheidEnBegrijpelijkheid: {
+            $round: ["$helderheidEnBegrijpelijkheid", 2],
+          },
+          responsiviteitLuistervaardigheid: {
+            $round: ["$responsiviteitLuistervaardigheid", 2],
+          },
+          tijdsefficientieDoelgerichtheid: {
+            $round: ["$tijdsefficientieDoelgerichtheid", 2],
+          },
+        },
+      },
+      {
+        $sort: {
+          teamName: 1,
+          period: 1,
+        },
+      },
+    ]);
+
+    return teamMetrics;
+  }
+
+  private calculateStartDate(filter: string, endDate: Date): Date {
+    const now = endDate;
+
+    switch (filter.toLowerCase()) {
+      case "day":
+        return subDays(now, 1);
+      case "week":
+        return subWeeks(now, 1);
+      case "month":
+        return subMonths(now, 1);
+      case "year":
+        return subYears(now, 1);
+      default:
+        return subMonths(now, 1);
     }
   }
 
