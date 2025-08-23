@@ -40,20 +40,17 @@ const DailyTeamMetricSchema = new Schema<IDailyTeamMetric>(
     },
     avgOverall: {
       type: Number,
-      required: true,
-      default: 0,
+      default: null,
     },
     avgSentiment: {
       type: Number,
-      required: true,
-      default: 0,
+      default: null,
     },
     reviewCount: {
       type: Number,
       required: true,
       default: 0,
     },
-    // Criteria fields - updated with actual criteria names
     empathie: { type: Number, default: null },
     oplossingsgerichtheid: { type: Number, default: null },
     professionaliteit: { type: Number, default: null },

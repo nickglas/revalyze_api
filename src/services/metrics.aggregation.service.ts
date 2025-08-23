@@ -216,11 +216,11 @@ export class MetricsAggregationService {
                 $set: {
                   avgOverall:
                     performanceResult.length > 0
-                      ? performanceResult[0].avgPerformance
+                      ? performanceResult[0].avgPerformance || null
                       : null,
                   avgSentiment:
                     sentimentResult.length > 0
-                      ? sentimentResult[0].avgSentiment
+                      ? sentimentResult[0].avgSentiment || null
                       : null,
                   performanceReviewCount:
                     performanceResult.length > 0
@@ -924,13 +924,11 @@ export class MetricsAggregationService {
     // Merge the results
     const teamMetrics = new Map();
 
-    // Initialize with overall and sentiment results
     overallResults.forEach((result) => {
       if (result._id) {
         teamMetrics.set(result._id.toString(), {
-          avgOverall: result.avgOverall || 0,
+          avgOverall: result.avgOverall || null,
           reviewCount: result.reviewCountOverall || 0,
-          // Initialize all criteria to null
           empathie: null,
           oplossingsgerichtheid: null,
           professionaliteit: null,
@@ -948,13 +946,12 @@ export class MetricsAggregationService {
         const teamId = result._id.toString();
         if (teamMetrics.has(teamId)) {
           const metrics = teamMetrics.get(teamId);
-          metrics.avgSentiment = result.avgSentiment || 0;
+          metrics.avgSentiment = result.avgSentiment || null;
         } else {
           teamMetrics.set(teamId, {
-            avgOverall: 0,
-            avgSentiment: result.avgSentiment || 0,
+            avgOverall: null,
+            avgSentiment: result.avgSentiment || null,
             reviewCount: result.reviewCountSentiment || 0,
-            // Initialize all criteria to null
             empathie: null,
             oplossingsgerichtheid: null,
             professionaliteit: null,
@@ -1149,11 +1146,13 @@ export class MetricsAggregationService {
       {
         $set: {
           avgOverall:
-            overallResult.length > 0 ? overallResult[0].avgOverall || 0 : 0,
+            overallResult.length > 0
+              ? overallResult[0].avgOverall || null
+              : null,
           avgSentiment:
             sentimentResult.length > 0
-              ? sentimentResult[0].avgSentiment || 0
-              : 0,
+              ? sentimentResult[0].avgSentiment || null
+              : null,
           reviewCount: totalResult[0].reviewCount,
         },
       },
