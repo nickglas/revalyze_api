@@ -1,6 +1,13 @@
 // src/models/entities/metrics/dashboard.team.metric.entity.ts
 import mongoose, { Document, Schema } from "mongoose";
 
+export interface IDashboardTeamMetricPopulated extends IDashboardTeamMetric {
+  team?: {
+    _id: mongoose.Types.ObjectId;
+    name: string;
+  };
+}
+
 export interface IDashboardTeamMetric extends Document {
   companyId: mongoose.Types.ObjectId;
   teamId: mongoose.Types.ObjectId;

@@ -9,6 +9,12 @@ import {
   subYears,
   isWithinInterval,
   startOfMonth,
+  eachDayOfInterval,
+  eachWeekOfInterval,
+  eachMonthOfInterval,
+  eachYearOfInterval,
+  format,
+  endOfDay,
 } from "date-fns";
 import { DailyReviewMetricModel } from "../models/entities/metrics/daily.review.metric.entity";
 import { ReviewModel } from "../models/entities/review.entity";
@@ -25,8 +31,40 @@ import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily
 import { ReviewStatus } from "../models/types/transcript.type";
 import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
 import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard.sentiment.metric.entity";
-import { DashboardTeamMetricModel } from "../models/entities/metrics/dashboard.team.metric.entity";
+import {
+  DashboardTeamMetricModel,
+  IDashboardTeamMetricPopulated,
+} from "../models/entities/metrics/dashboard.team.metric.entity";
 import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity copy";
+import { TeamModel } from "../models/entities/team.entity";
+
+interface TeamMetricsResponse {
+  teamId: string;
+  teamName: string;
+  avgOverall: number | null;
+  avgSentiment: number | null;
+  reviewCount: number;
+  empathie: number | null;
+  oplossingsgerichtheid: number | null;
+  professionaliteit: number | null;
+  klanttevredenheid: number | null;
+  sentimentKlant: number | null;
+  helderheidEnBegrijpelijkheid: number | null;
+  responsiviteitLuistervaardigheid: number | null;
+  tijdsefficientieDoelgerichtheid: number | null;
+  data: {
+    period: Date;
+    avgOverall: number | null;
+    avgSentiment: number | null;
+    reviewCount: number;
+  }[];
+}
+
+export interface TeamMetricDataPoint {
+  date: Date;
+  avgOverall: number | null;
+  avgSentiment: number | null;
+}
 
 @Service()
 export class DashboardService {
@@ -283,7 +321,7 @@ export class DashboardService {
     filter: string = "month",
     customStartDate?: Date,
     customEndDate?: Date
-  ) {
+  ): Promise<TeamMetricsResponse[]> {
     // Calculate date range based on filter
     let startDate: Date;
     let endDate: Date = new Date();
@@ -295,242 +333,288 @@ export class DashboardService {
       startDate = this.calculateStartDate(filter, endDate);
     }
 
-    // Determine the date grouping interval based on the filter
-    let dateGrouping: any;
-    let periodFormat: any;
+    // Adjust for timezone issues - ensure we're working with UTC dates
+    const utcStartDate = new Date(
+      Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate()
+      )
+    );
 
-    switch (filter.toLowerCase()) {
-      case "day":
-        // 1 point per day
-        dateGrouping = {
-          year: { $year: "$date" },
-          month: { $month: "$date" },
-          day: { $dayOfMonth: "$date" },
-        };
-        periodFormat = {
-          $dateFromParts: {
-            year: "$_id.year",
-            month: "$_id.month",
-            day: "$_id.day",
-          },
-        };
-        break;
+    const utcEndDate = new Date(
+      Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate(),
+        23,
+        59,
+        59,
+        999 // End of day
+      )
+    );
 
-      case "week":
-        // 1 point per week
-        dateGrouping = {
-          year: { $year: "$date" },
-          week: { $week: "$date" },
-        };
-        periodFormat = {
-          $dateFromParts: {
-            isoWeekYear: "$_id.year",
-            isoWeek: "$_id.week",
-            isoDayOfWeek: 1,
-          },
-        };
-        break;
+    // Get all teams for this company
+    const teams = await TeamModel.find({ companyId }).lean();
 
-      case "month":
-        // 1 point per month
-        dateGrouping = {
-          year: { $year: "$date" },
-          month: { $month: "$date" },
-        };
-        periodFormat = {
-          $dateFromParts: {
-            year: "$_id.year",
-            month: "$_id.month",
-            day: 1,
-          },
-        };
-        break;
+    // Get dashboard team metrics
+    const dashboardMetrics = await DashboardTeamMetricModel.find({ companyId })
+      .populate<{ team: { _id: mongoose.Types.ObjectId; name: string } }>(
+        "team",
+        "name"
+      )
+      .lean<IDashboardTeamMetricPopulated[]>();
 
-      case "year":
-        // 1 point per year
-        dateGrouping = {
-          year: { $year: "$date" },
-        };
-        periodFormat = {
-          $dateFromParts: {
-            year: "$_id.year",
-            month: 1,
-            day: 1,
-          },
-        };
-        break;
-
-      case "custom":
-        // For custom range, determine granularity based on date range
-        const daysDiff = Math.ceil(
-          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
-
-        if (daysDiff <= 7) {
-          // Less than 7 days: daily granularity
-          dateGrouping = {
-            year: { $year: "$date" },
-            month: { $month: "$date" },
-            day: { $dayOfMonth: "$date" },
-          };
-          periodFormat = {
-            $dateFromParts: {
-              year: "$_id.year",
-              month: "$_id.month",
-              day: "$_id.day",
-            },
-          };
-        } else if (daysDiff <= 30) {
-          // 7-30 days: weekly granularity
-          dateGrouping = {
-            year: { $year: "$date" },
-            week: { $week: "$date" },
-          };
-          periodFormat = {
-            $dateFromParts: {
-              isoWeekYear: "$_id.year",
-              isoWeek: "$_id.week",
-              isoDayOfWeek: 1,
-            },
-          };
-        } else if (daysDiff <= 365) {
-          // 30-365 days: monthly granularity
-          dateGrouping = {
-            year: { $year: "$date" },
-            month: { $month: "$date" },
-          };
-          periodFormat = {
-            $dateFromParts: {
-              year: "$_id.year",
-              month: "$_id.month",
-              day: 1,
-            },
-          };
-        } else {
-          // More than 365 days: yearly granularity
-          dateGrouping = {
-            year: { $year: "$date" },
-          };
-          periodFormat = {
-            $dateFromParts: {
-              year: "$_id.year",
-              month: 1,
-              day: 1,
-            },
-          };
-        }
-        break;
-
-      default:
-        // Default to monthly grouping
-        dateGrouping = {
-          year: { $year: "$date" },
-          month: { $month: "$date" },
-        };
-        periodFormat = {
-          $dateFromParts: {
-            year: "$_id.year",
-            month: "$_id.month",
-            day: 1,
-          },
-        };
-    }
-
-    const teamMetrics = await DailyTeamMetricModel.aggregate([
+    // Get time-series data with proper date handling
+    const timeSeriesData = await DailyTeamMetricModel.aggregate([
       {
         $match: {
           companyId: companyId,
-          date: { $gte: startDate, $lte: endDate },
+          date: {
+            $gte: utcStartDate,
+            $lte: utcEndDate,
+          },
         },
       },
       {
         $group: {
           _id: {
             teamId: "$teamId",
-            ...dateGrouping,
+            date: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$date",
+                timezone: "UTC",
+              },
+            },
           },
-          date: { $first: "$date" },
           avgOverall: { $avg: "$avgOverall" },
           avgSentiment: { $avg: "$avgSentiment" },
           reviewCount: { $sum: "$reviewCount" },
-          // Include all criteria fields in the aggregation
-          empathie: { $avg: "$empathie" },
-          oplossingsgerichtheid: { $avg: "$oplossingsgerichtheid" },
-          professionaliteit: { $avg: "$professionaliteit" },
-          klanttevredenheid: { $avg: "$klanttevredenheid" },
-          sentimentKlant: { $avg: "$sentimentKlant" },
-          helderheidEnBegrijpelijkheid: {
-            $avg: "$helderheidEnBegrijpelijkheid",
-          },
-          responsiviteitLuistervaardigheid: {
-            $avg: "$responsiviteitLuistervaardigheid",
-          },
-          tijdsefficientieDoelgerichtheid: {
-            $avg: "$tijdsefficientieDoelgerichtheid",
-          },
         },
       },
+      // ✅ Only keep dates that actually have reviews
       {
-        $lookup: {
-          from: "teams",
-          localField: "_id.teamId",
-          foreignField: "_id",
-          as: "team",
+        $match: {
+          reviewCount: { $gt: 0 },
         },
-      },
-      {
-        $unwind: "$team",
       },
       {
         $project: {
           _id: 0,
           teamId: "$_id.teamId",
-          teamName: "$team.name",
-          period: periodFormat,
+          date: {
+            $dateFromString: {
+              dateString: "$_id.date",
+              timezone: "UTC",
+            },
+          },
           avgOverall: { $round: ["$avgOverall", 2] },
           avgSentiment: { $round: ["$avgSentiment", 2] },
           reviewCount: 1,
-          empathie: { $round: ["$empathie", 2] },
-          oplossingsgerichtheid: { $round: ["$oplossingsgerichtheid", 2] },
-          professionaliteit: { $round: ["$professionaliteit", 2] },
-          klanttevredenheid: { $round: ["$klanttevredenheid", 2] },
-          sentimentKlant: { $round: ["$sentimentKlant", 2] },
-          helderheidEnBegrijpelijkheid: {
-            $round: ["$helderheidEnBegrijpelijkheid", 2],
-          },
-          responsiviteitLuistervaardigheid: {
-            $round: ["$responsiviteitLuistervaardigheid", 2],
-          },
-          tijdsefficientieDoelgerichtheid: {
-            $round: ["$tijdsefficientieDoelgerichtheid", 2],
-          },
         },
       },
       {
         $sort: {
-          teamName: 1,
-          period: 1,
+          teamId: 1,
+          date: 1,
         },
       },
     ]);
 
-    return teamMetrics;
+    // Generate all dates in the range to fill in missing data
+    const allDates = eachDayOfInterval({
+      start: utcStartDate,
+      end: utcEndDate,
+    });
+
+    // Combine data and fill in missing dates
+    const result = dashboardMetrics.map((metric) => {
+      const teamTimeSeries = timeSeriesData.filter(
+        (d) => d.teamId.toString() === metric.teamId.toString()
+      );
+
+      // Create a map for quick lookup
+      const dataMap = new Map();
+      teamTimeSeries.forEach((item) => {
+        dataMap.set(item.date.toISOString().split("T")[0], item);
+      });
+
+      // Fill in missing dates with null values
+      const filledData = allDates
+        .map((date) => {
+          const dateKey = date.toISOString().split("T")[0];
+          const existingData = dataMap.get(dateKey);
+
+          return (
+            existingData || {
+              period: date,
+              avgOverall: null,
+              avgSentiment: null,
+              reviewCount: 0,
+            }
+          );
+        })
+        .filter((item) => item.reviewCount > 0);
+
+      return {
+        teamId: metric.teamId.toString(),
+        teamName: metric.team?.name || "Unknown Team",
+        avgOverall: metric.avgOverall,
+        avgSentiment: metric.avgSentiment,
+        reviewCount: metric.reviewCount,
+        empathie: metric.empathie,
+        oplossingsgerichtheid: metric.oplossingsgerichtheid,
+        professionaliteit: metric.professionaliteit,
+        klanttevredenheid: metric.klanttevredenheid,
+        sentimentKlant: metric.sentimentKlant,
+        helderheidEnBegrijpelijkheid: metric.helderheidEnBegrijpelijkheid,
+        responsiviteitLuistervaardigheid:
+          metric.responsiviteitLuistervaardigheid,
+        tijdsefficientieDoelgerichtheid: metric.tijdsefficientieDoelgerichtheid,
+        data: filledData,
+      };
+    });
+
+    return result;
   }
 
-  private calculateStartDate(filter: string, endDate: Date): Date {
-    const now = endDate;
+  private getDateRange(
+    filter: string,
+    customStartDate?: Date,
+    customEndDate?: Date
+  ): { startDate: Date; endDate: Date } {
+    const endDate = customEndDate || new Date();
+    let startDate: Date;
 
-    switch (filter.toLowerCase()) {
-      case "day":
-        return subDays(now, 1);
+    switch (filter) {
       case "week":
-        return subWeeks(now, 1);
+        startDate = customStartDate || subWeeks(endDate, 1);
+        break;
       case "month":
-        return subMonths(now, 1);
+        startDate = customStartDate || subMonths(endDate, 1);
+        break;
       case "year":
-        return subYears(now, 1);
+        startDate = customStartDate || subYears(endDate, 1);
+        break;
+      case "custom":
+        if (!customStartDate) {
+          throw new Error("Custom start date is required for custom filter");
+        }
+        startDate = customStartDate;
+        break;
       default:
-        return subMonths(now, 1);
+        startDate = subMonths(endDate, 1); // Default to 1 month
+    }
+
+    return { startDate, endDate };
+  }
+
+  private generateDateIntervals(
+    startDate: Date,
+    endDate: Date,
+    interval: string
+  ): Date[] {
+    switch (interval) {
+      case "day":
+        return eachDayOfInterval({ start: startDate, end: endDate });
+      case "week":
+        return eachWeekOfInterval(
+          { start: startDate, end: endDate },
+          { weekStartsOn: 1 }
+        );
+      case "month":
+        return eachMonthOfInterval({ start: startDate, end: endDate });
+      case "year":
+        return eachYearOfInterval({ start: startDate, end: endDate });
+      default:
+        return eachDayOfInterval({ start: startDate, end: endDate });
+    }
+  }
+
+  private async getTeamMetricsForPeriod(
+    companyId: mongoose.Types.ObjectId,
+    teamId: mongoose.Types.ObjectId,
+    startDate: Date,
+    endDate: Date,
+    interval: string
+  ) {
+    const matchStage: any = {
+      companyId,
+      teamId,
+      date: {
+        $gte: startOfDay(startDate),
+        $lte: endOfDay(endDate),
+      },
+    };
+
+    let groupStage: any;
+
+    switch (interval) {
+      case "day":
+        groupStage = {
+          _id: {
+            year: { $year: "$date" },
+            month: { $month: "$date" },
+            day: { $dayOfMonth: "$date" },
+          },
+          date: { $first: "$date" },
+          avgOverall: { $avg: "$avgOverall" },
+          avgSentiment: { $avg: "$avgSentiment" },
+        };
+        break;
+      case "week":
+        groupStage = {
+          _id: {
+            year: { $year: "$date" },
+            week: { $week: "$date" },
+          },
+          date: { $min: "$date" },
+          avgOverall: { $avg: "$avgOverall" },
+          avgSentiment: { $avg: "$avgSentiment" },
+        };
+        break;
+      case "month":
+        groupStage = {
+          _id: {
+            year: { $year: "$date" },
+            month: { $month: "$date" },
+          },
+          date: { $min: "$date" },
+          avgOverall: { $avg: "$avgOverall" },
+          avgSentiment: { $avg: "$avgSentiment" },
+        };
+        break;
+      case "year":
+        groupStage = {
+          _id: { year: { $year: "$date" } },
+          date: { $min: "$date" },
+          avgOverall: { $avg: "$avgOverall" },
+          avgSentiment: { $avg: "$avgSentiment" },
+        };
+        break;
+    }
+
+    return DailyTeamMetricModel.aggregate([
+      { $match: matchStage },
+      { $group: groupStage },
+      { $sort: { date: 1 } },
+      { $project: { _id: 0, date: 1, avgOverall: 1, avgSentiment: 1 } },
+    ]);
+  }
+
+  private isSameInterval(date1: Date, date2: Date, interval: string): boolean {
+    switch (interval) {
+      case "day":
+        return format(date1, "yyyy-MM-dd") === format(date2, "yyyy-MM-dd");
+      case "week":
+        return format(date1, "yyyy-ww") === format(date2, "yyyy-ww");
+      case "month":
+        return format(date1, "yyyy-MM") === format(date2, "yyyy-MM");
+      case "year":
+        return format(date1, "yyyy") === format(date2, "yyyy");
+      default:
+        return date1.getTime() === date2.getTime();
     }
   }
 
@@ -647,6 +731,21 @@ export class DashboardService {
       : 0;
   }
 
+  private calculateStartDate(filter: string, endDate: Date): Date {
+    const now = endDate;
+    switch (filter.toLowerCase()) {
+      case "day":
+        return subDays(now, 1);
+      case "week":
+        return subWeeks(now, 1);
+      case "month":
+        return subMonths(now, 1);
+      case "year":
+        return subYears(now, 1);
+      default:
+        return subMonths(now, 1);
+    }
+  }
   private async getCriterionData(
     companyId: string,
     criterionName: string,
@@ -721,31 +820,6 @@ export class DashboardService {
         _id: null,
       })),
     ].sort((a, b) => a.date - b.date);
-  }
-
-  private getDateRange(filter: string) {
-    const now = new Date();
-    let startDate: Date;
-    let endDate = now;
-
-    switch (filter) {
-      case "day":
-        startDate = startOfDay(now);
-        break;
-      case "week":
-        startDate = subWeeks(startOfDay(now), 1);
-        break;
-      case "month":
-        startDate = subMonths(startOfDay(now), 1);
-        break;
-      case "year":
-        startDate = subYears(startOfDay(now), 1);
-        break;
-      default:
-        throw new Error("Invalid filter");
-    }
-
-    return { startDate, endDate };
   }
 
   private async getAggregatedMetrics(
