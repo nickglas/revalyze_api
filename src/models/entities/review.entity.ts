@@ -168,6 +168,7 @@ reviewSchema.post("save", async function (doc) {
     }),
     metricsService.updateSentimentLabelMetricsForCompany(doc.companyId),
     metricsService.updateTeamMetricsForCompany(doc.companyId),
+    metricsService.updateEmployeeMetricsForCompany(doc.companyId),
   ]);
 });
 

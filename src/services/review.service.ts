@@ -35,7 +35,7 @@ import { CriteriaFlowData } from "../models/types/criterion.type";
 import { ObjectId } from "mongodb";
 import { ReviewDetailDto } from "../dto/review/review.detail.dto";
 import { startOfDay } from "date-fns";
-import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
+import { DailyTeamMetricModel } from "../models/entities/metrics/daily/daily.team.metrics.entity";
 import { logger } from "../utils/logger";
 import { UpdateReviewDto } from "../dto/review/review.update.dto";
 

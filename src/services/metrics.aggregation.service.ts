@@ -3,18 +3,20 @@ import { logger } from "../utils/logger";
 import { ReviewModel } from "../models/entities/review.entity";
 import { startOfDay, addDays } from "date-fns";
 import { ReviewStatus } from "../models/types/transcript.type";
-import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
+import { DailyTeamMetricModel } from "../models/entities/metrics/daily/daily.team.metrics.entity";
 import mongoose from "mongoose";
-import { DailyReviewMetricModel } from "../models/entities/metrics/daily.review.metric.entity";
-import { DailyCriterionMetricModel } from "../models/entities/metrics/daily.criterion.metric.entity";
+import { DailyReviewMetricModel } from "../models/entities/metrics/daily/daily.review.metric.entity";
+import { DailyCriterionMetricModel } from "../models/entities/metrics/daily/daily.criterion.metric.entity";
 import { CompanyModel } from "../models/entities/company.entity";
-import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
+import { DashboardMetricModel } from "../models/entities/metrics/dashboard/dashboard.metric.entity";
 import { CompanyRepository } from "../repositories/company.repository";
 import pLimit from "p-limit";
-import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity copy";
-import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
-import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard.sentiment.metric.entity";
-import { DashboardTeamMetricModel } from "../models/entities/metrics/dashboard.team.metric.entity";
+import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard/dashboard.criterion.metric.entity copy";
+import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily/daily.sentiment.label.metric";
+import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard/dashboard.sentiment.metric.entity";
+import { DashboardTeamMetricModel } from "../models/entities/metrics/dashboard/dashboard.team.metric.entity";
+import { DailyEmployeeMetricModel } from "../models/entities/metrics/daily/daily.employee.metrics.entity";
+import { DashboardEmployeeMetricModel } from "../models/entities/metrics/dashboard/dashboard.employee.metric.entity";
 
 interface EntityContext {
   companyId?: mongoose.Types.ObjectId;
@@ -77,6 +79,7 @@ export class MetricsAggregationService {
       this.aggregateOverallMetrics(baseMatch, sanitizedEntities, date),
       this.aggregateCriteriaMetrics(baseMatch, sanitizedEntities, date),
       this.aggregateTeamMetrics(baseMatch, sanitizedEntities, date),
+      this.aggregateEmployeeMetrics(baseMatch, sanitizedEntities, date),
       this.aggregateSentimentLabels(baseMatch, sanitizedEntities, date),
     ]);
   }
@@ -154,9 +157,11 @@ export class MetricsAggregationService {
     // Use a concurrency limit
     const limit = pLimit(5);
 
-    await Promise.all([
+    // Create an array of all the promises we want to run in parallel
+    const promises = [
       this.updateSentimentLabelMetrics(),
       this.updateTeamMetrics(),
+      this.updateEmployeeMetrics(), // Add this method (see below)
       ...activeCompanies.map((c) =>
         limit(async () => {
           try {
@@ -288,7 +293,32 @@ export class MetricsAggregationService {
           }
         })
       ),
-    ]);
+    ];
+
+    await Promise.all(promises);
+  }
+
+  async updateEmployeeMetrics() {
+    const activeCompanies = await this.companyRepository.find({
+      isActive: true,
+    });
+
+    const limit = pLimit(5);
+
+    await Promise.all(
+      activeCompanies.map((c) =>
+        limit(async () => {
+          try {
+            await this.updateEmployeeMetricsForCompany(c._id);
+          } catch (error) {
+            console.error(
+              `Error updating employee metrics for company ${c._id}:`,
+              error
+            );
+          }
+        })
+      )
+    );
   }
 
   async updateTeamMetricsForCompany(companyId: mongoose.Types.ObjectId) {
@@ -510,6 +540,466 @@ export class MetricsAggregationService {
     }));
 
     await DashboardTeamMetricModel.bulkWrite(ops);
+  }
+
+  private async aggregateEmployeeMetrics(
+    baseMatch: any,
+    entities: EntityContext,
+    date: Date
+  ) {
+    // Define the actual criteria
+    const defaultCriteria = [
+      "Empathie",
+      "Oplossingsgerichtheid",
+      "Professionaliteit",
+      "Klanttevredenheid",
+      "Sentiment klant",
+      "Helderheid en begrijpelijkheid",
+      "Responsiviteit/luistervaardigheid",
+      "Tijdsefficiëntie/doelgerichtheid",
+    ];
+
+    // Calculate employee metrics with type filtering
+    const overallResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          type: { $in: ["performance", "both"] },
+          employeeId: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$employeeId",
+          avgOverall: { $avg: "$overallScore" },
+          reviewCountOverall: { $sum: 1 },
+          teamId: { $first: "$teamId" }, // Get the team from the review
+        },
+      },
+    ]);
+
+    const sentimentResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          type: { $in: ["sentiment", "both"] },
+          employeeId: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$employeeId",
+          avgSentiment: { $avg: "$sentimentScore" },
+          reviewCountSentiment: { $sum: 1 },
+          teamId: { $first: "$teamId" }, // Get the team from the review
+        },
+      },
+    ]);
+
+    // Aggregate criteria scores
+    const criteriaResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          ...baseMatch,
+          type: { $in: ["performance", "both"] },
+          employeeId: { $ne: null },
+          criteriaScores: { $exists: true, $not: { $size: 0 } },
+        },
+      },
+      { $unwind: "$criteriaScores" },
+      {
+        $match: {
+          "criteriaScores.criterionName": { $in: defaultCriteria },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            employeeId: "$employeeId",
+            criterionName: "$criteriaScores.criterionName",
+          },
+          avgScore: { $avg: "$criteriaScores.score" },
+          reviewCount: { $sum: 1 },
+          teamId: { $first: "$teamId" }, // Get the team from the review
+        },
+      },
+    ]);
+
+    // Merge the results
+    const employeeMetrics = new Map();
+
+    // Initialize with overall and sentiment results
+    overallResults.forEach((result) => {
+      if (result._id) {
+        employeeMetrics.set(result._id.toString(), {
+          teamId: result.teamId,
+          avgOverall: result.avgOverall || null,
+          reviewCount: result.reviewCountOverall || 0,
+          empathie: null,
+          oplossingsgerichtheid: null,
+          professionaliteit: null,
+          klanttevredenheid: null,
+          sentimentKlant: null,
+          helderheidEnBegrijpelijkheid: null,
+          responsiviteitLuistervaardigheid: null,
+          tijdsefficientieDoelgerichtheid: null,
+        });
+      }
+    });
+
+    sentimentResults.forEach((result) => {
+      if (result._id) {
+        const employeeId = result._id.toString();
+        if (employeeMetrics.has(employeeId)) {
+          const metrics = employeeMetrics.get(employeeId);
+          metrics.avgSentiment = result.avgSentiment || null;
+        } else {
+          employeeMetrics.set(employeeId, {
+            teamId: result.teamId,
+            avgOverall: null,
+            avgSentiment: result.avgSentiment || null,
+            reviewCount: result.reviewCountSentiment || 0,
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          });
+        }
+      }
+    });
+
+    // Add criteria results
+    criteriaResults.forEach((result) => {
+      if (result._id.employeeId) {
+        const employeeId = result._id.employeeId.toString();
+        const criterionName = result._id.criterionName;
+
+        // Map the criterion name to the schema field name
+        let fieldName;
+        switch (criterionName) {
+          case "Empathie":
+            fieldName = "empathie";
+            break;
+          case "Oplossingsgerichtheid":
+            fieldName = "oplossingsgerichtheid";
+            break;
+          case "Professionaliteit":
+            fieldName = "professionaliteit";
+            break;
+          case "Klanttevredenheid":
+            fieldName = "klanttevredenheid";
+            break;
+          case "Sentiment klant":
+            fieldName = "sentimentKlant";
+            break;
+          case "Helderheid en begrijpelijkheid":
+            fieldName = "helderheidEnBegrijpelijkheid";
+            break;
+          case "Responsiviteit/luistervaardigheid":
+            fieldName = "responsiviteitLuistervaardigheid";
+            break;
+          case "Tijdsefficiëntie/doelgerichtheid":
+            fieldName = "tijdsefficientieDoelgerichtheid";
+            break;
+          default:
+            return; // Skip unknown criteria
+        }
+
+        if (employeeMetrics.has(employeeId)) {
+          const metrics = employeeMetrics.get(employeeId);
+          metrics[fieldName] = result.avgScore || 0;
+        } else {
+          // Create a new entry if employee not already in map
+          const metrics: TeamMetrics = {
+            teamId: result.teamId,
+            avgOverall: 0,
+            avgSentiment: 0,
+            reviewCount: 0,
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          };
+          metrics[fieldName] = result.avgScore || 0;
+          employeeMetrics.set(employeeId, metrics);
+        }
+      }
+    });
+
+    if (employeeMetrics.size === 0) {
+      await DailyEmployeeMetricModel.deleteMany({ date, ...entities });
+      return;
+    }
+
+    const ops = Array.from(employeeMetrics.entries()).map(
+      ([employeeId, metrics]) => ({
+        updateOne: {
+          filter: {
+            employeeId: new mongoose.Types.ObjectId(employeeId),
+            date,
+            ...this.filterMetricEntities(entities),
+          },
+          update: {
+            $set: {
+              teamId: metrics.teamId,
+              avgOverall: metrics.avgOverall,
+              avgSentiment: metrics.avgSentiment,
+              reviewCount: metrics.reviewCount,
+              empathie: metrics.empathie,
+              oplossingsgerichtheid: metrics.oplossingsgerichtheid,
+              professionaliteit: metrics.professionaliteit,
+              klanttevredenheid: metrics.klanttevredenheid,
+              sentimentKlant: metrics.sentimentKlant,
+              helderheidEnBegrijpelijkheid:
+                metrics.helderheidEnBegrijpelijkheid,
+              responsiviteitLuistervaardigheid:
+                metrics.responsiviteitLuistervaardigheid,
+              tijdsefficientieDoelgerichtheid:
+                metrics.tijdsefficientieDoelgerichtheid,
+            },
+          },
+          upsert: true,
+        },
+      })
+    );
+
+    await DailyEmployeeMetricModel.bulkWrite(ops);
+  }
+
+  async updateEmployeeMetricsForCompany(companyId: mongoose.Types.ObjectId) {
+    // Define the actual criteria
+    const defaultCriteria = [
+      "Empathie",
+      "Oplossingsgerichtheid",
+      "Professionaliteit",
+      "Klanttevredenheid",
+      "Sentiment klant",
+      "Helderheid en begrijpelijkheid",
+      "Responsiviteit/luistervaardigheid",
+      "Tijdsefficiëntie/doelgerichtheid",
+    ];
+
+    // Calculate employee metrics with type filtering
+    const overallResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["performance", "both"] },
+          employeeId: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$employeeId",
+          avgOverall: { $avg: "$overallScore" },
+          reviewCountOverall: { $sum: 1 },
+          teamId: { $first: "$teamId" },
+        },
+      },
+    ]);
+
+    const sentimentResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["sentiment", "both"] },
+          employeeId: { $ne: null },
+        },
+      },
+      {
+        $group: {
+          _id: "$employeeId",
+          avgSentiment: { $avg: "$sentimentScore" },
+          reviewCountSentiment: { $sum: 1 },
+          teamId: { $first: "$teamId" },
+        },
+      },
+    ]);
+
+    // Aggregate criteria scores
+    const criteriaResults = await ReviewModel.aggregate([
+      {
+        $match: {
+          companyId: companyId,
+          reviewStatus: ReviewStatus.REVIEWED,
+          type: { $in: ["performance", "both"] },
+          employeeId: { $ne: null },
+          criteriaScores: { $exists: true, $not: { $size: 0 } },
+        },
+      },
+      { $unwind: "$criteriaScores" },
+      {
+        $match: {
+          "criteriaScores.criterionName": { $in: defaultCriteria },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            employeeId: "$employeeId",
+            criterionName: "$criteriaScores.criterionName",
+          },
+          avgScore: { $avg: "$criteriaScores.score" },
+          reviewCount: { $sum: 1 },
+          teamId: { $first: "$teamId" },
+        },
+      },
+    ]);
+
+    // Merge the results
+    const employeeMetrics = new Map();
+
+    // Initialize with overall and sentiment results
+    overallResults.forEach((result) => {
+      if (result._id) {
+        employeeMetrics.set(result._id.toString(), {
+          teamId: result.teamId,
+          avgOverall: result.avgOverall || 0,
+          reviewCount: result.reviewCountOverall || 0,
+          empathie: null,
+          oplossingsgerichtheid: null,
+          professionaliteit: null,
+          klanttevredenheid: null,
+          sentimentKlant: null,
+          helderheidEnBegrijpelijkheid: null,
+          responsiviteitLuistervaardigheid: null,
+          tijdsefficientieDoelgerichtheid: null,
+        });
+      }
+    });
+
+    sentimentResults.forEach((result) => {
+      if (result._id) {
+        const employeeId = result._id.toString();
+        if (employeeMetrics.has(employeeId)) {
+          const metrics = employeeMetrics.get(employeeId);
+          metrics.avgSentiment = result.avgSentiment || 0;
+        } else {
+          employeeMetrics.set(employeeId, {
+            teamId: result.teamId,
+            avgOverall: 0,
+            avgSentiment: result.avgSentiment || 0,
+            reviewCount: result.reviewCountSentiment || 0,
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          });
+        }
+      }
+    });
+
+    // Add criteria results
+    criteriaResults.forEach((result) => {
+      if (result._id.employeeId) {
+        const employeeId = result._id.employeeId.toString();
+        const criterionName = result._id.criterionName;
+
+        // Map the criterion name to the schema field name
+        let fieldName;
+        switch (criterionName) {
+          case "Empathie":
+            fieldName = "empathie";
+            break;
+          case "Oplossingsgerichtheid":
+            fieldName = "oplossingsgerichtheid";
+            break;
+          case "Professionaliteit":
+            fieldName = "professionaliteit";
+            break;
+          case "Klanttevredenheid":
+            fieldName = "klanttevredenheid";
+            break;
+          case "Sentiment klant":
+            fieldName = "sentimentKlant";
+            break;
+          case "Helderheid en begrijpelijkheid":
+            fieldName = "helderheidEnBegrijpelijkheid";
+            break;
+          case "Responsiviteit/luistervaardigheid":
+            fieldName = "responsiviteitLuistervaardigheid";
+            break;
+          case "Tijdsefficiëntie/doelgerichtheid":
+            fieldName = "tijdsefficientieDoelgerichtheid";
+            break;
+          default:
+            return; // Skip unknown criteria
+        }
+
+        if (employeeMetrics.has(employeeId)) {
+          const metrics = employeeMetrics.get(employeeId);
+          metrics[fieldName] = result.avgScore || 0;
+        } else {
+          // Create a new entry if employee not already in map
+          const metrics: TeamMetrics = {
+            teamId: result.teamId,
+            avgOverall: 0,
+            avgSentiment: 0,
+            reviewCount: 0,
+            empathie: null,
+            oplossingsgerichtheid: null,
+            professionaliteit: null,
+            klanttevredenheid: null,
+            sentimentKlant: null,
+            helderheidEnBegrijpelijkheid: null,
+            responsiviteitLuistervaardigheid: null,
+            tijdsefficientieDoelgerichtheid: null,
+          };
+          metrics[fieldName] = result.avgScore || 0;
+          employeeMetrics.set(employeeId, metrics);
+        }
+      }
+    });
+
+    if (employeeMetrics.size === 0) return;
+
+    // Update dashboard employee metrics
+    const ops = Array.from(employeeMetrics.entries()).map(
+      ([employeeId, metrics]) => ({
+        updateOne: {
+          filter: {
+            companyId: companyId,
+            employeeId: new mongoose.Types.ObjectId(employeeId),
+          },
+          update: {
+            $set: {
+              teamId: metrics.teamId,
+              avgOverall: metrics.avgOverall,
+              avgSentiment: metrics.avgSentiment,
+              reviewCount: metrics.reviewCount,
+              empathie: metrics.empathie,
+              oplossingsgerichtheid: metrics.oplossingsgerichtheid,
+              professionaliteit: metrics.professionaliteit,
+              klanttevredenheid: metrics.klanttevredenheid,
+              sentimentKlant: metrics.sentimentKlant,
+              helderheidEnBegrijpelijkheid:
+                metrics.helderheidEnBegrijpelijkheid,
+              responsiviteitLuistervaardigheid:
+                metrics.responsiviteitLuistervaardigheid,
+              tijdsefficientieDoelgerichtheid:
+                metrics.tijdsefficientieDoelgerichtheid,
+            },
+          },
+          upsert: true,
+        },
+      })
+    );
+
+    await DashboardEmployeeMetricModel.bulkWrite(ops);
   }
 
   private async updateTeamMetrics() {

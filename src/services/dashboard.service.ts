@@ -16,26 +16,26 @@ import {
   format,
   endOfDay,
 } from "date-fns";
-import { DailyReviewMetricModel } from "../models/entities/metrics/daily.review.metric.entity";
+import { DailyReviewMetricModel } from "../models/entities/metrics/daily/daily.review.metric.entity";
 import { ReviewModel } from "../models/entities/review.entity";
 import mongoose, { mongo, Types } from "mongoose";
-import { DailyCriterionMetricModel } from "../models/entities/metrics/daily.criterion.metric.entity";
+import { DailyCriterionMetricModel } from "../models/entities/metrics/daily/daily.criterion.metric.entity";
 import { SubscriptionRepository } from "../repositories/subscription.repository";
 import { UserRepository } from "../repositories/user.repository";
 import { TranscriptRepository } from "../repositories/transcript.repository";
 import { ReviewConfigRepository } from "../repositories/review.config.repository";
 import { ReviewRepository } from "../repositories/review.repository";
-import { DailyTeamMetricModel } from "../models/entities/metrics/daily.team.metrics.entity";
+import { DailyTeamMetricModel } from "../models/entities/metrics/daily/daily.team.metrics.entity";
 import { logger } from "../utils/logger";
-import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily.sentiment.label.metric";
+import { DailySentimentLabelMetricModel } from "../models/entities/metrics/daily/daily.sentiment.label.metric";
 import { ReviewStatus } from "../models/types/transcript.type";
-import { DashboardMetricModel } from "../models/entities/metrics/dashboard.metric.entity";
-import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard.sentiment.metric.entity";
+import { DashboardMetricModel } from "../models/entities/metrics/dashboard/dashboard.metric.entity";
+import { DashboardSentimentMetricModel } from "../models/entities/metrics/dashboard/dashboard.sentiment.metric.entity";
 import {
   DashboardTeamMetricModel,
   IDashboardTeamMetricPopulated,
-} from "../models/entities/metrics/dashboard.team.metric.entity";
-import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard.criterion.metric.entity copy";
+} from "../models/entities/metrics/dashboard/dashboard.team.metric.entity";
+import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard/dashboard.criterion.metric.entity copy";
 import { TeamModel } from "../models/entities/team.entity";
 
 interface TeamMetricsResponse {
