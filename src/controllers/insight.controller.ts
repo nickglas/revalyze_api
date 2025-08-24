@@ -158,6 +158,22 @@ export const getTeamsPerformanceSentimentData = async (
   }
 };
 
+export const getEmployeeInsights = async (req: Request, res: Response) => {
+  try {
+    const companyId = new mongoose.Types.ObjectId(req.user?.companyId);
+
+    if (!companyId) {
+      return res.status(400).json({ error: "Company ID is missing" });
+    }
+
+    const dashboardService = Container.get(DashboardService);
+    const metrics = await dashboardService.getEmployeeMetrics(companyId);
+    res.json(metrics);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load dashboard metrics" });
+  }
+};
+
 export const getSentimentDistribution = async (
   req: Request,
   res: Response,

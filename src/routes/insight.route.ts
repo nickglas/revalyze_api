@@ -10,6 +10,7 @@ import {
   getCriteriaTrends,
   getDashboardMetrics,
   getEmployeeDetails,
+  getEmployeeInsights,
   getEmployeeSummary,
   getSentimentDistribution,
   getSentimentTrends,
@@ -64,6 +65,13 @@ router.get(
   authenticate as RequestHandler,
   authorizeRole([UserRole.COMPANY_ADMIN]),
   getTeamsPerformanceSentimentData as RequestHandler
+);
+
+router.get(
+  "/employee-dashboard-metrics",
+  authenticate as RequestHandler,
+  authorizeRole([UserRole.COMPANY_ADMIN]),
+  getEmployeeInsights as RequestHandler
 );
 
 router.get(

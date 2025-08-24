@@ -37,6 +37,14 @@ import {
 } from "../models/entities/metrics/dashboard/dashboard.team.metric.entity";
 import { DashboardCriterionMetricModel } from "../models/entities/metrics/dashboard/dashboard.criterion.metric.entity copy";
 import { TeamModel } from "../models/entities/team.entity";
+import {
+  DashboardEmployeeMetricModel,
+  IDashboardEmployeeMetric,
+} from "../models/entities/metrics/dashboard/dashboard.employee.metric.entity";
+import {
+  EmployeeMetricsDTO,
+  EmployeeScatterPoint,
+} from "../dto/employee/employee-metrics.dto";
 
 interface TeamMetricsResponse {
   teamId: string;
@@ -307,6 +315,87 @@ export class DashboardService {
       performance: dashboardMetrics?.avgOverall,
       sentiment: dashboardMetrics?.avgSentiment,
     };
+  }
+
+  async getEmployeeMetrics(
+    companyId: mongoose.Types.ObjectId
+  ): Promise<IDashboardEmployeeMetric[]> {
+    // Get employee metrics with populated employee and team data
+    const metrics = await DashboardEmployeeMetricModel.find({ companyId })
+      .select([
+        "_id",
+        "teamId",
+        "employeeId",
+        "companyId",
+        "avgOverall",
+        "avgSentiment",
+        "empathie",
+        "helderheidEnBegrijpelijkheid",
+        "klanttevredenheid",
+        "oplossingsgerichtheid",
+        "professionaliteit",
+        "responsiviteitLuistervaardigheid",
+        "reviewCount",
+        "sentimentKlant",
+        "tijdsefficientieDoelgerichtheid",
+      ])
+      .populate("employee", "name email role")
+      .populate("team", "name")
+      .lean();
+
+    // // Transform to scatter plot data
+    // const scatterData: EmployeeScatterPoint[] = metrics.map((metric) => ({
+    //   id: metric.employeeId.toString(),
+    //   name: (metric.employee as any)?.name || "Unknown",
+    //   role: (metric.employee as any)?.role || "employee",
+    //   performance: metric.avgOverall || 0,
+    //   sentiment: metric.avgSentiment || 0,
+    //   reviewCount: metric.reviewCount,
+    //   teamId: metric.teamId.toString(),
+    //   teamName: (metric.team as any)?.name || "Unknown",
+    // }));
+
+    // // Calculate performance distribution
+    // const performanceRanges = [
+    //   { range: "0-2", min: 0, max: 2 },
+    //   { range: "2-4", min: 2, max: 4 },
+    //   { range: "4-6", min: 4, max: 6 },
+    //   { range: "6-8", min: 6, max: 8 },
+    //   { range: "8-10", min: 8, max: 10 },
+    // ];
+
+    // const performanceDistribution = performanceRanges.map((range) => ({
+    //   range: range.range,
+    //   count: scatterData.filter(
+    //     (emp) => emp.performance >= range.min && emp.performance < range.max
+    //   ).length,
+    // }));
+
+    // const categorizedData: { [key: string]: EmployeeScatterPoint[] } = {
+    //   "High Performer, Positive Sentiment": [],
+    //   "High Performer, Needs Support": [],
+    //   "Developing, Positive Attitude": [],
+    //   "Needs Improvement": [],
+    // };
+
+    // scatterData.forEach((employee) => {
+    //   if (employee.performance >= 7.5 && employee.sentiment >= 7.5) {
+    //     categorizedData["High Performer, Positive Sentiment"].push(employee);
+    //   } else if (employee.performance >= 7.5 && employee.sentiment < 7.5) {
+    //     categorizedData["High Performer, Needs Support"].push(employee);
+    //   } else if (employee.performance < 7.5 && employee.sentiment >= 7.5) {
+    //     categorizedData["Developing, Positive Attitude"].push(employee);
+    //   } else {
+    //     categorizedData["Needs Improvement"].push(employee);
+    //   }
+    // });
+
+    // return {
+    //   scatterData,
+    //   performanceDistribution,
+    //   categorizedData,
+    // };
+    return metrics;
   }
 
   /**
