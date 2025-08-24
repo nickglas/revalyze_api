@@ -24,6 +24,31 @@ interface EntityContext {
   externalCompanyId?: mongoose.Types.ObjectId;
 }
 
+type CriteriaField =
+  | "empathie"
+  | "oplossingsgerichtheid"
+  | "professionaliteit"
+  | "klanttevredenheid"
+  | "sentimentKlant"
+  | "helderheidEnBegrijpelijkheid"
+  | "responsiviteitLuistervaardigheid"
+  | "tijdsefficientieDoelgerichtheid";
+
+interface TeamMetrics {
+  avgOverall: number;
+  avgSentiment: number;
+  reviewCount: number;
+  empathie: number | null;
+  oplossingsgerichtheid: number | null;
+  professionaliteit: number | null;
+  klanttevredenheid: number | null;
+  sentimentKlant: number | null;
+  helderheidEnBegrijpelijkheid: number | null;
+  responsiviteitLuistervaardigheid: number | null;
+  tijdsefficientieDoelgerichtheid: number | null;
+  [key: string]: number | null | undefined;
+}
+
 @Service()
 export class MetricsAggregationService {
   constructor(private readonly companyRepository: CompanyRepository) {}
@@ -434,11 +459,10 @@ export class MetricsAggregationService {
           metrics[fieldName] = result.avgScore || 0;
         } else {
           // Create a new entry if team not already in map
-          const metrics = {
+          const metrics: TeamMetrics = {
             avgOverall: 0,
             avgSentiment: 0,
-            reviewCount: result.reviewCount || 0,
-            // Initialize all criteria to null
+            reviewCount: 0,
             empathie: null,
             oplossingsgerichtheid: null,
             professionaliteit: null,
@@ -448,6 +472,7 @@ export class MetricsAggregationService {
             responsiviteitLuistervaardigheid: null,
             tijdsefficientieDoelgerichtheid: null,
           };
+
           metrics[fieldName] = result.avgScore || 0;
           teamMetrics.set(teamId, metrics);
         }
@@ -665,11 +690,10 @@ export class MetricsAggregationService {
                   metrics[fieldName] = result.avgScore || 0;
                 } else {
                   // Create a new entry if team not already in map
-                  const metrics = {
+                  const metrics: TeamMetrics = {
                     avgOverall: 0,
                     avgSentiment: 0,
-                    reviewCount: result.reviewCount || 0,
-                    // Initialize all criteria to null
+                    reviewCount: 0,
                     empathie: null,
                     oplossingsgerichtheid: null,
                     professionaliteit: null,
@@ -679,7 +703,7 @@ export class MetricsAggregationService {
                     responsiviteitLuistervaardigheid: null,
                     tijdsefficientieDoelgerichtheid: null,
                   };
-                  metrics[fieldName] = result.avgScore || 0;
+
                   teamMetrics.set(teamId, metrics);
                 }
               }
@@ -1007,11 +1031,10 @@ export class MetricsAggregationService {
           metrics[fieldName] = result.avgScore || 0;
         } else {
           // Create a new entry if team not already in map
-          const metrics = {
+          const metrics: TeamMetrics = {
             avgOverall: 0,
             avgSentiment: 0,
-            reviewCount: result.reviewCount || 0,
-            // Initialize all criteria to null
+            reviewCount: 0,
             empathie: null,
             oplossingsgerichtheid: null,
             professionaliteit: null,
@@ -1021,7 +1044,7 @@ export class MetricsAggregationService {
             responsiviteitLuistervaardigheid: null,
             tijdsefficientieDoelgerichtheid: null,
           };
-          metrics[fieldName] = result.avgScore || 0;
+
           teamMetrics.set(teamId, metrics);
         }
       }

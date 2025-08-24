@@ -636,8 +636,11 @@ export class SeedService {
           // Select a random employee from this team
           const teamEmployeeIds = team.users.map((u) => u.user.toString());
           const employeeUsers = users.filter((u) =>
-            teamEmployeeIds.includes(u._id.toString())
+            teamEmployeeIds.includes(
+              (u._id as mongoose.Types.ObjectId).toString()
+            )
           );
+
           const employee = faker.helpers.arrayElement(employeeUsers);
 
           // Create a contact
